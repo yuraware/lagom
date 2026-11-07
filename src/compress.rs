@@ -3,6 +3,8 @@
 //! Rules: never hide failures, keep exact text of what survives, and report
 //! anything dropped so the caller can store the original for `lagom recall`.
 
+mod search;
+
 /// Output budget. Failed commands get double, so errors are never squeezed out.
 #[derive(Clone, Copy, Debug)]
 pub struct Limits {
@@ -68,6 +70,17 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
 
     let cleaned = strip_ansi(raw);
     let lines = normalize_lines(&cleaned);
+    if let Some(grouped) = search::compress(&lines, limits) {
+        let mut text = grouped.join("\n");
+        if raw.ends_with('\n') {
+            text.push('\n');
+        }
+        return Compressed {
+            text,
+            lossy: true,
+            errors_despite_success,
+        };
+    }
     let lines = collapse_repeats(lines, &mut lossy);
     let lines: Vec<String> = lines
         .into_iter()
@@ -111,7 +124,8 @@ pub fn is_error_line(line: &str) -> bool {
 
 /// True if `text` already went through Lagom: it carries one of the markers the
 /// compressor writes (`… [N lines omitted]`, `… [N similar lines]`, `  [×N]`,
-/// `…[+N chars]`) or `lagom run`'s recall footer.
+/// `…[+N chars]`, the search summary's `  … +N more` and `N more files:`) or
+/// `lagom run`'s recall footer.
 pub fn is_compressed(text: &str) -> bool {
     text.lines().any(|line| {
         let line = line.trim_end();
@@ -123,7 +137,11 @@ pub fn is_compressed(text: &str) -> bool {
                 .and_then(|r| r.strip_suffix(end))
                 .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
         };
-        if bracket("… [", " lines omitted]") || bracket("… [", " similar lines]") {
+        if bracket("… [", " lines omitted]")
+            || bracket("… [", " similar lines]")
+            || bracket("  … +", " more")
+            || bracket("", " more files:")
+        {
             return true;
         }
         let tail = |marker: &str, end: &str| {
@@ -445,6 +463,11 @@ mod tests {
         }
         assert!(is_compressed("ok  [×3]"));
         assert!(is_compressed("x …[+12 chars]"));
+        assert!(
+            is_compressed("a.rs (9)\n  … +6 more"),
+            "search summary marker"
+        );
+        assert!(is_compressed("x (1)\n12 more files:\n  d/: a (1)"));
     }
 
     #[test]
@@ -457,7 +480,16 @@ mod tests {
         let start = std::time::Instant::now();
         let c = compress(&raw, false, Limits::default());
         assert!(c.lossy);
-        assert!(c.text.contains("src/mod_0.rs:0:"));
+        assert!(
+            c.text.contains("src/mod_0.rs (1)"),
+            "search results are grouped by file"
+        );
+        // The same shape outside search format (stack-trace style) takes the general path.
+        let trace: String = (0..100_000)
+            .map(|i| format!("  at src/mod_{i}.rs:{i} in handler_{i}\n"))
+            .collect();
+        let c = compress(&trace, false, Limits::default());
+        assert!(c.lossy && c.text.contains("at src/mod_0.rs:0 in handler_0"));
         assert!(
             start.elapsed() < std::time::Duration::from_secs(5),
             "{:?}",

@@ -123,6 +123,28 @@ fn read_styles_config(path: &Path) -> Option<Vec<String>> {
     )
 }
 
+fn read_config_bool(path: &Path, key: &str) -> Option<bool> {
+    let v: serde_json::Value = serde_json::from_str(&fs::read_to_string(path).ok()?).ok()?;
+    v.get(key)?.as_bool()
+}
+
+/// Whether the pre-tool hook may rewrite commands to `lagom run`. Off with
+/// `LAGOM_REWRITE=off` (or `0`/`false`), or `"rewrite": false` in the project's
+/// `.lagom/config.json` or the user's `config.json`. Turning it off is always safe,
+/// so a project file needs no trust for this key.
+pub fn rewrite_enabled(cwd: &Path) -> bool {
+    if let Ok(v) = std::env::var("LAGOM_REWRITE") {
+        return !matches!(
+            v.trim().to_ascii_lowercase().as_str(),
+            "0" | "off" | "false" | "no"
+        );
+    }
+    find_project_file(cwd, "config.json")
+        .and_then(|p| read_config_bool(&p, "rewrite"))
+        .or_else(|| read_config_bool(&config_dir().join("config.json"), "rewrite"))
+        .unwrap_or(true)
+}
+
 /// Active style names. An empty list means "off".
 pub fn active(cwd: &Path) -> Vec<String> {
     if let Ok(env) = std::env::var("LAGOM_STYLES") {

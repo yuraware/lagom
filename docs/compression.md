@@ -20,7 +20,16 @@ A pre-tool hook turns a simple command such as `git log --stat` into `lagom run 
     - Claude Code checks deny rules against the rewritten command, so Lagom must see every deny rule itself. It doesn't rewrite when an organization policy it can't read may apply (a macOS MDM profile, or Windows). Server-managed settings from the claude.ai admin console can't be detected locally: if your organization uses them, set `LAGOM_DISABLE=1` or keep rewriting off.
   - **Codex:** Codex re-checks approval and its sandbox on the rewritten command. Commands you approved earlier by prefix may be asked about once more.
 
-To keep one command uncompressed, put an environment assignment in front: `LAGOM_RAW=1 git log`.
+## Escape hatches
+
+| To skip compression for | Do this |
+|---|---|
+| One command | `LAGOM_RAW=1 git log` or `command git log` (anything not starting with a known program is left alone) |
+| One project | `{"rewrite": false}` in the project's `.lagom/config.json` |
+| You, everywhere | `{"rewrite": false}` in `~/.config/lagom/config.json`, or `LAGOM_REWRITE=off` in your shell |
+| All hooks, including styles | `LAGOM_DISABLE=1` |
+
+`LAGOM_REWRITE=on` overrides a config file that turned rewriting off. Commands you run by hand with `lagom run` are always compressed.
 
 ## By hand
 

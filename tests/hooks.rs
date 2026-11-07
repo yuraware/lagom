@@ -68,6 +68,7 @@ fn hook_contract_fixtures() {
             .env_remove("LAGOM_HOME")
             .env_remove("LAGOM_STYLES")
             .env_remove("LAGOM_DISABLE")
+            .env_remove("LAGOM_REWRITE")
             .current_dir(&home)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

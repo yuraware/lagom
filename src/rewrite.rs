@@ -120,6 +120,9 @@ mod tests {
             "npm test > out.txt",
             "echo hi",
             "FOO=1 cargo test",
+            "LAGOM_RAW=1 git log", // documented escape hatch
+            "command git log",     // documented escape hatch
+            "env git log",
             "./script.sh",
             "git log $(git rev-parse HEAD)",
             "lagom run -- git status",

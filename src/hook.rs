@@ -220,7 +220,7 @@ fn pre_tool(agent: Agent, payload: &Value, cwd: &Path, bin: &str) -> Option<Valu
         return None;
     }
     let command = input.get("command")?.as_str()?;
-    if command.len() > MAX_COMMAND {
+    if command.len() > MAX_COMMAND || !style::rewrite_enabled(cwd) {
         return None;
     }
     let rewritten = rewrite::rewrite(command, bin)?;

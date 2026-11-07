@@ -1,6 +1,6 @@
 //! Command-line interface shared by the `lagom` binary and its `lgm` alias.
 
-use std::io::{Read, Write};
+use std::io::{IsTerminal, Read, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
@@ -11,7 +11,8 @@ const HELP: &str = "lagom — fewer tokens, simpler answers for coding agents
 
 Usage:
   lagom install [claude|codex|cursor ...]   Install hooks and skills (default: every agent found)
-  lagom uninstall [claude|codex|cursor ...] Remove Lagom's hooks and skills
+                [--dry-run] [--yes]         Show changes only / don't ask for confirmation
+  lagom uninstall [claude|codex|cursor ...] Remove Lagom's hooks and skills [--dry-run]
   lagom status                              Show what is installed and which styles are active
   lagom style                               Show active styles
   lagom style list                          List built-in, user and project styles
@@ -115,8 +116,20 @@ fn parse_agents(names: &[String], only_present: bool) -> Result<Vec<Agent>, Stri
         .collect()
 }
 
-fn cmd_install(names: &[String], installing: bool) -> ExitCode {
-    let agents = match parse_agents(names, installing) {
+fn cmd_install(args: &[String], installing: bool) -> ExitCode {
+    let (mut dry_run, mut yes, mut names) = (false, false, Vec::new());
+    for a in args {
+        match a.as_str() {
+            "--dry-run" | "-n" => dry_run = true,
+            "--yes" | "-y" => yes = true,
+            s if s.starts_with('-') => {
+                eprintln!("lagom: unknown option `{s}` (use --dry-run or --yes)");
+                return ExitCode::from(2);
+            }
+            _ => names.push(a.clone()),
+        }
+    }
+    let agents = match parse_agents(&names, installing) {
         Ok(a) if a.is_empty() => {
             eprintln!(
                 "lagom: no Claude Code, Codex or Cursor config found; name an agent, e.g. `lagom install claude`"
@@ -129,28 +142,65 @@ fn cmd_install(names: &[String], installing: bool) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    if installing && !dry_run && !yes && std::io::stdin().is_terminal() {
+        let list: Vec<&str> = agents.iter().map(|a| a.name()).collect();
+        print!(
+            "Install Lagom hooks and skills into {}? [Y/n] ",
+            list.join(", ")
+        );
+        let _ = std::io::stdout().flush();
+        let mut answer = String::new();
+        let _ = std::io::stdin().read_line(&mut answer);
+        if answer.trim().to_lowercase().starts_with('n') {
+            println!("Cancelled. Nothing was changed.");
+            return ExitCode::from(1);
+        }
+    }
+
     let bin = hook::lagom_bin();
-    let mut failed = false;
-    for agent in agents {
+    let mut summary: Vec<(Agent, String)> = Vec::new();
+    for agent in agents.iter().copied() {
         let result = if installing {
-            install::install(agent, &bin)
+            install::install(agent, &bin, dry_run)
         } else {
-            install::uninstall(agent)
+            install::uninstall(agent, dry_run)
         };
-        match result {
-            Ok(notes) => {
+        let state = match result {
+            Ok(out) => {
                 println!("{}:", agent.name());
-                for n in notes {
+                for n in &out.notes {
                     println!("  {n}");
                 }
+                match (installing, dry_run, out.changed) {
+                    (_, _, false) if installing => "already up to date",
+                    (_, _, false) => "nothing to remove",
+                    (true, true, true) => "would install",
+                    (true, false, true) => "installed",
+                    (false, true, true) => "would remove",
+                    (false, false, true) => "removed",
+                }
+                .to_string()
             }
-            Err(e) => {
-                eprintln!("{}: {e}", agent.name());
-                failed = true;
+            Err(e) => format!("failed: {e}"),
+        };
+        summary.push((agent, state));
+    }
+    if names.is_empty() && installing {
+        for agent in [Agent::Claude, Agent::Codex, Agent::Cursor] {
+            if !agents.contains(&agent) {
+                summary.push((agent, "skipped (not found)".into()));
             }
         }
     }
-    if installing && !failed {
+
+    println!("\nSummary:");
+    for (agent, state) in &summary {
+        println!("  {:<7} {state}", agent.name());
+    }
+    let failed = summary.iter().any(|(_, s)| s.starts_with("failed"));
+    if dry_run {
+        println!("Dry run: nothing was changed.");
+    } else if installing && !failed {
         println!("Restart the agent (or start a new session) to load Lagom.");
     }
     if failed {

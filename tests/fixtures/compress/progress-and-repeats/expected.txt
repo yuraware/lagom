@@ -1,0 +1,5 @@
+Downloading model.bin [####################] 100%
+Download complete: 104857600 bytes
+npm WARN deprecated inflight@1.0.6: This module is not supported  [×200]
+npm ERR! code ERESOLVE
+npm ERR! unable to resolve dependency tree

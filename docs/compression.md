@@ -6,7 +6,7 @@ Long command output (tests, builds, `git log`, searches) is shortened before the
 - Exact repeats become one line with a count (`[×37]`); runs of lines that differ only in numbers keep their first and last line.
 - The start and end are kept, and **every error, warning and `file:line` line is kept**. Failed commands get double the budget.
 - Exit codes are unchanged.
-- Anything dropped stays available: the output ends with `[lagom: N → M lines; full output: lagom recall <id>]`.
+- Anything dropped stays available: the output ends with `[lagom: N → M lines; full output: lagom recall <id> (or part: --grep TEXT, --lines A-B)]`. `lagom recall <id> --grep error` prints only matching lines with their line numbers; `--lines 120-160`, `--head N` and `--tail N` print a slice.
 
 ## Automatic: command rewrite
 

@@ -46,13 +46,21 @@ const MAX_PAYLOAD: u64 = 8 * 1024 * 1024;
 /// Longest shell command we consider rewriting.
 const MAX_COMMAND: usize = 64 * 1024;
 
+/// Longest a hook may take. Agents wait for hooks (we register a 10 s timeout);
+/// Lagom gives up well before that and lets the agent continue unchanged.
+const HOOK_DEADLINE: std::time::Duration = std::time::Duration::from_secs(2);
+
 /// Entry point used by `main`. Always exits successfully.
 pub fn run(agent: &str, event: &str) {
-    let payload = read_payload(std::io::stdin().lock());
-    let response = payload
-        .as_ref()
-        .zip(Agent::parse(agent))
-        .and_then(|(p, a)| respond(a, event, p, &lagom_bin()));
+    let (agent_name, event) = (agent.to_string(), event.to_string());
+    let response = with_deadline(HOOK_DEADLINE, move || {
+        let payload = read_payload(std::io::stdin().lock());
+        payload
+            .as_ref()
+            .zip(Agent::parse(&agent_name))
+            .and_then(|(p, a)| respond(a, &event, p, &lagom_bin()))
+    })
+    .flatten();
     match (response, Agent::parse(agent)) {
         (Some(out), _) => println!("{out}"),
         (None, Some(Agent::Cursor)) => println!("{{}}"),
@@ -60,7 +68,19 @@ pub fn run(agent: &str, event: &str) {
     }
 }
 
-/// Path written into hooks: [`choose_bin`] for the running process.
+/// Run `work` on a thread and wait at most `deadline`. `None` on timeout or panic;
+/// the unfinished thread is abandoned (the process exits right after the hook prints).
+fn with_deadline<T: Send + 'static>(
+    deadline: std::time::Duration,
+    work: impl FnOnce() -> T + Send + 'static,
+) -> Option<T> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(work());
+    });
+    rx.recv_timeout(deadline).ok()
+}
+
 /// Parse a hook payload: a JSON object of at most [`MAX_PAYLOAD`] bytes, else `None`.
 fn read_payload(input: impl Read) -> Option<Value> {
     let mut bytes = Vec::new();
@@ -73,6 +93,7 @@ fn read_payload(input: impl Read) -> Option<Value> {
         .filter(Value::is_object)
 }
 
+/// Path written into hooks: [`choose_bin`] for the running process.
 pub fn lagom_bin() -> String {
     let exe = std::env::current_exe().ok();
     let argv0 = std::env::args_os().next().map(PathBuf::from);
@@ -523,6 +544,27 @@ fn glob_matches(pattern: &str, text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn slow_hook_work_is_abandoned_at_the_deadline() {
+        use std::time::{Duration, Instant};
+        let start = Instant::now();
+        let out = with_deadline(Duration::from_millis(100), || {
+            std::thread::sleep(Duration::from_secs(5));
+            1
+        });
+        assert_eq!(out, None);
+        assert!(
+            start.elapsed() < Duration::from_secs(1),
+            "{:?}",
+            start.elapsed()
+        );
+        assert_eq!(with_deadline(Duration::from_secs(1), || 7), Some(7));
+        assert_eq!(
+            with_deadline(Duration::from_secs(1), || -> i32 { panic!("boom") }),
+            None
+        );
+    }
 
     #[test]
     fn payload_limits() {

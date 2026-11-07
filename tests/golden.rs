@@ -35,6 +35,9 @@ fn compressor_golden_fixtures() {
             serde_json::from_str(&fs::read_to_string(case.join("meta.json")).unwrap()).unwrap();
         let failed = meta["exit_code"].as_i64().unwrap_or(0) != 0;
         let out = compress(&input, failed, Limits::default()).text;
+        if compress(&out, failed, Limits::default()).text != out {
+            failures.push(format!("{name}: compressing the output again changed it"));
+        }
 
         for keep in meta["must_keep"].as_array().into_iter().flatten() {
             let keep = keep.as_str().unwrap();

@@ -46,6 +46,13 @@ pub struct Compressed {
 
 /// Compress raw command output. `failed` means a non-zero exit code.
 pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
+    if is_compressed(raw) {
+        // Compressing twice must change nothing (and must not drop more lines).
+        return Compressed {
+            text: raw.to_string(),
+            lossy: false,
+        };
+    }
     let limits = if failed { limits.for_failure() } else { limits };
     let mut lossy = false;
 
@@ -63,6 +70,34 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
         text.push('\n');
     }
     Compressed { text, lossy }
+}
+
+/// True if `text` already went through Lagom: it carries one of the markers the
+/// compressor writes (`… [N lines omitted]`, `… [N similar lines]`, `  [×N]`,
+/// `…[+N chars]`) or `lagom run`'s recall footer.
+pub fn is_compressed(text: &str) -> bool {
+    text.lines().any(|line| {
+        let line = line.trim_end();
+        if line.starts_with("[lagom: ") && line.contains("lagom recall ") {
+            return true;
+        }
+        let bracket = |start: &str, end: &str| {
+            line.strip_prefix(start)
+                .and_then(|r| r.strip_suffix(end))
+                .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+        };
+        if bracket("… [", " lines omitted]") || bracket("… [", " similar lines]") {
+            return true;
+        }
+        let tail = |marker: &str, end: &str| {
+            line.rfind(marker).is_some_and(|i| {
+                let n = &line[i + marker.len()..];
+                n.strip_suffix(end)
+                    .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+            })
+        };
+        tail("  [×", "]") || tail(" …[+", " chars]")
+    })
 }
 
 /// Remove ANSI escape sequences (colors, cursor moves, OSC titles/links).
@@ -282,6 +317,40 @@ fn keep_head_tail_important(lines: Vec<String>, limits: Limits, lossy: &mut bool
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn compressing_twice_changes_nothing() {
+        let raw: String = (0..500)
+            .map(|i| format!("row {i} value {}\n", i * 7 % 13))
+            .chain(["src/app.rs:9: error: boom\n".to_string()])
+            .collect();
+        let once = compress(&raw, true, Limits::default());
+        assert!(once.lossy && is_compressed(&once.text));
+        let twice = compress(&once.text, true, Limits::default());
+        assert_eq!(twice.text, once.text);
+        assert!(!twice.lossy);
+        // With `lagom run`'s footer too.
+        let footed = format!(
+            "{}[lagom: 501 → 90 lines; full output: lagom recall 3fa9c01d2e]\n",
+            once.text
+        );
+        assert_eq!(compress(&footed, false, Limits::default()).text, footed);
+    }
+
+    #[test]
+    fn plain_output_is_not_mistaken_for_compressed() {
+        for line in [
+            "… [many lines omitted]",
+            "price [×]",
+            "see lagom recall docs",
+            "[lagom: notes]",
+            "ok  [×3] extra",
+        ] {
+            assert!(!is_compressed(line), "{line}");
+        }
+        assert!(is_compressed("ok  [×3]"));
+        assert!(is_compressed("x …[+12 chars]"));
+    }
 
     #[test]
     fn many_similar_important_lines_stay_linear() {

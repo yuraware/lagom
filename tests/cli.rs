@@ -487,3 +487,57 @@ fn install_dry_run_changes_nothing_and_summarizes() {
         "{}"
     );
 }
+
+#[test]
+fn uninstall_all_purge_removes_everything_but_backups() {
+    let home = sandbox("purge");
+    fs::create_dir_all(home.join(".claude")).unwrap();
+    fs::write(home.join(".claude/settings.json"), r#"{"model":"opus"}"#).unwrap();
+    assert!(lagom(&home, &["install", "--yes"], None).status.success());
+    lagom(&home, &["style", "use", "terse"], None);
+    lagom(&home, &["run", "--", "echo", "hi"], None);
+    assert!(home.join(".lagom").exists() && home.join(".config/lagom").exists());
+
+    // Without --yes and without a terminal, purge refuses and deletes nothing.
+    let out = lagom(&home, &["uninstall", "--all", "--purge"], None);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(home.join(".lagom").exists());
+
+    let s = text(&lagom(
+        &home,
+        &["uninstall", "--all", "--purge", "--dry-run"],
+        None,
+    ));
+    assert!(s.contains("purge: would delete"), "{s}");
+    assert!(home.join(".lagom").exists());
+
+    let out = lagom(&home, &["uninstall", "--all", "--purge", "--yes"], None);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let s = text(&out);
+    assert!(s.contains("To remove the program itself: rm "), "{s}");
+    assert!(!home.join(".lagom").exists());
+    assert!(!home.join(".config/lagom").exists());
+    assert!(!home.join(".claude/skills/lagom").exists());
+    assert!(home.join(".claude/settings.json.lagom.bak").exists());
+    let settings = fs::read_to_string(home.join(".claude/settings.json")).unwrap();
+    assert!(!settings.contains("hook claude"), "{settings}");
+}
+
+#[test]
+fn purge_refuses_unsafe_lagom_home() {
+    let home = sandbox("purge-unsafe");
+    let out = Command::new(env!("CARGO_BIN_EXE_lagom"))
+        .args(["uninstall", "--purge", "--yes"])
+        .env("HOME", &home)
+        .env("LAGOM_HOME", &home)
+        .env("XDG_CONFIG_HOME", home.join("cfg"))
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("refusing to delete"));
+    assert!(home.exists());
+}

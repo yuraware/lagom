@@ -24,7 +24,7 @@ Then start a new agent session.
 `lgm` is a short alias: `lgm <command>` does exactly what `lagom <command>` does. (If you already have the unrelated `lgm` crate installed, use `cargo install lagom --bin lagom`.)
 
 - **Codex:** hooks stay inactive until you trust them. Open Codex, run `/hooks`, and approve the two `lagom hook codex …` entries.
-- **Undo:** `lagom uninstall` removes only Lagom's hooks and skills. Before its first change to a settings file, Lagom saves a copy next to it as `<file>.lagom.bak`.
+- **Undo:** `lagom uninstall` removes only Lagom's hooks and skills. `lagom uninstall --all --purge` also deletes Lagom's data and config and tells you how to remove the binary. Before its first change to a settings file, Lagom saves a copy next to it as `<file>.lagom.bak`.
 
 | Agent | Hooks file | Skills | Session start | Subagents | Command rewrite |
 |---|---|---|---|---|---|

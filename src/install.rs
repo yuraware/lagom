@@ -431,6 +431,62 @@ pub fn uninstall(agent: Agent, dry_run: bool) -> Result<Outcome, String> {
     Ok(out)
 }
 
+/// Folders `--purge` deletes: Lagom's data (`~/.lagom`) and config (`~/.config/lagom`).
+pub fn purge_targets() -> Vec<PathBuf> {
+    vec![crate::store::lagom_dir(), crate::style::config_dir()]
+}
+
+/// Delete Lagom's data and config folders. Refuses folders that look unsafe to delete
+/// (the home folder, an ancestor of it, or a filesystem root), e.g. a bad `LAGOM_HOME`.
+pub fn purge(dry_run: bool) -> Result<Vec<String>, String> {
+    let home = home_dir();
+    let mut notes = Vec::new();
+    for dir in purge_targets() {
+        if !dir.exists() {
+            continue;
+        }
+        let shallow = dir.components().count() < 3;
+        if shallow || home.starts_with(&dir) {
+            return Err(format!(
+                "refusing to delete {}: not a Lagom folder",
+                dir.display()
+            ));
+        }
+        if dry_run {
+            notes.push(format!("would delete {}", dir.display()));
+        } else {
+            fs::remove_dir_all(&dir)
+                .map_err(|e| format!("cannot delete {}: {e}", dir.display()))?;
+            notes.push(format!("deleted {}", dir.display()));
+        }
+    }
+    Ok(notes)
+}
+
+/// The command that removes the binary itself, guessed from where it lives.
+pub fn removal_hint(exe: &Path) -> String {
+    let has = |part: &str| exe.components().any(|c| c.as_os_str() == part);
+    let dir = exe.parent().unwrap_or(Path::new("."));
+    if has("Cellar") || exe.starts_with("/opt/homebrew") || exe.starts_with("/home/linuxbrew") {
+        "brew uninstall lagom".into()
+    } else if has(".cargo") {
+        "cargo uninstall lagom".into()
+    } else if has("pipx") {
+        "pipx uninstall lagom-ai".into()
+    } else if has("site-packages") || exe.to_string_lossy().contains("/.local/share/uv/") {
+        "pip uninstall lagom-ai (or: uv tool uninstall lagom-ai)".into()
+    } else if cfg!(windows) && has("WinGet") {
+        "winget uninstall yuraware.lagom".into()
+    } else {
+        let ext = std::env::consts::EXE_SUFFIX;
+        format!(
+            "rm {} {}",
+            shell_quote(&dir.join(format!("lagom{ext}")).to_string_lossy()),
+            shell_quote(&dir.join(format!("lgm{ext}")).to_string_lossy())
+        )
+    }
+}
+
 /// (agent, hooks installed, skills installed)
 pub fn status(agent: Agent) -> (bool, usize) {
     let t = target(agent);
@@ -454,6 +510,22 @@ pub fn status(agent: Agent) -> (bool, usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn removal_hint_matches_install_method() {
+        let hint = |p: &str| removal_hint(Path::new(p));
+        assert_eq!(
+            hint("/opt/homebrew/Cellar/lagom/0.1.0/bin/lagom"),
+            "brew uninstall lagom"
+        );
+        assert_eq!(hint("/opt/homebrew/bin/lagom"), "brew uninstall lagom");
+        assert_eq!(hint("/home/a/.cargo/bin/lagom"), "cargo uninstall lagom");
+        assert_eq!(
+            hint("/home/a/.local/share/pipx/venvs/lagom-ai/bin/lagom"),
+            "pipx uninstall lagom-ai"
+        );
+        assert!(hint("/home/a/.local/bin/lagom").starts_with("rm /home/a/.local/bin/lagom"));
+    }
 
     const BIN: &str = "/opt/lagom/bin/lagom";
 

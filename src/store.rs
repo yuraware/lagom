@@ -4,7 +4,7 @@
 
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const MAX_RECALL_FILES: usize = 500;
@@ -38,10 +38,13 @@ pub fn content_id(content: &str) -> String {
 
 /// Save the full original output and return its id.
 pub fn save_original(content: &str) -> std::io::Result<String> {
+    private_dir(&lagom_dir())?;
     let dir = recall_dir();
-    fs::create_dir_all(&dir)?;
+    private_dir(&dir)?;
     let id = content_id(content);
-    fs::write(dir.join(format!("{id}.log")), content)?;
+    let path = dir.join(format!("{id}.log"));
+    private_file(fs::OpenOptions::new().write(true).truncate(true), &path)?
+        .write_all(content.as_bytes())?;
     prune_recall(&dir);
     Ok(id)
 }
@@ -70,6 +73,33 @@ fn prune_recall(dir: &PathBuf) {
     }
 }
 
+/// Create `dir` readable only by the user (0700 on Unix), tightening an existing one.
+/// Recall originals hold raw command output, which can contain secrets.
+fn private_dir(dir: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(dir)?;
+    set_mode(dir, 0o700);
+    Ok(())
+}
+
+/// Open (creating if needed) a file readable only by the user (0600 on Unix).
+fn private_file(options: &mut fs::OpenOptions, path: &Path) -> std::io::Result<fs::File> {
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(options, 0o600);
+    let file = options.create(true).open(path)?;
+    set_mode(path, 0o600); // files created by older versions
+    Ok(file)
+}
+
+fn set_mode(path: &Path, mode: u32) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(path, fs::Permissions::from_mode(mode));
+    }
+    #[cfg(not(unix))]
+    let _ = (path, mode);
+}
+
 fn now_secs() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -83,14 +113,13 @@ pub fn record(mut event: serde_json::Value) {
         obj.insert("ts".into(), now_secs().into());
     }
     let dir = lagom_dir();
-    if fs::create_dir_all(&dir).is_err() {
+    if private_dir(&dir).is_err() {
         return;
     }
-    if let Ok(mut file) = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(dir.join("stats.jsonl"))
-    {
+    if let Ok(mut file) = private_file(
+        fs::OpenOptions::new().append(true),
+        &dir.join("stats.jsonl"),
+    ) {
         let _ = writeln!(file, "{event}");
     }
 }

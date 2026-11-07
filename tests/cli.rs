@@ -110,6 +110,22 @@ fn install_and_uninstall_round_trip_for_all_agents() {
     assert!(!home.join(".claude/skills/lagom").exists());
 }
 
+#[cfg(unix)]
+#[test]
+fn install_keeps_settings_file_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+    let home = sandbox("perms");
+    fs::create_dir_all(home.join(".claude")).unwrap();
+    let settings = home.join(".claude/settings.json");
+    fs::write(&settings, "{}").unwrap();
+    fs::set_permissions(&settings, fs::Permissions::from_mode(0o600)).unwrap();
+    assert!(lagom(&home, &["install", "claude"], None).status.success());
+    assert_eq!(
+        fs::metadata(&settings).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+}
+
 #[test]
 fn install_refuses_invalid_json() {
     let home = sandbox("badjson");
@@ -303,6 +319,16 @@ fn run_compresses_keeps_exit_code_and_recall_works() {
         stats.contains("commands run through lagom: 1 (1 compressed)"),
         "{stats}"
     );
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = |p: PathBuf| fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(home.join(".lagom")), 0o700);
+        assert_eq!(mode(home.join(".lagom/recall")), 0o700);
+        assert_eq!(mode(home.join(".lagom/stats.jsonl")), 0o600);
+        assert_eq!(mode(home.join(format!(".lagom/recall/{id}.log"))), 0o600);
+    }
 
     let missing = lagom(&home, &["run", "--", "definitely-not-a-command-xyz"], None);
     assert_eq!(missing.status.code(), Some(127));

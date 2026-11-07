@@ -1,0 +1,347 @@
+//! End-to-end tests of the `lagom` binary against a throwaway HOME.
+
+use std::fs;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output, Stdio};
+
+use serde_json::{Value, json};
+
+fn sandbox(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("lagom-test-{name}-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+fn lagom(home: &Path, args: &[&str], stdin: Option<&str>) -> Output {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_lagom"));
+    cmd.args(args)
+        .env("HOME", home)
+        .env_remove("CLAUDE_CONFIG_DIR")
+        .env_remove("CODEX_HOME")
+        .env_remove("XDG_CONFIG_HOME")
+        .env_remove("LAGOM_HOME")
+        .env_remove("LAGOM_STYLES")
+        .env_remove("LAGOM_DISABLE")
+        .current_dir(home)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = cmd.spawn().unwrap();
+    if let Some(input) = stdin {
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(input.as_bytes())
+            .unwrap();
+    }
+    drop(child.stdin.take());
+    child.wait_with_output().unwrap()
+}
+
+fn text(o: &Output) -> String {
+    String::from_utf8_lossy(&o.stdout).into_owned()
+}
+
+#[test]
+fn install_and_uninstall_round_trip_for_all_agents() {
+    let home = sandbox("install");
+    for dir in [".claude", ".codex", ".cursor"] {
+        fs::create_dir_all(home.join(dir)).unwrap();
+    }
+    let claude_settings = json!({"model": "opus", "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "keep-me"}]}]}});
+    fs::write(
+        home.join(".claude/settings.json"),
+        claude_settings.to_string(),
+    )
+    .unwrap();
+
+    let out = lagom(&home, &["install"], None);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let settings: Value =
+        serde_json::from_str(&fs::read_to_string(home.join(".claude/settings.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        settings["hooks"]["Stop"][0]["hooks"][0]["command"],
+        "keep-me"
+    );
+    assert!(
+        settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+            .as_str()
+            .unwrap()
+            .ends_with("hook claude pre-tool")
+    );
+    assert!(home.join(".claude/settings.json.lagom.bak").exists());
+    assert!(home.join(".claude/skills/lagom/SKILL.md").exists());
+    assert!(home.join(".agents/skills/lagom-run/SKILL.md").exists());
+    assert!(home.join(".cursor/skills/lagom-review/SKILL.md").exists());
+    let cursor: Value =
+        serde_json::from_str(&fs::read_to_string(home.join(".cursor/hooks.json")).unwrap())
+            .unwrap();
+    assert_eq!(cursor["version"], 1);
+    let codex_before = fs::read_to_string(home.join(".codex/hooks.json")).unwrap();
+
+    // Re-install changes nothing (Codex trust depends on byte-identical entries).
+    let again = lagom(&home, &["install"], None);
+    assert!(text(&again).contains("already up to date"));
+    assert_eq!(
+        fs::read_to_string(home.join(".codex/hooks.json")).unwrap(),
+        codex_before
+    );
+
+    let status = text(&lagom(&home, &["status"], None));
+    assert!(status.contains("claude  hooks: yes"), "{status}");
+
+    let out = lagom(&home, &["uninstall"], None);
+    assert!(out.status.success());
+    let settings: Value =
+        serde_json::from_str(&fs::read_to_string(home.join(".claude/settings.json")).unwrap())
+            .unwrap();
+    assert_eq!(settings, claude_settings);
+    assert!(!home.join(".cursor/hooks.json").exists());
+    assert!(!home.join(".codex/hooks.json").exists());
+    assert!(!home.join(".claude/skills/lagom").exists());
+}
+
+#[test]
+fn install_refuses_invalid_json() {
+    let home = sandbox("badjson");
+    fs::create_dir_all(home.join(".claude")).unwrap();
+    fs::write(home.join(".claude/settings.json"), "{ not json").unwrap();
+    let out = lagom(&home, &["install", "claude"], None);
+    assert!(!out.status.success());
+    assert_eq!(
+        fs::read_to_string(home.join(".claude/settings.json")).unwrap(),
+        "{ not json"
+    );
+}
+
+#[test]
+fn user_skill_with_same_name_is_not_overwritten() {
+    let home = sandbox("skillclash");
+    fs::create_dir_all(home.join(".claude/skills/lagom")).unwrap();
+    fs::write(home.join(".claude/skills/lagom/SKILL.md"), "mine").unwrap();
+    let out = lagom(&home, &["install", "claude"], None);
+    assert!(text(&out).contains("skipped skill lagom"));
+    assert_eq!(
+        fs::read_to_string(home.join(".claude/skills/lagom/SKILL.md")).unwrap(),
+        "mine"
+    );
+    lagom(&home, &["uninstall", "claude"], None);
+    assert!(home.join(".claude/skills/lagom/SKILL.md").exists());
+}
+
+#[test]
+fn session_start_injects_styles_and_respects_off() {
+    let home = sandbox("styles");
+    let payload = json!({"hook_event_name": "SessionStart", "cwd": home}).to_string();
+    let out: Value = serde_json::from_str(&text(&lagom(
+        &home,
+        &["hook", "claude", "session-start"],
+        Some(&payload),
+    )))
+    .unwrap();
+    let ctx = out["hookSpecificOutput"]["additionalContext"]
+        .as_str()
+        .unwrap();
+    assert!(ctx.contains("lagom: terse") && ctx.contains("lagom: lean-code"));
+
+    let cursor: Value = serde_json::from_str(&text(&lagom(
+        &home,
+        &["hook", "cursor", "session-start"],
+        Some(&payload),
+    )))
+    .unwrap();
+    assert!(
+        cursor["additional_context"]
+            .as_str()
+            .unwrap()
+            .contains("lagom: terse")
+    );
+
+    // Project style overrides, custom style, then off.
+    fs::create_dir_all(home.join(".lagom/styles")).unwrap();
+    fs::write(
+        home.join(".lagom/styles/pirate.md"),
+        "---\nname: pirate\ndescription: arr\n---\nTalk like a pirate.\n",
+    )
+    .unwrap();
+    assert!(
+        lagom(&home, &["style", "use", "--project", "pirate"], None)
+            .status
+            .success()
+    );
+    let ctx = text(&lagom(
+        &home,
+        &["hook", "codex", "session-start"],
+        Some(&payload),
+    ));
+    assert!(ctx.contains("Talk like a pirate.") && !ctx.contains("lagom: terse"));
+
+    lagom(&home, &["style", "use", "--project", "off"], None);
+    assert_eq!(
+        text(&lagom(
+            &home,
+            &["hook", "claude", "session-start"],
+            Some(&payload)
+        )),
+        ""
+    );
+    assert!(
+        lagom(&home, &["style", "use", "no-such-style"], None)
+            .status
+            .code()
+            == Some(1)
+    );
+}
+
+#[test]
+fn claude_rewrite_requires_users_allow_rule() {
+    let home = sandbox("perm");
+    fs::create_dir_all(home.join(".claude")).unwrap();
+    let payload = |cmd: &str, mode: &str| {
+        json!({"tool_name": "Bash", "cwd": home, "permission_mode": mode, "tool_input": {"command": cmd, "description": "d"}})
+            .to_string()
+    };
+    // No rules, default mode: untouched.
+    assert_eq!(
+        text(&lagom(
+            &home,
+            &["hook", "claude", "pre-tool"],
+            Some(&payload("git log", "default"))
+        )),
+        ""
+    );
+    // Bypass mode: rewritten without granting permission.
+    let out: Value = serde_json::from_str(&text(&lagom(
+        &home,
+        &["hook", "claude", "pre-tool"],
+        Some(&payload("git log", "bypassPermissions")),
+    )))
+    .unwrap();
+    assert!(
+        out["hookSpecificOutput"]
+            .get("permissionDecision")
+            .is_none()
+    );
+    assert_eq!(
+        out["hookSpecificOutput"]["updatedInput"]["description"],
+        "d"
+    );
+
+    fs::write(
+        home.join(".claude/settings.json"),
+        json!({"permissions": {"allow": ["Bash(git log:*)", "Bash(git push:*)"], "deny": ["Bash(git push --force:*)"]}}).to_string(),
+    )
+    .unwrap();
+    let out: Value = serde_json::from_str(&text(&lagom(
+        &home,
+        &["hook", "claude", "pre-tool"],
+        Some(&payload("git log -5", "default")),
+    )))
+    .unwrap();
+    assert_eq!(out["hookSpecificOutput"]["permissionDecision"], "allow");
+    assert!(
+        out["hookSpecificOutput"]["updatedInput"]["command"]
+            .as_str()
+            .unwrap()
+            .ends_with("run -- git log -5")
+    );
+    // Deny wins even in bypass mode.
+    assert_eq!(
+        text(&lagom(
+            &home,
+            &["hook", "claude", "pre-tool"],
+            Some(&payload("git push --force origin", "bypassPermissions"))
+        )),
+        ""
+    );
+    // Cursor without an allow rule: `{}` (no change).
+    assert_eq!(
+        text(&lagom(
+            &home,
+            &["hook", "cursor", "pre-tool"],
+            Some(&payload("git log", "default"))
+        ))
+        .trim(),
+        "{}"
+    );
+}
+
+#[test]
+fn run_compresses_keeps_exit_code_and_recall_works() {
+    let home = sandbox("run");
+    let script = "for i in $(seq 1 400); do echo \"row $i value $((i * 7 % 13))\"; done; echo 'src/app.rs:9: error: boom' >&2; exit 3";
+    let out = lagom(&home, &["run", "--", "sh", "-c", script], None);
+    assert_eq!(out.status.code(), Some(3));
+    let stdout = text(&out);
+    assert!(stdout.contains("src/app.rs:9: error: boom"));
+    assert!(
+        stdout.lines().count() < 300,
+        "{} lines",
+        stdout.lines().count()
+    );
+    let id = stdout
+        .rsplit("lagom recall ")
+        .next()
+        .unwrap()
+        .trim()
+        .trim_end_matches(']')
+        .to_string();
+    let full = text(&lagom(&home, &["recall", &id], None));
+    assert_eq!(full.lines().count(), 401);
+
+    let stats = text(&lagom(&home, &["stats"], None));
+    assert!(
+        stats.contains("commands run through lagom: 1 (1 compressed)"),
+        "{stats}"
+    );
+
+    let missing = lagom(&home, &["run", "--", "definitely-not-a-command-xyz"], None);
+    assert_eq!(missing.status.code(), Some(127));
+}
+
+#[test]
+fn lgm_alias_matches_lagom_and_hooks_point_to_lagom() {
+    let home = sandbox("lgm");
+    fs::create_dir_all(home.join(".claude")).unwrap();
+    let mut alias = Command::new(env!("CARGO_BIN_EXE_lgm"));
+    alias.env("HOME", &home).env_remove("CLAUDE_CONFIG_DIR");
+    let version = alias.arg("--version").output().unwrap();
+    assert_eq!(text(&version), text(&lagom(&home, &["--version"], None)));
+
+    let out = Command::new(env!("CARGO_BIN_EXE_lgm"))
+        .args(["install", "claude"])
+        .env("HOME", &home)
+        .env_remove("CLAUDE_CONFIG_DIR")
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let settings = fs::read_to_string(home.join(".claude/settings.json")).unwrap();
+    assert!(
+        settings.contains("lagom' hook claude") || settings.contains("lagom hook claude"),
+        "{settings}"
+    );
+    assert!(!settings.contains("lgm"), "{settings}");
+
+    // Installing again under the other name changes nothing; uninstall by either name works.
+    assert!(text(&lagom(&home, &["install", "claude"], None)).contains("already up to date"));
+    assert!(
+        lagom(&home, &["uninstall", "claude"], None)
+            .status
+            .success()
+    );
+    let settings = fs::read_to_string(home.join(".claude/settings.json")).unwrap_or_default();
+    assert!(!settings.contains("hook claude"), "{settings}");
+}

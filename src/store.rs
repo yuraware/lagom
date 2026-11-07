@@ -44,12 +44,68 @@ fn recall_dir() -> PathBuf {
 
 /// Short stable id (FNV-1a) so the same output maps to the same recall entry.
 pub fn content_id(content: &str) -> String {
-    let mut hash: u64 = 0xcbf29ce484222325;
-    for b in content.as_bytes() {
+    format_id(fnv(FNV_OFFSET, content.as_bytes()))
+}
+
+const FNV_OFFSET: u64 = 0xcbf29ce484222325;
+
+fn fnv(mut hash: u64, bytes: &[u8]) -> u64 {
+    for b in bytes {
         hash ^= *b as u64;
         hash = hash.wrapping_mul(0x100000001b3);
     }
+    hash
+}
+
+fn format_id(hash: u64) -> String {
     format!("{:010x}", hash & 0xff_ffff_ffff)
+}
+
+/// Streams an original too large to keep in memory straight into the recall store.
+/// Its id is the same FNV hash `content_id` would give the whole text.
+pub struct Spill {
+    dir: PathBuf,
+    tmp: PathBuf,
+    file: fs::File,
+    hash: u64,
+}
+
+impl Spill {
+    pub fn create() -> std::io::Result<Spill> {
+        private_dir(&lagom_dir())?;
+        Spill::create_in(&recall_dir())
+    }
+
+    pub fn create_in(dir: &Path) -> std::io::Result<Spill> {
+        private_dir(dir)?;
+        let tmp = dir.join(format!(".spill-{}.tmp", std::process::id()));
+        let file = private_file(fs::OpenOptions::new().write(true).truncate(true), &tmp)?;
+        Ok(Spill {
+            dir: dir.to_path_buf(),
+            tmp,
+            file,
+            hash: FNV_OFFSET,
+        })
+    }
+
+    pub fn write(&mut self, data: &[u8]) -> std::io::Result<()> {
+        self.hash = fnv(self.hash, data);
+        self.file.write_all(data)
+    }
+
+    /// Move the file into place as `<id>.log` and return the id.
+    pub fn finish(mut self, program: &str) -> std::io::Result<String> {
+        self.file.flush()?;
+        let id = format_id(self.hash);
+        fs::rename(&self.tmp, self.dir.join(format!("{id}.log")))?;
+        let _ = private_file(
+            fs::OpenOptions::new().write(true).truncate(true),
+            &self.dir.join(format!("{id}.cmd")),
+        )
+        .and_then(|mut f| f.write_all(program.as_bytes()));
+        prune_recall(&self.dir, RecallLimits::default(), SystemTime::now());
+        Ok(id)
+    }
 }
 
 /// Save the full original output of `program` and return its id.

@@ -1,0 +1,7 @@
+{
+  "continue": true,
+  "permission": "allow",
+  "updated_input": {
+    "command": "<LAGOM> run -- git log -5"
+  }
+}

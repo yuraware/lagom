@@ -1,0 +1,8 @@
+{
+  "session_id": "0b6f1c2e-0000-4000-8000-000000000001",
+  "transcript_path": "<HOME>/.claude/projects/p/0b6f1c2e.jsonl",
+  "cwd": "<HOME>/repo",
+  "hook_event_name": "SubagentStart",
+  "agent_id": "agent_1",
+  "agent_type": "Explore"
+}

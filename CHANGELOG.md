@@ -31,4 +31,5 @@ First preview.
 - `lagom install` / `uninstall` accept `--dry-run` and `--yes`, ask once before installing in a terminal, and end with a one-line summary per agent.
 - `lagom uninstall --all --purge` removes Lagom from every agent and deletes `~/.lagom` and `~/.config/lagom` (asks first; `--yes` in scripts), then prints the command that removes the binary.
 - The compressor runs in linear time; outputs with many similar lines (search results) no longer slow it down.
+- Cursor hooks read the project folder from `workspace_roots` when the payload has no `cwd`.
 - `lgm`, a short alias binary for `lagom`. Hooks always point to `lagom`, and hooks written under either name are recognized as Lagom's own.

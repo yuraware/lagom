@@ -128,7 +128,21 @@ fn normalize_lines(s: &str) -> Vec<String> {
 /// Runs of 4+ lines that differ only in numbers (progress, counters) keep
 /// their first and last line.
 fn collapse_repeats(lines: Vec<String>, lossy: &mut bool) -> Vec<String> {
-    let mut out = Vec::with_capacity(lines.len());
+    let n = lines.len();
+    // One pass each: shapes, then where each run of same-shape lines ends. Scanning the
+    // run again from every line was quadratic on output where nothing collapses
+    // (e.g. search results: same shape, but important because of file:line).
+    let shapes: Vec<String> = lines.iter().map(|l| digit_shape(l)).collect();
+    let mut run_end = vec![0; n];
+    for i in (0..n).rev() {
+        run_end[i] = if i + 1 < n && shapes[i + 1] == shapes[i] {
+            run_end[i + 1]
+        } else {
+            i + 1
+        };
+    }
+
+    let mut out = Vec::with_capacity(n);
     let mut i = 0;
     while i < lines.len() {
         let mut j = i + 1;
@@ -142,11 +156,12 @@ fn collapse_repeats(lines: Vec<String>, lossy: &mut bool) -> Vec<String> {
             continue;
         }
 
-        let shape = digit_shape(&lines[i]);
-        let mut k = i + 1;
-        while k < lines.len() && !lines[i].is_empty() && digit_shape(&lines[k]) == shape {
-            k += 1;
-        }
+        let shape = &shapes[i];
+        let k = if lines[i].is_empty() {
+            i + 1
+        } else {
+            run_end[i]
+        };
         let similar = k - i;
         if similar >= 4 && shape.contains('#') && !is_important(&lines[i]) {
             out.push(lines[i].clone());
@@ -267,6 +282,24 @@ fn keep_head_tail_important(lines: Vec<String>, limits: Limits, lossy: &mut bool
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn many_similar_important_lines_stay_linear() {
+        // 100k search-result lines: same digit shape, all important (file:line).
+        // The old quadratic scan took minutes here; linear takes well under a second.
+        let raw: String = (0..100_000)
+            .map(|i| format!("src/mod_{i}.rs:{i}:fn handler_{i}()\n"))
+            .collect();
+        let start = std::time::Instant::now();
+        let c = compress(&raw, false, Limits::default());
+        assert!(c.lossy);
+        assert!(c.text.contains("src/mod_0.rs:0:"));
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(5),
+            "{:?}",
+            start.elapsed()
+        );
+    }
 
     #[test]
     fn short_clean_output_is_unchanged() {

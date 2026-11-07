@@ -200,6 +200,10 @@ fn write_json_atomic(path: &Path, value: &Map<String, Value>) -> Result<(), Stri
         .map_err(|e| e.to_string())?
         + "\n";
     fs::write(&tmp, text).map_err(err)?;
+    // Keep the original file's permissions (a private settings file stays private).
+    if let Ok(meta) = fs::metadata(path) {
+        fs::set_permissions(&tmp, meta.permissions()).map_err(err)?;
+    }
     fs::rename(&tmp, path).map_err(err)
 }
 

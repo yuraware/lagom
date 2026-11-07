@@ -239,9 +239,14 @@ pub fn render(raw: &str, code: i32, program: &str) -> String {
     if compressed.lossy {
         match store::save_original(raw, &program_name(program)) {
             Ok(id) => out.push_str(&format!(
-                "[lagom: {} → {} lines; full output: lagom recall {id} (or part: --grep TEXT, --lines A-B)]\n",
+                "[lagom: {} → {} lines;{} full output: lagom recall {id} (or part: --grep TEXT, --lines A-B)]\n",
                 raw.lines().count(),
-                out.lines().count()
+                out.lines().count(),
+                if compressed.errors_despite_success {
+                    " exit code 0 but error lines found, so more were kept;"
+                } else {
+                    ""
+                }
             )),
             // Without a stored original, never drop anything.
             Err(_) => out = raw.to_string(),

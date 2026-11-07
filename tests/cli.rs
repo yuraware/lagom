@@ -371,3 +371,34 @@ fn lgm_alias_matches_lagom_and_hooks_point_to_lagom() {
     let settings = fs::read_to_string(home.join(".claude/settings.json")).unwrap_or_default();
     assert!(!settings.contains("hook claude"), "{settings}");
 }
+
+#[test]
+fn hook_ignores_oversized_input_quickly() {
+    let home = sandbox("bigstdin");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_lagom"))
+        .args(["hook", "cursor", "pre-tool"])
+        .env("HOME", &home)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let start = std::time::Instant::now();
+    let mut stdin = child.stdin.take().unwrap();
+    let writer = std::thread::spawn(move || {
+        let chunk = vec![b' '; 1024 * 1024];
+        for _ in 0..50 {
+            if stdin.write_all(&chunk).is_err() {
+                break; // the hook stopped reading: expected
+            }
+        }
+    });
+    let out = child.wait_with_output().unwrap();
+    let _ = writer.join();
+    assert!(out.status.success());
+    assert_eq!(text(&out).trim(), "{}");
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(2),
+        "{:?}",
+        start.elapsed()
+    );
+}

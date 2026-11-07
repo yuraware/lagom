@@ -4,7 +4,7 @@ Everything stays on your machine. No telemetry and no network calls.
 
 | Path | What | Kept |
 |---|---|---|
-| `~/.lagom/recall/` | Full originals of compressed output, for `lagom recall` | Last 500 |
+| `~/.lagom/recall/` | Full originals of compressed output, for `lagom recall`, plus the program name | Last 500, at most 200 MB, at most 14 days. `lagom recall --list` / `--clear` |
 | `~/.lagom/stats.jsonl` | Byte counts, program names, agent and event names. Never output | Until you delete it |
 | `~/.config/lagom/` | Your styles and config | Until you delete it |
 | `<repo>/.lagom/` | Project styles and config, only if you create them | — |

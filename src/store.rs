@@ -7,7 +7,23 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const MAX_RECALL_FILES: usize = 500;
+/// Recall store limits: whichever is hit first prunes the oldest entries.
+#[derive(Clone, Copy, Debug)]
+pub struct RecallLimits {
+    pub max_files: usize,
+    pub max_bytes: u64,
+    pub max_age: std::time::Duration,
+}
+
+impl Default for RecallLimits {
+    fn default() -> Self {
+        RecallLimits {
+            max_files: 500,
+            max_bytes: 200 * 1024 * 1024,
+            max_age: std::time::Duration::from_secs(14 * 24 * 3600),
+        }
+    }
+}
 
 pub fn home_dir() -> PathBuf {
     std::env::var_os("HOME")
@@ -36,8 +52,8 @@ pub fn content_id(content: &str) -> String {
     format!("{:010x}", hash & 0xff_ffff_ffff)
 }
 
-/// Save the full original output and return its id.
-pub fn save_original(content: &str) -> std::io::Result<String> {
+/// Save the full original output of `program` and return its id.
+pub fn save_original(content: &str, program: &str) -> std::io::Result<String> {
     private_dir(&lagom_dir())?;
     let dir = recall_dir();
     private_dir(&dir)?;
@@ -45,7 +61,13 @@ pub fn save_original(content: &str) -> std::io::Result<String> {
     let path = dir.join(format!("{id}.log"));
     private_file(fs::OpenOptions::new().write(true).truncate(true), &path)?
         .write_all(content.as_bytes())?;
-    prune_recall(&dir);
+    // Program name only (never arguments): shown by `lagom recall --list`.
+    let _ = private_file(
+        fs::OpenOptions::new().write(true).truncate(true),
+        &dir.join(format!("{id}.cmd")),
+    )
+    .and_then(|mut f| f.write_all(program.as_bytes()));
+    prune_recall(&dir, RecallLimits::default(), SystemTime::now());
     Ok(id)
 }
 
@@ -135,20 +157,77 @@ impl Selection {
     }
 }
 
-fn prune_recall(dir: &PathBuf) {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return;
-    };
-    let mut files: Vec<(SystemTime, PathBuf)> = entries
-        .filter_map(|e| e.ok())
-        .filter_map(|e| Some((e.metadata().ok()?.modified().ok()?, e.path())))
-        .collect();
-    if files.len() <= MAX_RECALL_FILES {
-        return;
+/// One saved original, as listed by `lagom recall --list`.
+#[derive(Debug)]
+pub struct RecallEntry {
+    pub id: String,
+    pub program: String,
+    pub bytes: u64,
+    pub modified: SystemTime,
+}
+
+/// Saved originals, newest first.
+pub fn list_recall() -> Vec<RecallEntry> {
+    let mut out = entries(&recall_dir());
+    out.sort_by_key(|e| std::cmp::Reverse(e.modified));
+    out
+}
+
+/// Delete every saved original. Returns how many were removed.
+pub fn clear_recall() -> usize {
+    let dir = recall_dir();
+    let all = entries(&dir);
+    for e in &all {
+        remove_entry(&dir, &e.id);
     }
-    files.sort();
-    for (_, path) in files.iter().take(files.len() - MAX_RECALL_FILES) {
-        let _ = fs::remove_file(path);
+    all.len()
+}
+
+fn entries(dir: &Path) -> Vec<RecallEntry> {
+    let Ok(read) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    read.flatten()
+        .filter_map(|e| {
+            let path = e.path();
+            let id = path
+                .file_name()?
+                .to_str()?
+                .strip_suffix(".log")?
+                .to_string();
+            let meta = e.metadata().ok()?;
+            let program = fs::read_to_string(dir.join(format!("{id}.cmd"))).unwrap_or_default();
+            Some(RecallEntry {
+                id,
+                program,
+                bytes: meta.len(),
+                modified: meta.modified().ok()?,
+            })
+        })
+        .collect()
+}
+
+fn remove_entry(dir: &Path, id: &str) {
+    let _ = fs::remove_file(dir.join(format!("{id}.log")));
+    let _ = fs::remove_file(dir.join(format!("{id}.cmd")));
+}
+
+/// Drop entries older than `max_age`, then the oldest until both the count and the
+/// total size fit. The newest entry is always kept.
+fn prune_recall(dir: &Path, limits: RecallLimits, now: SystemTime) {
+    let mut all = entries(dir);
+    all.sort_by_key(|e| std::cmp::Reverse(e.modified)); // newest first
+    let mut kept_bytes = 0u64;
+    for (i, e) in all.iter().enumerate() {
+        let too_old = now
+            .duration_since(e.modified)
+            .is_ok_and(|age| age > limits.max_age);
+        let over = i >= limits.max_files || kept_bytes + e.bytes > limits.max_bytes;
+        if i > 0 && (too_old || over) {
+            remove_entry(dir, &e.id);
+        } else {
+            kept_bytes += e.bytes;
+        }
     }
 }
 
@@ -245,6 +324,56 @@ pub fn totals() -> Totals {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn recall_pruning_limits_count_size_and_age() {
+        use std::time::Duration;
+        let dir = std::env::temp_dir().join(format!("lagom-cmp04-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let now = SystemTime::now();
+        let add = |id: &str, bytes: usize, age_s: u64| {
+            let p = dir.join(format!("{id}.log"));
+            fs::write(&p, "x".repeat(bytes)).unwrap();
+            fs::write(dir.join(format!("{id}.cmd")), "git").unwrap();
+            let f = fs::File::options().write(true).open(&p).unwrap();
+            f.set_modified(now - Duration::from_secs(age_s)).unwrap();
+        };
+        let ids = |d: &Path| {
+            let mut v: Vec<String> = entries(d).into_iter().map(|e| e.id).collect();
+            v.sort();
+            v
+        };
+        let limits = RecallLimits {
+            max_files: 3,
+            max_bytes: 1000,
+            max_age: Duration::from_secs(100),
+        };
+
+        for (i, id) in ["a", "b", "c", "d"].iter().enumerate() {
+            add(id, 10, 10 + i as u64); // a newest .. d oldest
+        }
+        prune_recall(&dir, limits, now);
+        assert_eq!(ids(&dir), ["a", "b", "c"], "count limit drops the oldest");
+        assert!(!dir.join("d.cmd").exists(), "sidecar removed too");
+
+        add("old", 10, 500);
+        prune_recall(&dir, limits, now);
+        assert!(!ids(&dir).contains(&"old".to_string()), "age limit");
+
+        add("big", 900, 1); // newest; with it, a/b/c no longer fit in 1000 bytes
+        prune_recall(&dir, limits, now);
+        assert_eq!(
+            ids(&dir),
+            ["a", "b", "big"],
+            "size limit keeps newest that fit"
+        );
+
+        add("huge", 5000, 0); // bigger than the limit on its own: still kept, as the newest
+        prune_recall(&dir, limits, now);
+        assert_eq!(ids(&dir), ["huge"]);
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     fn sel(args: &[&str]) -> Selection {
         Selection::parse(&args.iter().map(|s| s.to_string()).collect::<Vec<_>>()).unwrap()

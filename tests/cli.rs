@@ -347,6 +347,14 @@ fn run_compresses_keeps_exit_code_and_recall_works() {
         assert_eq!(mode(home.join(format!(".lagom/recall/{id}.log"))), 0o600);
     }
 
+    let list = text(&lagom(&home, &["recall", "--list"], None));
+    assert!(
+        list.contains(&id) && list.contains("  sh") && list.contains("1 saved outputs"),
+        "{list}"
+    );
+    assert!(text(&lagom(&home, &["recall", "--clear"], None)).contains("removed 1"));
+    assert_eq!(lagom(&home, &["recall", &id], None).status.code(), Some(1));
+
     let missing = lagom(&home, &["run", "--", "definitely-not-a-command-xyz"], None);
     assert_eq!(missing.status.code(), Some(127));
 }

@@ -195,9 +195,8 @@ items = [{"id": i, "name": f"service-{i}", "status": "ok" if i % 37 else "failed
           "error": None if i % 37 else f"timeout after {i}ms", "tags": ["a", "b"]} for i in range(400)]
 json.dump({"items": items, "total": 400}, open(sys.argv[1], "w"))
 PY
-run json jq-pretty-array '["\"status\": \"failed\"", "timeout after 37ms", "\"total\": 400"]' jq . "$W/api.json"
+run json jq-pretty-array '["\"status\":\"failed\"", "timeout after 37ms", "\"total\":400"]' jq . "$W/api.json"  # Lagom prints JSON compactly
 run json jq-compact-lines '["timeout after 74ms"]' jq -c '.items[]' "$W/api.json"
-gap json jq-compact-lines CMP-06
 run json jq-parse-error '["parse error"]' sh -c 'echo "{\"a\": [1, 2,}" | jq .'
 
 # ---------- logs ----------

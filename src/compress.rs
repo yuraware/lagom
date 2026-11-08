@@ -4,6 +4,7 @@
 //! anything dropped so the caller can store the original for `lagom recall`.
 
 mod diff;
+mod json;
 mod search;
 
 /// Output budget. Failed commands get double, so errors are never squeezed out.
@@ -70,6 +71,13 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
     let mut lossy = false;
 
     let cleaned = strip_ansi(raw);
+    if let Some((text, lossy)) = json::compress(&cleaned, limits) {
+        return Compressed {
+            text,
+            lossy,
+            errors_despite_success,
+        };
+    }
     let lines = normalize_lines(&cleaned);
     if let Some(grouped) =
         search::compress(&lines, limits).or_else(|| diff::compress(&lines, limits))
@@ -146,6 +154,7 @@ pub fn is_compressed(text: &str) -> bool {
             || bracket("", " more files:")
             || bracket("… +", " more changed lines in this file")
             || (line.starts_with("[lockfile ") && line.ends_with(", not shown]"))
+            || json::is_marker_line(line)
             || (line.starts_with("[+") && line.ends_with(" lines in this file, not shown]"))
         {
             return true;

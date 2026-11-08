@@ -176,20 +176,33 @@ pub fn report(results: &[CaseResult], baseline: Option<&Value>) -> String {
     s
 }
 
-/// `lagom bench compress [DIR…] [--json FILE] [--compare BASELINE.json]`.
+/// Total output growth against a baseline, in percent (`None` without one).
+fn growth_pct(results: &[CaseResult], baseline: &Value) -> Option<f64> {
+    let before = baseline["totals"]["bytes_out"].as_u64()? as f64;
+    let now: usize = results.iter().map(|r| r.bytes_out).sum();
+    (before > 0.0).then(|| (now as f64 - before) * 100.0 / before)
+}
+
+/// `lagom bench compress [DIR…] [--json FILE] [--compare BASELINE.json [--max-growth PCT]]`.
 pub fn run(args: &[String]) -> ExitCode {
-    const USAGE: &str =
-        "usage: lagom bench compress [DIR…] [--json FILE] [--compare BASELINE.json]";
+    const USAGE: &str = "usage: lagom bench compress [DIR…] [--json FILE] [--compare BASELINE.json [--max-growth PCT]]";
     let Some(("compress", rest)) = args.split_first().map(|(a, r)| (a.as_str(), r)) else {
         eprintln!("lagom: {USAGE}");
         return ExitCode::from(2);
     };
-    let (mut dirs, mut json_out, mut compare) = (Vec::new(), None, None);
+    let (mut dirs, mut json_out, mut compare, mut max_growth) = (Vec::new(), None, None, None);
     let mut it = rest.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
             "--json" => json_out = it.next().cloned(),
             "--compare" => compare = it.next().cloned(),
+            "--max-growth" => match it.next().and_then(|v| v.parse::<f64>().ok()) {
+                Some(v) => max_growth = Some(v),
+                None => {
+                    eprintln!("lagom: --max-growth needs a number (percent)\n{USAGE}");
+                    return ExitCode::from(2);
+                }
+            },
             s if s.starts_with('-') => {
                 eprintln!("lagom: unknown option `{s}`\n{USAGE}");
                 return ExitCode::from(2);
@@ -241,7 +254,21 @@ pub fn run(args: &[String]) -> ExitCode {
         }
         None => None,
     };
+    if max_growth.is_some() && baseline.is_none() {
+        eprintln!("lagom: --max-growth needs --compare BASELINE.json");
+        return ExitCode::from(2);
+    }
     print!("{}", report(&results, baseline.as_ref()));
+    let too_big = match (
+        max_growth,
+        baseline.as_ref().and_then(|b| growth_pct(&results, b)),
+    ) {
+        (Some(limit), Some(g)) if g > limit => {
+            println!("Total output grew {g:.1}% against the baseline (limit {limit}%).");
+            true
+        }
+        _ => false,
+    };
     if let Some(path) = json_out {
         let text = serde_json::to_string_pretty(&to_json(&results)).unwrap_or_default() + "\n";
         if let Err(e) = fs::write(&path, text) {
@@ -249,9 +276,10 @@ pub fn run(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     }
-    if results
-        .iter()
-        .any(|r| !r.lost.is_empty() && r.known_gap.is_none())
+    if too_big
+        || results
+            .iter()
+            .any(|r| !r.lost.is_empty() && r.known_gap.is_none())
     {
         ExitCode::from(1)
     } else {

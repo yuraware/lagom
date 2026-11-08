@@ -601,4 +601,42 @@ fn bench_compress_reports_and_gates_on_lost_strings() {
     );
     assert_eq!(out.status.code(), Some(1), "an unexpected loss fails");
     assert!(text(&out).contains("**LOST**") && text(&out).contains("new |"));
+
+    // Size gate: a baseline whose output was half as big means +100% growth.
+    fs::remove_dir_all(home.join("corpus/lost")).unwrap();
+    let mut small: Value = serde_json::from_str(&fs::read_to_string(&json_path).unwrap()).unwrap();
+    let total = small["totals"]["bytes_out"].as_u64().unwrap();
+    small["totals"]["bytes_out"] = json!(total / 2);
+    let small_path = home.join("small.json").to_string_lossy().into_owned();
+    fs::write(&small_path, small.to_string()).unwrap();
+    let grow = |limit: &str, base: &str| {
+        lagom(
+            &home,
+            &[
+                "bench",
+                "compress",
+                &dir,
+                "--compare",
+                base,
+                "--max-growth",
+                limit,
+            ],
+            None,
+        )
+    };
+    let out = grow("5", &small_path);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(text(&out).contains("grew 100.0%"), "{}", text(&out));
+    assert_eq!(
+        grow("5", &json_path).status.code(),
+        Some(0),
+        "no growth passes"
+    );
+    assert_eq!(grow("x", &json_path).status.code(), Some(2));
+    let no_base = lagom(
+        &home,
+        &["bench", "compress", &dir, "--max-growth", "5"],
+        None,
+    );
+    assert_eq!(no_base.status.code(), Some(2));
 }

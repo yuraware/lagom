@@ -52,3 +52,30 @@ jobs:
         with:
           name: latency-${{ matrix.os }}
           path: target/bench/latency-${{ matrix.os }}.json
+
+  fidelity:
+    # BEN-04: no must_keep string may be lost, and total output may not grow >5% vs the base.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - name: No must_keep string lost
+        run: ./target/release/lagom bench compress --json target/bench-current.json
+      - name: Output size against the base branch
+        if: github.event_name == 'pull_request'
+        run: |
+          git worktree add ../base "origin/${{ github.base_ref }}"
+          cargo build --release --manifest-path ../base/Cargo.toml
+          set +e
+          ../base/target/release/lagom bench compress bench/corpus tests/fixtures/compress \
+            --json target/bench-base.json > /dev/null
+          code=$?
+          set -e
+          if [ "$code" -le 1 ] && [ -f target/bench-base.json ]; then
+            ./target/release/lagom bench compress --compare target/bench-base.json --max-growth 5
+          else
+            echo "The base branch has no 'lagom bench compress' yet; skipping the size check."
+          fi

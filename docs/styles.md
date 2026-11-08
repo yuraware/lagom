@@ -47,3 +47,15 @@ Active styles come from the first of these that is set:
 `lagom style use off` (or `--project` for one repo). `LAGOM_STYLES=off` for one session.
 
 With the defaults the rules cost about 400 tokens per session; `lagom stats` shows the total.
+
+## Measure a style
+
+Styles cost tokens (the injected rules) and should save more than they cost (shorter answers, less code). To measure it on your own work:
+
+```sh
+lagom experiment start --holdout 0.2 --days 14   # about 20% of new sessions run without styles
+lagom stats --experiment                         # styled vs holdout output tokens per turn, 95% interval
+lagom experiment stop
+```
+
+Compression stays on in both groups. Each session is assigned by a hash of its id, so it and its subagents always share a group. Results need a few dozen sessions in each group before the interval is useful. Supported for Claude Code and Codex, whose logs record token usage.

@@ -207,9 +207,21 @@ fn inject(agent: Agent, event: &str, cwd: &Path, payload: &Value) -> Option<Valu
         return None;
     }
     let who = store::Attribution::from_token(session_token(agent, payload).as_deref(), cwd);
+    // Holdout experiment: some sessions run without styles (compression stays on).
+    let arm = who
+        .session
+        .as_deref()
+        .and_then(|s| crate::gain::experiment::Experiment::active().map(|e| e.arm(s)));
+    if arm == Some(crate::gain::experiment::Arm::Holdout) {
+        store::record_for(
+            json!({"kind": "holdout", "arm": "holdout", "event": event}),
+            &who,
+        );
+        return None;
+    }
     store::record_for(
         json!({"kind": "inject", "agent": agent.name(), "event": event, "bytes": text.len(),
-               "styles": style::active(cwd)}),
+               "styles": style::active(cwd), "arm": arm.map(|_| "styled")}),
         &who,
     );
     Some(match agent {

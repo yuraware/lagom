@@ -701,3 +701,59 @@ fn stats_are_attributed_to_agent_session_style_and_project() {
         "{stats}"
     );
 }
+
+#[test]
+fn holdout_experiment_skips_styles_for_some_sessions() {
+    let home = sandbox("experiment");
+    assert_eq!(
+        lagom(&home, &["experiment", "start", "--holdout", "0.9"], None)
+            .status
+            .code(),
+        Some(2),
+        "max 0.5"
+    );
+    assert!(
+        lagom(
+            &home,
+            &["experiment", "start", "--holdout", "0.5", "--days", "3"],
+            None
+        )
+        .status
+        .success()
+    );
+    assert!(text(&lagom(&home, &["experiment", "status"], None)).contains("Running: 50% holdout"));
+
+    let mut injected = 0;
+    for i in 0..40 {
+        let payload = json!({"session_id": format!("sess-{i}"), "cwd": home}).to_string();
+        if !text(&lagom(
+            &home,
+            &["hook", "claude", "session-start"],
+            Some(&payload),
+        ))
+        .is_empty()
+        {
+            injected += 1;
+        }
+    }
+    assert!(
+        (8..=32).contains(&injected),
+        "about half get styles: {injected}"
+    );
+    let stats = fs::read_to_string(home.join(".lagom/stats.jsonl")).unwrap();
+    assert_eq!(stats.matches("\"arm\":\"holdout\"").count(), 40 - injected);
+    assert_eq!(stats.matches("\"arm\":\"styled\"").count(), injected);
+    assert!(text(&lagom(&home, &["stats", "--experiment"], None)).contains("styled sessions"));
+
+    assert!(lagom(&home, &["experiment", "stop"], None).status.success());
+    let payload = json!({"session_id": "sess-0", "cwd": home}).to_string();
+    assert!(
+        !text(&lagom(
+            &home,
+            &["hook", "claude", "session-start"],
+            Some(&payload)
+        ))
+        .is_empty(),
+        "styles again"
+    );
+}

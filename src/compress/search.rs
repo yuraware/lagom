@@ -32,8 +32,12 @@ fn parse(line: &str) -> Option<(&str, &str, &str, bool)> {
             while end < bytes.len() && bytes[end].is_ascii_digit() {
                 end += 1;
             }
-            if end < bytes.len() && bytes[end] == sep {
-                return Some((&line[..i], &line[start..end], &line[end + 1..], sep == b':'));
+            let path = &line[..i];
+            // A path has a folder or an extension; this rejects timestamps such as
+            // `2026-11-08T10:00:00`, which otherwise look like `path-11-…` context lines.
+            let looks_like_path = path.contains('/') || path.contains('.');
+            if end < bytes.len() && bytes[end] == sep && looks_like_path {
+                return Some((path, &line[start..end], &line[end + 1..], sep == b':'));
             }
         }
         i += 1;
@@ -54,7 +58,15 @@ pub fn compress(lines: &[String], limits: Limits) -> Option<Vec<String>> {
         .collect();
     let parsed: Vec<_> = non_empty.iter().map(|l| parse(l)).collect();
     let hits = parsed.iter().filter(|p| p.is_some()).count();
-    if hits * 10 < non_empty.len() * 9 || lines.iter().any(|l| is_error_line(l)) {
+    let matches = parsed
+        .iter()
+        .filter(|p| matches!(p, Some((_, _, _, true))))
+        .count();
+    // Mostly search lines, and mostly real matches (context lines alone never qualify).
+    if hits * 10 < non_empty.len() * 9
+        || matches * 2 < non_empty.len()
+        || lines.iter().any(|l| is_error_line(l))
+    {
         return None;
     }
 
@@ -138,6 +150,16 @@ mod tests {
         assert_eq!(parse("C:/x/a.rs:3:y"), Some(("C:/x/a.rs", "3", "y", true)));
         assert_eq!(parse("  12: indented"), None);
         assert_eq!(parse("plain text"), None);
+        assert_eq!(
+            parse("2026-11-08T10:00:00.000Z INFO x"),
+            None,
+            "timestamp is not a path"
+        );
+        assert_eq!(
+            parse("Makefile:3:all:"),
+            None,
+            "no folder or extension: not trusted as a path"
+        );
     }
 
     #[test]
@@ -174,5 +196,18 @@ mod tests {
         assert!(compress(&lines(&small), Limits::default()).is_none());
         let prose: String = (0..300).map(|i| format!("line {i} of a log\n")).collect();
         assert!(compress(&lines(&prose), Limits::default()).is_none());
+        // Timestamped log lines (the shape that once became "0 matches in 0 files").
+        let log: String = (0..3000)
+            .map(|i| {
+                format!(
+                    "2026-11-08T10:{:02}:{:02}.000Z INFO  request id=req-{i:05x} status=200\n",
+                    i / 60 % 60,
+                    i % 60
+                )
+            })
+            .collect();
+        assert!(compress(&lines(&log), Limits::default()).is_none());
+        let context_only: String = (0..300).map(|i| format!("src/a.rs-{i}-ctx\n")).collect();
+        assert!(compress(&lines(&context_only), Limits::default()).is_none());
     }
 }

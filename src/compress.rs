@@ -320,7 +320,7 @@ pub fn is_important(line: &str) -> bool {
         "exception",
         "traceback",
         "fatal",
-        "warning",
+        "warn", // also covers "warning"
         "denied",
         "not found",
         "cannot",
@@ -405,6 +405,33 @@ fn keep_head_tail_important(lines: Vec<String>, limits: Limits, lossy: &mut bool
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn timestamped_log_keeps_error_and_warn_lines() {
+        let mut raw = String::new();
+        for i in 0..3000 {
+            raw.push_str(&format!(
+                "2026-11-08T10:{:02}:{:02}.{:03}Z INFO  request id=req-{i:05x} status=200 took={}ms\n",
+                i / 60 % 60, i % 60, i % 1000, i % 40 + 2
+            ));
+            if i == 1200 {
+                raw.push_str(
+                    "2026-11-08T10:20:00.000Z ERROR database connection lost: host=db-1\n",
+                );
+            }
+            if i == 2000 {
+                raw.push_str("2026-11-08T10:33:20.000Z WARN  slow query took 1532ms\n");
+            }
+        }
+        let c = compress(&raw, false, Limits::default());
+        assert!(
+            c.text.contains("ERROR database connection lost"),
+            "{}",
+            &c.text[..300.min(c.text.len())]
+        );
+        assert!(c.text.contains("WARN  slow query"));
+        assert!(c.text.contains("req-00000"), "start kept");
+    }
 
     #[test]
     fn strip_ansi_edge_cases() {

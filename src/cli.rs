@@ -25,6 +25,8 @@ Usage:
                   [--lines A-B] [--head N] [--tail N]  or only part of it
   lagom recall --list | --clear              List or delete saved outputs
   lagom stats                               Show estimated savings
+  lagom bench compress [DIR…] [--json F]    Compress a corpus of real outputs; report sizes and
+                  [--compare BASELINE]      kept must_keep strings (exit 1 on an unexpected loss)
   lagom hook <agent> <event>                Used by agent hooks (reads JSON on stdin)
   lagom --version
 
@@ -59,6 +61,7 @@ pub fn main() -> ExitCode {
         Some("status") => cmd_status(),
         Some("style") => cmd_style(&rest(1)),
         Some("stats") => cmd_stats(),
+        Some("bench") => crate::bench::run(&rest(1)),
         Some("--version" | "-V" | "version") => {
             println!("lagom {}", env!("CARGO_PKG_VERSION"));
             ExitCode::SUCCESS

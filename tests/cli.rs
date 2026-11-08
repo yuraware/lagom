@@ -551,3 +551,54 @@ fn rewrite_can_be_turned_off_per_project_or_by_env() {
         "env wins"
     );
 }
+
+#[test]
+fn bench_compress_reports_and_gates_on_lost_strings() {
+    let home = sandbox("bench");
+    let case = |name: &str, input: &str, meta: Value| {
+        let d = home.join("corpus").join(name);
+        fs::create_dir_all(&d).unwrap();
+        fs::write(d.join("input.txt"), input).unwrap();
+        fs::write(d.join("meta.json"), meta.to_string()).unwrap();
+    };
+    let long: String = (0..400).map(|i| format!("line {i} plain\n")).collect();
+    case(
+        "ok",
+        "src/a.rs:1: error: boom\n",
+        json!({"exit_code": 1, "must_keep": ["error: boom"]}),
+    );
+    case(
+        "gap",
+        &long,
+        json!({"exit_code": 0, "must_keep": ["line 200 plain"], "known_gap": "CMP-99"}),
+    );
+    let dir = home.join("corpus").to_string_lossy().into_owned();
+    let json_path = home.join("out.json").to_string_lossy().into_owned();
+
+    let out = lagom(
+        &home,
+        &["bench", "compress", &dir, "--json", &json_path],
+        None,
+    );
+    assert_eq!(out.status.code(), Some(0), "known gaps don't fail");
+    let report = text(&out);
+    assert!(
+        report.contains("(known gap: CMP-99)") && report.contains("Unexpected must_keep losses: 0"),
+        "{report}"
+    );
+    let saved: Value = serde_json::from_str(&fs::read_to_string(&json_path).unwrap()).unwrap();
+    assert_eq!(saved["totals"]["cases"], 2);
+
+    case(
+        "lost",
+        &long,
+        json!({"exit_code": 0, "must_keep": ["line 201 plain"]}),
+    );
+    let out = lagom(
+        &home,
+        &["bench", "compress", &dir, "--compare", &json_path],
+        None,
+    );
+    assert_eq!(out.status.code(), Some(1), "an unexpected loss fails");
+    assert!(text(&out).contains("**LOST**") && text(&out).contains("new |"));
+}

@@ -21,7 +21,11 @@ fn compressor_golden_fixtures() {
         .filter(|p| p.is_dir())
         .collect();
     cases.sort();
-    assert!(cases.len() >= 15, "expected at least 15 cases, found {}", cases.len());
+    assert!(
+        cases.len() >= 15,
+        "expected at least 15 cases, found {}",
+        cases.len()
+    );
 
     let mut failures = Vec::new();
     for case in &cases {

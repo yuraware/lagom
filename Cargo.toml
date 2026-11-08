@@ -1,0 +1,23 @@
+[package]
+name = "lagom"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+description = "Lightweight token saver for coding agents: output styles, command-output compression and skills for Claude Code, Codex and Cursor."
+repository = "https://github.com/yuraware/lagom"
+readme = "README.md"
+homepage = "https://github.com/yuraware/lagom"
+keywords = ["llm", "claude", "codex", "tokens", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+rust-version = "1.87"
+# Ship only what the build needs (styles and skills are embedded with include_str!).
+include = ["src/**", "styles/**", "skills/**", "README.md", "CHANGELOG.md", "LICENSE", "Cargo.toml", "Cargo.lock"]
+
+[dependencies]
+# preserve_order keeps the user's settings.json key order when we merge hooks into it.
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

@@ -8,7 +8,7 @@
 | Release-notes script | `python3 -I -m unittest discover -s scripts -p 'test_*.py'` | Standard library only |
 | Lint | `cargo fmt --check && cargo clippy --all-targets -- -D warnings` | CI runs both |
 | Live Claude Code check | `scripts/e2e_claude.sh` | Costs one short Haiku session. See below |
-| Compression fidelity and size | `cargo run --release -- bench compress [--json out.json] [--compare base.json]` | Runs every case in `bench/corpus/` and `tests/fixtures/compress/`. Prints sizes, kept `must_keep` strings and time per case. Exits 1 if a string is lost in a case without `known_gap`. `--compare base.json --max-growth 5` also fails if total output grew more than 5%. CI runs both against the pull request's base branch |
+| Compression fidelity and size | `cargo run --release -- bench compress [--json out.json] [--compare base.json]` | Runs every case in `bench/corpus/` and `tests/fixtures/compress/`. Prints sizes, kept `must_keep` strings and time per case. Exits 1 if a string is lost in a case without `known_gap`. `--compare base.json --max-growth 5` also fails if total output grew more than 5%. CI runs both against the pull request's base branch; a deliberate size increase (more kept for fidelity) can be labelled `size-increase-ok` |
 | Hook and compression speed | `bench/latency.sh` | Needs [hyperfine](https://github.com/sharkdp/hyperfine). Uses a throwaway `HOME`. Prints medians against the budgets (hooks < 10 ms, `lagom run` overhead < 5 ms, 1 MB < 20 ms) and writes `target/bench/latency.json`. CI runs it on Linux and macOS |
 
 ## Live Claude Code check

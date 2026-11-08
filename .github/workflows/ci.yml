@@ -65,7 +65,8 @@ jobs:
       - name: No must_keep string lost
         run: ./target/release/lagom bench compress --json target/bench-current.json
       - name: Output size against the base branch
-        if: github.event_name == 'pull_request'
+        # A deliberate trade (keeping more for fidelity) can be labelled `size-increase-ok`.
+        if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'size-increase-ok')
         run: |
           git worktree add ../base "origin/${{ github.base_ref }}"
           cargo build --release --manifest-path ../base/Cargo.toml

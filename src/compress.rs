@@ -3,6 +3,7 @@
 //! Rules: never hide failures, keep exact text of what survives, and report
 //! anything dropped so the caller can store the original for `lagom recall`.
 
+mod diff;
 mod search;
 
 /// Output budget. Failed commands get double, so errors are never squeezed out.
@@ -70,7 +71,9 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
 
     let cleaned = strip_ansi(raw);
     let lines = normalize_lines(&cleaned);
-    if let Some(grouped) = search::compress(&lines, limits) {
+    if let Some(grouped) =
+        search::compress(&lines, limits).or_else(|| diff::compress(&lines, limits))
+    {
         let mut text = grouped.join("\n");
         if raw.ends_with('\n') {
             text.push('\n');
@@ -141,6 +144,9 @@ pub fn is_compressed(text: &str) -> bool {
             || bracket("… [", " similar lines]")
             || bracket("  … +", " more")
             || bracket("", " more files:")
+            || bracket("… +", " more changed lines in this file")
+            || (line.starts_with("[lockfile ") && line.ends_with(", not shown]"))
+            || (line.starts_with("[+") && line.ends_with(" lines in this file, not shown]"))
         {
             return true;
         }

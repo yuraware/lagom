@@ -1,6 +1,7 @@
 //! Real token usage from agents' own session logs (for `lagom stats`).
 
 pub mod claude;
+pub mod codex;
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -28,6 +29,8 @@ impl Usage {
 /// One agent session's usage.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct SessionUsage {
+    /// `claude` or `codex`.
+    pub agent: String,
     pub session_id: String,
     /// Model of the last counted message.
     pub model: Option<String>,

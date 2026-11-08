@@ -25,6 +25,7 @@ Usage:
                   [--lines A-B] [--head N] [--tail N]  or only part of it
   lagom recall --list | --clear              List or delete saved outputs
   lagom stats                               Show estimated savings
+  lagom stats --usage [--days N]            Real token usage per style (Claude Code)
   lagom bench compress [DIR…] [--json F]    Compress a corpus of real outputs; report sizes and
                   [--compare BASELINE]      kept must_keep strings (exit 1 on an unexpected loss)
   lagom hook <agent> <event>                Used by agent hooks (reads JSON on stdin)
@@ -63,7 +64,10 @@ pub fn main() -> ExitCode {
         Some("uninstall") => cmd_install(&rest(1), false),
         Some("status") => cmd_status(),
         Some("style") => cmd_style(&rest(1)),
-        Some("stats") => cmd_stats(),
+        Some("stats") => match args.get(1).map(String::as_str) {
+            Some("--usage") => cmd_usage(&rest(2)),
+            _ => cmd_stats(),
+        },
         Some("bench") => crate::bench::run(&rest(1)),
         Some("--version" | "-V" | "version") => {
             println!("lagom {}", env!("CARGO_PKG_VERSION"));
@@ -427,6 +431,53 @@ fn cmd_style(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     }
+    ExitCode::SUCCESS
+}
+
+/// `lagom stats --usage [--days N]`: real token usage from Claude Code transcripts,
+/// grouped by the styles Lagom injected.
+fn cmd_usage(args: &[String]) -> ExitCode {
+    let days = match args {
+        [] => 30,
+        [flag, n] if flag == "--days" => match n.parse::<u64>() {
+            Ok(n) => n,
+            Err(_) => {
+                eprintln!("lagom: --days needs a number");
+                return ExitCode::from(2);
+            }
+        },
+        _ => {
+            eprintln!("usage: lagom stats --usage [--days N]");
+            return ExitCode::from(2);
+        }
+    };
+    let since =
+        std::time::SystemTime::now().checked_sub(std::time::Duration::from_secs(days * 86_400));
+    let sessions = crate::gain::claude::sessions(since);
+    if sessions.is_empty() {
+        println!("No Claude Code sessions in the last {days} days.");
+        return ExitCode::SUCCESS;
+    }
+    let groups = crate::gain::by_style(&sessions, &store::session_styles());
+    println!("Claude Code token usage, last {days} days (from its transcripts):");
+    println!(
+        "{:<22} {:>8} {:>7} {:>14} {:>15} {:>11}",
+        "style", "sessions", "turns", "output/turn", "input/turn", "cache read"
+    );
+    for g in &groups {
+        println!(
+            "{:<22} {:>8} {:>7} {:>14} {:>15} {:>10.0}%",
+            g.style,
+            g.sessions,
+            g.turns,
+            g.median_output_per_turn,
+            g.median_input_per_turn,
+            g.cache_read_share * 100.0
+        );
+    }
+    println!(
+        "Medians per main-conversation turn. Observational: sessions differ in their work, so this does not prove a style's effect."
+    );
     ExitCode::SUCCESS
 }
 

@@ -400,6 +400,30 @@ pub fn record_for(mut event: serde_json::Value, who: &Attribution) {
     }
 }
 
+/// Style set injected per session id (from `inject` events), e.g. `terse+lean-code`.
+pub fn session_styles() -> std::collections::HashMap<String, String> {
+    let mut out = std::collections::HashMap::new();
+    let Ok(text) = fs::read_to_string(lagom_dir().join("stats.jsonl")) else {
+        return out;
+    };
+    for line in text.lines() {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        if v["kind"] != "inject" {
+            continue;
+        }
+        let (Some(session), Some(styles)) = (v["session"].as_str(), v["styles"].as_array()) else {
+            continue;
+        };
+        let names: Vec<&str> = styles.iter().filter_map(|s| s.as_str()).collect();
+        if !names.is_empty() {
+            out.insert(session.to_string(), names.join("+"));
+        }
+    }
+    out
+}
+
 #[derive(Debug, Default, PartialEq)]
 pub struct Totals {
     pub runs: u64,

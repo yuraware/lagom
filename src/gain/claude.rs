@@ -91,7 +91,10 @@ pub fn read_transcripts<'a>(texts: impl IntoIterator<Item = &'a str>) -> Vec<Ses
         if m.sidechain {
             s.subagents.add(&m.usage)
         } else {
-            s.main.add(&m.usage)
+            s.main.add(&m.usage);
+            let u = &m.usage;
+            s.turns
+                .push((u.input + u.cache_write + u.cache_read, u.output));
         }
         if m.model.is_some() {
             s.model.clone_from(&m.model);

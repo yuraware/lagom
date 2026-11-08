@@ -640,3 +640,64 @@ fn bench_compress_reports_and_gates_on_lost_strings() {
     );
     assert_eq!(no_base.status.code(), Some(2));
 }
+
+#[test]
+fn stats_are_attributed_to_agent_session_style_and_project() {
+    let home = sandbox("attrib");
+    let repo = home.join("repo");
+    fs::create_dir_all(repo.join(".git")).unwrap();
+    let start =
+        json!({"session_id": "sess-1", "cwd": repo, "hook_event_name": "SessionStart"}).to_string();
+    lagom(&home, &["hook", "claude", "session-start"], Some(&start));
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_lagom"));
+    let out = cmd
+        .args([
+            "run",
+            "--session",
+            "claude:sess-1",
+            "--",
+            "sh",
+            "-c",
+            "seq 1 500",
+        ])
+        .env("HOME", &home)
+        .env_remove("LAGOM_HOME")
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    lagom(&home, &["run", "--", "echo", "manual"], None);
+
+    let events: Vec<Value> = fs::read_to_string(home.join(".lagom/stats.jsonl"))
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    let inject = events.iter().find(|e| e["kind"] == "inject").unwrap();
+    assert_eq!(inject["session"], "sess-1");
+    assert_eq!(inject["styles"], json!(["terse", "lean-code"]));
+    let run = events
+        .iter()
+        .find(|e| e["kind"] == "run" && e["agent"] == "claude")
+        .unwrap();
+    assert_eq!(run["session"], "sess-1");
+    assert_eq!(run["v"], 1);
+    assert_eq!(
+        run["project"], inject["project"],
+        "same repository, same project id"
+    );
+    assert!(
+        !run["project"].as_str().unwrap().contains('/'),
+        "a hash, not a path"
+    );
+
+    let stats = text(&lagom(&home, &["stats"], None));
+    assert!(
+        stats.contains("by agent:") && stats.contains("claude") && stats.contains("manual"),
+        "{stats}"
+    );
+    assert!(
+        stats.contains("by style:") && stats.contains("terse+lean-code"),
+        "{stats}"
+    );
+}

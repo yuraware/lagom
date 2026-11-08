@@ -9,7 +9,9 @@ use serde_json::json;
 use crate::compress::{Limits, compress};
 use crate::store;
 
-pub fn run(args: &[String]) -> ExitCode {
+/// `session`: the `agent:id` token from `lagom run --session …` (set by the pre-tool hook).
+pub fn run(args: &[String], session: Option<&str>) -> ExitCode {
+    let who = store::Attribution::from_token(session, &std::env::current_dir().unwrap_or_default());
     let Some((program, rest)) = args.split_first() else {
         eprintln!("usage: lagom run -- <command> [args…]");
         return ExitCode::from(2);
@@ -40,7 +42,7 @@ pub fn run(args: &[String]) -> ExitCode {
     let code = status.as_ref().ok().and_then(|s| s.code()).unwrap_or(1);
 
     let output = match captured {
-        Ok(Captured::Full(bytes)) => render(&String::from_utf8_lossy(&bytes), code, program),
+        Ok(Captured::Full(bytes)) => render(&String::from_utf8_lossy(&bytes), code, program, &who),
         Ok(Captured::Spilled {
             kept,
             spill,
@@ -53,6 +55,7 @@ pub fn run(args: &[String]) -> ExitCode {
             bytes,
             code,
             program,
+            &who,
         ),
         Err((partial, _)) => String::from_utf8_lossy(&partial).into_owned(),
     };
@@ -208,6 +211,7 @@ fn render_spilled(
     bytes: u64,
     code: i32,
     program: &str,
+    who: &store::Attribution,
 ) -> String {
     let mut out = compress(kept, code != 0, Limits::default()).text;
     if !out.is_empty() && !out.ends_with('\n') {
@@ -222,18 +226,21 @@ fn render_spilled(
             "[lagom: {lines} lines, {bytes} bytes; showing start, end and error lines only (could not store the full output: {e})]\n"
         )),
     }
-    store::record(json!({
-        "kind": "run",
-        "cmd": program_name(program),
-        "in": bytes,
-        "out": out.len(),
-        "exit": code,
-    }));
+    store::record_for(
+        json!({
+            "kind": "run",
+            "cmd": program_name(program),
+            "in": bytes,
+            "out": out.len(),
+            "exit": code,
+        }),
+        who,
+    );
     out
 }
 
 /// Compress, store the original when lines were dropped, record stats.
-pub fn render(raw: &str, code: i32, program: &str) -> String {
+pub fn render(raw: &str, code: i32, program: &str, who: &store::Attribution) -> String {
     let compressed = compress(raw, code != 0, Limits::default());
     let mut out = compressed.text;
     if compressed.lossy {
@@ -252,13 +259,16 @@ pub fn render(raw: &str, code: i32, program: &str) -> String {
             Err(_) => out = raw.to_string(),
         }
     }
-    store::record(json!({
-        "kind": "run",
-        "cmd": program_name(program),
-        "in": raw.len(),
-        "out": out.len(),
-        "exit": code,
-    }));
+    store::record_for(
+        json!({
+            "kind": "run",
+            "cmd": program_name(program),
+            "in": raw.len(),
+            "out": out.len(),
+            "exit": code,
+        }),
+        who,
+    );
     out
 }
 

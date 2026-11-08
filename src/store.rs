@@ -321,10 +321,72 @@ fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
+/// Who an event belongs to: the agent and session (from the hook payload) and the
+/// project (a hash of the repository root, never the path itself).
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct Attribution {
+    pub agent: Option<String>,
+    pub session: Option<String>,
+    pub project: Option<String>,
+}
+
+impl Attribution {
+    /// From a `--session agent:id` token (as written by the pre-tool rewrite) and a folder.
+    pub fn from_token(token: Option<&str>, cwd: &Path) -> Attribution {
+        let (agent, session) = match token.and_then(|t| t.split_once(':')) {
+            Some((a, s)) if is_safe_id(a) && is_safe_id(s) => {
+                (Some(a.to_string()), Some(s.to_string()))
+            }
+            _ => (None, None),
+        };
+        Attribution {
+            agent,
+            session,
+            project: project_id(cwd),
+        }
+    }
+
+    fn apply(&self, obj: &mut serde_json::Map<String, serde_json::Value>) {
+        for (k, v) in [
+            ("agent", &self.agent),
+            ("session", &self.session),
+            ("project", &self.project),
+        ] {
+            if let Some(v) = v {
+                obj.insert(k.into(), v.clone().into());
+            }
+        }
+    }
+}
+
+/// Session and agent ids go into commands and stats: letters, digits, `-`, `_`, `.` only.
+pub fn is_safe_id(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 100
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))
+}
+
+/// Short stable id for the git repository containing `dir`: a hash of its root path.
+pub fn project_id(dir: &Path) -> Option<String> {
+    let root = dir.ancestors().find(|d| d.join(".git").exists())?;
+    // Real path: hooks get `cwd` from the agent, `lagom run` from the OS, and the two
+    // can differ by symlinks (macOS `/var` → `/private/var`).
+    let root = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+    Some(content_id(&root.to_string_lossy()))
+}
+
 /// Append one event to `stats.jsonl`. Errors are ignored: stats must never break a command.
-pub fn record(mut event: serde_json::Value) {
+pub fn record(event: serde_json::Value) {
+    record_for(event, &Attribution::default());
+}
+
+/// Like [`record`], tagged with agent, session and project.
+pub fn record_for(mut event: serde_json::Value, who: &Attribution) {
     if let Some(obj) = event.as_object_mut() {
+        obj.insert("v".into(), 1.into());
         obj.insert("ts".into(), now_secs().into());
+        who.apply(obj);
     }
     let dir = lagom_dir();
     if private_dir(&dir).is_err() {
@@ -346,6 +408,19 @@ pub struct Totals {
     pub bytes_out: u64,
     pub injections: u64,
     pub injected_bytes: u64,
+    /// Per agent (`manual` for `lagom run` typed by hand).
+    pub by_agent: std::collections::BTreeMap<String, Bucket>,
+    /// Injections per style set, such as `terse+lean-code`.
+    pub by_style: std::collections::BTreeMap<String, Bucket>,
+}
+
+#[derive(Debug, Default, PartialEq, Clone, Copy)]
+pub struct Bucket {
+    pub runs: u64,
+    pub bytes_in: u64,
+    pub bytes_out: u64,
+    pub injections: u64,
+    pub injected_bytes: u64,
 }
 
 pub fn totals() -> Totals {
@@ -357,7 +432,18 @@ pub fn totals() -> Totals {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
             continue;
         };
+        if v.get("v")
+            .and_then(|x| x.as_u64())
+            .is_some_and(|ver| ver > 1)
+        {
+            continue; // written by a newer Lagom
+        }
         let n = |k: &str| v.get(k).and_then(|x| x.as_u64()).unwrap_or(0);
+        let agent = v
+            .get("agent")
+            .and_then(|a| a.as_str())
+            .unwrap_or("manual")
+            .to_string();
         match v.get("kind").and_then(|k| k.as_str()) {
             Some("run") => {
                 t.runs += 1;
@@ -366,10 +452,30 @@ pub fn totals() -> Totals {
                 if n("in") > n("out") {
                     t.compressed_runs += 1;
                 }
+                let b = t.by_agent.entry(agent).or_default();
+                b.runs += 1;
+                b.bytes_in += n("in");
+                b.bytes_out += n("out");
             }
             Some("inject") => {
                 t.injections += 1;
                 t.injected_bytes += n("bytes");
+                let b = t.by_agent.entry(agent).or_default();
+                b.injections += 1;
+                b.injected_bytes += n("bytes");
+                let styles: Vec<&str> = v
+                    .get("styles")
+                    .and_then(|s| s.as_array())
+                    .map(|a| a.iter().filter_map(|s| s.as_str()).collect())
+                    .unwrap_or_default();
+                let key = if styles.is_empty() {
+                    "unknown".to_string()
+                } else {
+                    styles.join("+")
+                };
+                let s = t.by_style.entry(key).or_default();
+                s.injections += 1;
+                s.injected_bytes += n("bytes");
             }
             _ => {}
         }

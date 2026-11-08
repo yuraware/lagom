@@ -39,13 +39,16 @@ pub fn main() -> ExitCode {
     let rest = |n: usize| args.get(n..).unwrap_or(&[]).to_vec();
     match args.first().map(String::as_str) {
         Some("run") => {
-            let cmd = rest(1);
-            let cmd = if cmd.first().map(String::as_str) == Some("--") {
-                cmd[1..].to_vec()
-            } else {
-                cmd
-            };
-            run::run(&cmd)
+            let mut cmd = rest(1);
+            let mut session = None;
+            if cmd.first().map(String::as_str) == Some("--session") && cmd.len() >= 2 {
+                session = Some(cmd[1].clone());
+                cmd.drain(..2);
+            }
+            if cmd.first().map(String::as_str) == Some("--") {
+                cmd.remove(0);
+            }
+            run::run(&cmd, session.as_deref())
         }
         Some("compress") => cmd_compress(),
         Some("recall") => cmd_recall(&rest(1)),
@@ -87,7 +90,7 @@ fn cmd_compress() -> ExitCode {
         eprintln!("lagom: stdin is not valid UTF-8 text");
         return ExitCode::from(1);
     }
-    let out = run::render(&raw, 0, "compress");
+    let out = run::render(&raw, 0, "compress", &store::Attribution::default());
     let _ = std::io::stdout().write_all(out.as_bytes());
     ExitCode::SUCCESS
 }
@@ -450,5 +453,27 @@ fn cmd_stats() -> ExitCode {
     println!(
         "net: ~{net} tokens (estimate: 4 bytes ≈ 1 token; style effects on answer length are not measured)"
     );
+    if !t.by_agent.is_empty() {
+        println!("by agent:");
+        for (agent, b) in &t.by_agent {
+            println!(
+                "  {agent:<8} {} runs, saved ~{} tokens; {} injections, ~{} tokens",
+                b.runs,
+                tokens(b.bytes_in.saturating_sub(b.bytes_out)),
+                b.injections,
+                tokens(b.injected_bytes)
+            );
+        }
+    }
+    if !t.by_style.is_empty() {
+        println!("by style:");
+        for (style, b) in &t.by_style {
+            println!(
+                "  {style:<20} {} injections, ~{} tokens",
+                b.injections,
+                tokens(b.injected_bytes)
+            );
+        }
+    }
     ExitCode::SUCCESS
 }

@@ -35,7 +35,10 @@ fn parse(line: &str) -> Option<(&str, &str, &str, bool)> {
             let path = &line[..i];
             // A path has a folder or an extension; this rejects timestamps such as
             // `2026-11-08T10:00:00`, which otherwise look like `path-11-…` context lines.
-            let looks_like_path = path.contains('/') || path.contains('.');
+            // No whitespace either: access logs (`10.0.0.1 - - [08/Nov/2026:10:00:00`) and
+            // prose would otherwise pass.
+            let looks_like_path =
+                (path.contains('/') || path.contains('.')) && !path.contains(char::is_whitespace);
             if end < bytes.len() && bytes[end] == sep && looks_like_path {
                 return Some((path, &line[start..end], &line[end + 1..], sep == b':'));
             }
@@ -155,6 +158,8 @@ mod tests {
             None,
             "timestamp is not a path"
         );
+        let access = "10.0.0.1 - - [08/Nov/2026:10:00:00 +0000] \"GET / HTTP/1.1\" 200";
+        assert_eq!(parse(access), None, "access log");
         assert_eq!(
             parse("Makefile:3:all:"),
             None,

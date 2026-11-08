@@ -5,6 +5,7 @@
 
 mod diff;
 mod json;
+mod log;
 mod search;
 
 /// Output budget. Failed commands get double, so errors are never squeezed out.
@@ -92,6 +93,7 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
             errors_despite_success,
         };
     }
+    let lines = log::collapse(lines, limits, &mut lossy);
     let lines = collapse_repeats(lines, &mut lossy);
     let lines: Vec<String> = lines
         .into_iter()
@@ -155,6 +157,7 @@ pub fn is_compressed(text: &str) -> bool {
             || bracket("… +", " more changed lines in this file")
             || (line.starts_with("[lockfile ") && line.ends_with(", not shown]"))
             || json::is_marker_line(line)
+            || log::is_marker_line(line)
             || (line.starts_with("[+") && line.ends_with(" lines in this file, not shown]"))
         {
             return true;

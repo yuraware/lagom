@@ -219,7 +219,6 @@ with open(sys.argv[1], "w") as f:
         f.write(f'10.0.{i % 5}.{i % 250} - - [08/Nov/2026:10:{i // 60 % 60:02}:{i % 60:02} +0000] "GET /static/app.{i % 3}.js HTTP/1.1" {code} {1000 + i % 300} "-" "Mozilla/5.0"\n')
 PY
 run logs access-log '["\" 500 "]' cat "$W/access.log"
-gap logs access-log CMP-09
 
 # ---------- containers / clusters (no daemon or cluster needed: real error output) ----------
 if have kubectl; then

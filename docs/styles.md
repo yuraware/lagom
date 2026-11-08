@@ -7,6 +7,8 @@ A style is a set of rules injected at session start. Built-in:
 
 Default: `terse` + `lean-code`.
 
+With `lean-code` active, Lagom also adds one line about the project when it finds a Rust or Python project: if it has tests (`tests/`, `#[cfg(test)]` modules, pytest), the agent is asked to follow that pattern; if it has none, not to add a test framework unless asked.
+
 ## Use
 
 ```sh

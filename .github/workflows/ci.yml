@@ -3,6 +3,8 @@ on:
   push:
     branches: [main]
   pull_request:
+    # labeled/unlabeled: re-runs reuse the old event payload, so `size-increase-ok` only counts on a fresh run.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read

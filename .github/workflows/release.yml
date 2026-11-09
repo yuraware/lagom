@@ -92,6 +92,9 @@ jobs:
           name="lagom-$VERSION-$TARGET"
           mkdir -p "dist/$name"
           cp "target/$TARGET/release/lagom" LICENSE README.md CHANGELOG.md "dist/$name/"
+          # The lgm alias is a plain copy: cargo binstall needs both binaries the crate
+          # declares and skips hard links and symlinks when it unpacks an archive.
+          cp "dist/$name/lagom" "dist/$name/lgm"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
           tar -tzf "dist/$name.tar.gz"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

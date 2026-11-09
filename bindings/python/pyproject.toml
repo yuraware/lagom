@@ -1,0 +1,38 @@
+# Binary-only wheel: `pip install lagom-ai` puts the `lagom` and `lgm`
+# executables on PATH, the way ruff ships. There is no Python module yet;
+# the native module and SDK middleware come later (PY-01, PY-04).
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "lagom-ai"
+dynamic = ["version"]
+description = "Lightweight token saver for coding agents: output styles, command-output compression and skills for Claude Code, Codex and Cursor."
+readme = "README.md"
+requires-python = ">=3.8"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+keywords = ["llm", "claude", "codex", "cursor", "tokens", "cli"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Rust",
+  "Topic :: Software Development",
+  "Topic :: Utilities",
+]
+
+[project.urls]
+Homepage = "https://github.com/yuraware/lagom"
+Repository = "https://github.com/yuraware/lagom"
+Changelog = "https://github.com/yuraware/lagom/blob/main/CHANGELOG.md"
+Issues = "https://github.com/yuraware/lagom/issues"
+
+[tool.maturin]
+bindings = "bin"
+# The version comes from this Cargo.toml, so the wheel and the crate never drift.
+manifest-path = "../../Cargo.toml"
+locked = true

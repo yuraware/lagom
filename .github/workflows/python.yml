@@ -1,0 +1,187 @@
+name: python
+
+# Builds the binary-only `lagom-ai` wheels (the `lagom` and `lgm` executables,
+# no Python module) and the source distribution.
+# - Pull requests that touch the packaging build and test every wheel.
+# - A pushed `v<version>` tag whose version equals Cargo.toml's also publishes
+#   to PyPI through trusted publishing (OIDC, no stored token).
+# - Pre-release tags such as v0.1.0-rc.1 build but never publish: the wheel
+#   version comes from Cargo.toml, so publishing would release the final version.
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "bindings/python/**"
+      - ".github/workflows/python.yml"
+      - "Cargo.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  MATURIN_VERSION: "1.16.0"
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      publish: ${{ steps.v.outputs.publish }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: v
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          crate=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "lagom") | .version')
+          [ -n "$crate" ] || { echo "::error::no lagom package in cargo metadata"; exit 1; }
+          publish=false
+          if [ "$REF_TYPE" = tag ]; then
+            case "${REF_NAME#v}" in
+              "$crate") publish=true ;;
+              "$crate"-*) echo "::notice::pre-release tag $REF_NAME: building wheels without publishing" ;;
+              *) echo "::error::tag $REF_NAME does not match Cargo.toml version $crate"; exit 1 ;;
+            esac
+          fi
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+
+  wheels:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # install: pip-install the wheel on the runner and run the tests.
+          # run: the runner can't pip-install this wheel, but it can run the static musl binary inside it.
+          - { name: macos-arm64, os: macos-15, target: aarch64-apple-darwin, install: true }
+          - { name: macos-x86_64, os: macos-15-intel, target: x86_64-apple-darwin, install: true }
+          - { name: manylinux-x86_64, os: ubuntu-latest, target: x86_64-unknown-linux-gnu, manylinux: "2014", install: true }
+          - { name: manylinux-aarch64, os: ubuntu-latest, target: aarch64-unknown-linux-gnu, manylinux: "2014" }
+          - { name: musllinux-x86_64, os: ubuntu-latest, target: x86_64-unknown-linux-musl, manylinux: musllinux_1_2, run: true }
+          - { name: musllinux-aarch64, os: ubuntu-latest, target: aarch64-unknown-linux-musl, manylinux: musllinux_1_2 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Build the wheel
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
+        with:
+          maturin-version: ${{ env.MATURIN_VERSION }}
+          working-directory: bindings/python
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux || 'auto' }}
+          args: --release --out dist
+      - name: Check the wheel contents
+        working-directory: bindings/python
+        run: |
+          set -- dist/*.whl
+          [ "$#" -eq 1 ] && [ -f "$1" ] || { echo "::error::expected exactly one wheel, got: $*"; exit 1; }
+          python -m zipfile -l "$1" | tee "$RUNNER_TEMP/contents.txt"
+          for f in .data/scripts/lagom .data/scripts/lgm .dist-info/licenses/LICENSE; do
+            grep -qF "$f " "$RUNNER_TEMP/contents.txt" || { echo "::error::wheel is missing $f"; exit 1; }
+          done
+      - name: Install the wheel and run the tests
+        if: matrix.install
+        working-directory: bindings/python
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install --quiet --no-index dist/*.whl
+          "$RUNNER_TEMP/venv/bin/python" -m pip install --quiet pytest==8.4.2
+          "$RUNNER_TEMP/venv/bin/lagom" --version
+          "$RUNNER_TEMP/venv/bin/lgm" --version
+          LAGOM_WHEEL_INSTALLED=1 "$RUNNER_TEMP/venv/bin/python" -m pytest -q tests
+      - name: Run the binary from the wheel
+        if: matrix.run
+        working-directory: bindings/python
+        run: |
+          mkdir -p "$RUNNER_TEMP/whl"
+          python -m zipfile -e dist/*.whl "$RUNNER_TEMP/whl"
+          for b in "$RUNNER_TEMP"/whl/*.data/scripts/lagom "$RUNNER_TEMP"/whl/*.data/scripts/lgm; do
+            chmod +x "$b"
+            out=$("$b" --version) && echo "$out"
+            case "$out" in "lagom "*) ;; *) echo "::error::unexpected --version output from $b"; exit 1 ;; esac
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: wheel-${{ matrix.name }}
+          path: bindings/python/dist/*.whl
+          if-no-files-found: error
+
+  sdist:
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Build the source distribution
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
+        with:
+          maturin-version: ${{ env.MATURIN_VERSION }}
+          working-directory: bindings/python
+          command: sdist
+          args: --out dist
+      - name: Build and install from the source distribution
+        working-directory: bindings/python
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install --quiet "maturin==$MATURIN_VERSION"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install --quiet --no-build-isolation dist/*.tar.gz
+          "$RUNNER_TEMP/venv/bin/lagom" --version
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sdist
+          path: bindings/python/dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: [version, wheels, sdist]
+    if: github.event_name == 'push' && github.ref_type == 'tag' && needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The owner registers this repository, workflow and environment as a
+    # trusted publisher for `lagom-ai` on PyPI, and can add reviewers to the
+    # environment so each upload waits for approval.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/lagom-ai/
+    permissions:
+      id-token: write # trusted publishing and PEP 740 attestations
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: wheel-*
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sdist
+          path: dist
+      - name: Check the files
+        run: |
+          ls -l dist
+          wheels=$(find dist -maxdepth 1 -name '*.whl' | wc -l)
+          sdists=$(find dist -maxdepth 1 -name '*.tar.gz' | wc -l)
+          [ "$wheels" -eq 6 ] || { echo "::error::expected 6 wheels, got $wheels"; exit 1; }
+          [ "$sdists" -eq 1 ] || { echo "::error::expected 1 source distribution, got $sdists"; exit 1; }
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          packages-dir: dist

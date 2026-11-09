@@ -1,13 +1,35 @@
 # Contributing
 
-Thanks for helping. Lagom is small on purpose, so keep changes focused. [docs/dev/testing.md](docs/dev/testing.md) explains how to run every kind of test.
+Thanks for helping. Lagom is small on purpose, so keep changes focused. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
+
+## Ways to help
+
+- **Report a bug** with the bug template. Include `lagom --version` and `lagom status`.
+- **Ask for a filter** when a command's output is compressed badly or not at all. The filter template asks for a sample of the raw output and what must be kept; a real sample is the most useful part. Redact secrets first.
+- **Ask for an agent** with a link to its hook documentation.
+- **Propose a style.** Styles are Markdown files, so try yours locally first (see [docs/styles.md](docs/styles.md)) and say how you tested it.
+- **Fix something.** For anything larger than a small fix, open an issue first so we can agree on the approach.
+
+Security problems are reported privately through GitHub's private vulnerability reporting (the repository's Security tab), never in a public issue.
+
+## Development
+
+You need stable Rust (the minimum version is `rust-version` in `Cargo.toml`). No other tools are required.
+
+```sh
+cargo build
+cargo test        # never touches your real agent config
+```
+
+[docs/dev/testing.md](docs/dev/testing.md) explains every kind of test, including the golden compressor cases and the hook contract cases, and how to update them after an intended change.
 
 ## Before you open a pull request
 
 - `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo test` pass.
 - New behaviour has a test; a bug fix has a test that failed before the fix.
 - User-visible changes add a fragment in `changelog.d/` (see [changelog.d/README.md](changelog.d/README.md)).
-- No new crate unless the project's dependency budget lists it.
+- No new crate without agreement first (see [Dependencies](#dependencies)).
+- Every commit is signed off (see [Sign your work](#sign-your-work)).
 - One commit message line, in [Conventional Commits](https://www.conventionalcommits.org/) form.
 
 ## Rules that are never relaxed
@@ -26,3 +48,21 @@ Everything Lagom injects or adds to output is read by the model as context. Chec
 - [ ] **No new text sources without trust.** Text from a repository (styles, filters, config) is only used through the trust rules; turning something *off* is the only thing an untrusted file may do.
 - [ ] **Output content is data.** Lagom never interprets text inside command output as configuration or commands.
 - [ ] **Size is bounded.** Injected text stays under the hook context limit (about 10,000 characters in Claude Code), and markers stay one line.
+
+## Dependencies
+
+Lagom has one runtime dependency, `serde_json`, and keeps it that way unless there is a strong reason. Open an issue before adding a crate. Async runtimes, argument-parser frameworks, error-helper crates, date-time crates and logging frameworks are out: the binary has a hand-written argument parser, uses `std::error::Error` and Unix seconds, and prints debug output to stderr.
+
+## Sign your work
+
+Lagom uses the [Developer Certificate of Origin](https://developercertificate.org/) (DCO) instead of a contributor license agreement. By adding a `Signed-off-by` line to a commit you certify that you wrote the change or otherwise have the right to submit it under the project's license:
+
+```sh
+git commit -s -m "fix: keep warning lines in go test output"
+```
+
+The line uses the name and email from your git config. To sign off commits you already made, run `git rebase --signoff main` and force-push your branch.
+
+## License
+
+Lagom is licensed under [Apache-2.0](LICENSE), and contributions are accepted under the same license. Code copied from another project must have a compatible license, keep its original copyright header, and be listed in `NOTICE`. Don't submit code you don't have the right to share.

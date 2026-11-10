@@ -1,5 +1,7 @@
 # lagom
 
+[![crates.io](https://img.shields.io/crates/v/lagom.svg)](https://crates.io/crates/lagom)
+
 Fewer tokens, simpler answers for coding agents. *Lagom* is Swedish for "just the right amount".
 
 One small Rust binary (~0.5 MB, no runtime, no daemon) that plugs into **Claude Code**, **Codex** and **Cursor**:
@@ -13,12 +15,14 @@ Status: **0.1.0, first public preview.** Tested on macOS; Linux should work; Win
 ## Install
 
 ```sh
-cargo install --git https://github.com/yuraware/lagom   # or: cargo install --path .
+cargo install lagom      # from crates.io
 lagom install            # every agent found: claude, codex, cursor
 lagom install claude     # or pick agents
 ```
 
 Then start a new agent session.
+
+To try unreleased changes, install from `main` with `cargo install --git https://github.com/yuraware/lagom`, or from a local checkout with `cargo install --path .`. Upgrade a crates.io install with `cargo install lagom --force`.
 
 `lgm` is a short alias: `lgm <command>` does exactly what `lagom <command>` does. (If you already have the unrelated `lgm` crate installed, use `cargo install lagom --bin lagom`.)
 

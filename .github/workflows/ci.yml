@@ -3,12 +3,15 @@ on:
   push:
     branches: [main]
   pull_request:
+    # labeled/unlabeled: the override labels (size-increase-ok, no-changelog) take effect when changed.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
 
 jobs:
   test:
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -37,6 +40,7 @@ jobs:
 
   latency:
     # Measures only; the regression gate comes with QA-08.
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -70,7 +74,7 @@ jobs:
       - name: No must_keep string lost
         run: ./target/release/lagom bench compress --json target/bench-current.json
       - name: Output size against the base branch
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'size-increase-ok')
         run: |
           git worktree add ../base "origin/${{ github.base_ref }}"
           cargo build --release --manifest-path ../base/Cargo.toml
@@ -84,3 +88,6 @@ jobs:
           else
             echo "The base branch has no 'lagom bench compress' yet; skipping the size check."
           fi
+      - name: Size check skipped by the size-increase-ok label
+        if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'size-increase-ok')
+        run: echo "size-increase-ok is set; total output may grow."

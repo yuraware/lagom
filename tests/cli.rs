@@ -919,7 +919,9 @@ fn bench_compress_reports_and_gates_on_lost_strings() {
         Some(0),
         "no growth passes"
     );
-    assert_eq!(grow("x", &json_path).status.code(), Some(2));
+    for bad in ["x", "nan", "-1"] {
+        assert_eq!(grow(bad, &json_path).status.code(), Some(2), "{bad}");
+    }
     let no_base = lagom(
         &home,
         &["bench", "compress", &dir, "--max-growth", "5"],

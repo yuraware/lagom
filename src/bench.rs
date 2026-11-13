@@ -207,7 +207,11 @@ pub fn run(args: &[String]) -> ExitCode {
                     compare = Some(v);
                 }
             }
-            "--max-growth" => match it.next().and_then(|v| v.parse::<f64>().ok()) {
+            "--max-growth" => match it
+                .next()
+                .and_then(|v| v.parse::<f64>().ok())
+                .filter(|v| v.is_finite() && *v >= 0.0)
+            {
                 Some(v) => max_growth = Some(v),
                 None => {
                     eprintln!("lagom: --max-growth needs a number (percent)\n{USAGE}");

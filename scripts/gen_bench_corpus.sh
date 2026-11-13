@@ -103,6 +103,7 @@ GO
   { echo 'package m'; echo 'import "testing"'; for i in $(seq 1 60); do echo "func TestAdd$i(t *testing.T) { if Add($i, 1) != $((i + 1)) { t.Fatal(\"bad\") } }"; done
     echo 'func TestBroken(t *testing.T) { if Add(2, 2) != 5 { t.Errorf("Add(2,2) = %d, want 5", Add(2, 2)) } }'; } > m_test.go
   run go go-test-fail '["--- FAIL: TestBroken", "Add(2,2) = 4, want 5", "FAIL"]' go test -v ./...
+  run go go-test-json '["--- FAIL: TestBroken", "Add(2,2) = 4, want 5", "\"Action\":\"fail\""]' env TZ=UTC go test -json ./...  # UTC: no local time zone in the corpus
   sed -i '' '/TestBroken/d' m_test.go
   run go go-test-pass '["ok"]' go test -v ./...
   printf 'package m\nfunc Bad() int { return "x" }\n' > bad.go

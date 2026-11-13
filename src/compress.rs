@@ -321,10 +321,11 @@ fn shorten_line(line: String, max_chars: usize, lossy: &mut bool) -> String {
 
 /// Lines that must survive compression: errors, failures, warnings, file:line locations.
 pub fn is_important(line: &str) -> bool {
-    const WORDS: [&str; 14] = [
+    const WORDS: [&str; 15] = [
         "error",
         "fail",
         "panic",
+        "crash", // also "CrashLoopBackOff"
         "exception",
         "traceback",
         "fatal",

@@ -48,6 +48,10 @@ Active styles come from the first of these that is set:
 
 With the defaults the rules cost about 400 tokens per session; `lagom stats` shows the total.
 
+## Real usage per style
+
+`lagom stats --usage [--days N]` (default 30 days) reads Claude Code's transcripts and Codex's session logs and shows, per agent and style set: sessions, turns, the median output and input tokens per turn, and the share of input read from the prompt cache. Sessions without styles are the baseline. Sessions that ended before Lagom recorded session ids are listed apart, because whether they got styles is unknown. For Codex, matching sessions to styles assumes the hook's session id is the log's id; that is not verified yet. The numbers are observational: sessions differ in their work, so a difference is not proof of a style's effect.
+
 ## Measure a style
 
 Styles cost tokens (the injected rules) and should save more than they cost (shorter answers, less code). To measure it on your own work:

@@ -9,12 +9,13 @@ OUT="$ROOT/bench/corpus"
 W=$(mktemp -d "${TMPDIR:-/tmp}/lagom-corpus.XXXXXX"); trap 'rm -rf "$W"' EXIT
 W=$(cd "$W" && pwd -P)   # real path: tools print it resolved (/private/var/... on macOS)
 WSHORT=${W#/private}
+ME=$(id -un)             # ls -l prints the owner: replaced by "dev" like $HOME
 rm -rf "$OUT"; mkdir -p "$OUT"
 export NO_COLOR=1 CARGO_TERM_COLOR=never GIT_PAGER=cat PAGER=cat
 
 save() { # tool case exit must_keep_json  < output
   local d="$OUT/$1/$2"; mkdir -p "$d"
-  head -c 400000 | sed -e "s#$W#/work#g" -e "s#$WSHORT#/work#g" -e "s#$HOME#/home/dev#g" > "$d/input.txt"
+  head -c 400000 | sed -e "s#$W#/work#g" -e "s#$WSHORT#/work#g" -e "s#$HOME#/home/dev#g" -e "s/ $ME / dev /g" > "$d/input.txt"
   printf '{"exit_code": %s, "must_keep": %s}\n' "$3" "$4" > "$d/meta.json"
 }
 run() { # tool case must_keep_json cmd...
@@ -103,6 +104,7 @@ GO
   { echo 'package m'; echo 'import "testing"'; for i in $(seq 1 60); do echo "func TestAdd$i(t *testing.T) { if Add($i, 1) != $((i + 1)) { t.Fatal(\"bad\") } }"; done
     echo 'func TestBroken(t *testing.T) { if Add(2, 2) != 5 { t.Errorf("Add(2,2) = %d, want 5", Add(2, 2)) } }'; } > m_test.go
   run go go-test-fail '["--- FAIL: TestBroken", "Add(2,2) = 4, want 5", "FAIL"]' go test -v ./...
+  run go go-test-json '["--- FAIL: TestBroken", "Add(2,2) = 4, want 5", "\"Action\":\"fail\""]' env TZ=UTC go test -json ./...  # UTC: no local time zone in the corpus
   sed -i '' '/TestBroken/d' m_test.go
   run go go-test-pass '["ok"]' go test -v ./...
   printf 'package m\nfunc Bad() int { return "x" }\n' > bad.go
@@ -183,7 +185,8 @@ PY
 run search rg-context '["src/mod0/file0.rs"]' rg -n -C 1 --sort path "TODO" src
 run search rg-count '["src/mod7/file9.rs:12"]' rg -c --sort path "TODO" src
 run search grep-rn '["TODO(item"]' grep -rn "TODO" src
-run search find-name '["src/mod0/file0.rs", "src/mod7/file9.rs"]' sh -c 'find src -name "*.rs" | sort'
+run search find-name '["src/mod0/file0.rs", "src/mod3/file4.rs", "src/mod7/file9.rs"]' sh -c 'find src -name "*.rs" | sort'
+gap search find-name FLT-19  # file lists collapse to their first and last name
 run search ls-la-recursive '["file0.rs"]' ls -laR src
 run search find-missing-dir '["No such file or directory"]' find /nonexistent-lagom-dir -name x
 run search du-all '["src"]' du -a src
@@ -195,8 +198,9 @@ items = [{"id": i, "name": f"service-{i}", "status": "ok" if i % 37 else "failed
           "error": None if i % 37 else f"timeout after {i}ms", "tags": ["a", "b"]} for i in range(400)]
 json.dump({"items": items, "total": 400}, open(sys.argv[1], "w"))
 PY
-run json jq-pretty-array '["\"status\":\"failed\"", "timeout after 37ms", "\"total\":400"]' jq . "$W/api.json"  # Lagom prints JSON compactly
-run json jq-compact-lines '["timeout after 74ms"]' jq -c '.items[]' "$W/api.json"
+TIMEOUTS='"timeout after 0ms", "timeout after 37ms", "timeout after 74ms", "timeout after 111ms", "timeout after 148ms", "timeout after 185ms", "timeout after 222ms", "timeout after 259ms", "timeout after 296ms", "timeout after 333ms", "timeout after 370ms"'  # every failed item must survive, not just one
+run json jq-pretty-array '["\"status\":\"failed\"", '"$TIMEOUTS"', "\"total\":400"]' jq . "$W/api.json"  # Lagom prints JSON compactly
+run json jq-compact-lines '['"$TIMEOUTS"']' jq -c '.items[]' "$W/api.json"
 run json jq-parse-error '["parse error"]' sh -c 'echo "{\"a\": [1, 2,}" | jq .'
 
 # ---------- logs ----------
@@ -210,7 +214,7 @@ with open(sys.argv[1], "w") as f:
         if i % 500 == 0:
             f.write(f"2026-11-08T10:{i // 60 % 60:02}:00.000Z WARN  slow query took 1532ms table=orders\n")
 PY
-run logs app-log-errors '["ERROR database connection lost", "WARN  slow query"]' cat "$W/app.log"
+run logs app-log-errors '["10:20:00.000Z ERROR database connection lost", "10:41:40.000Z ERROR database connection lost", "WARN  slow query"]' cat "$W/app.log"  # every error line
 python3 - "$W/access.log" <<'PY'
 import sys
 with open(sys.argv[1], "w") as f:
@@ -218,7 +222,7 @@ with open(sys.argv[1], "w") as f:
         code = 500 if i in (700, 1800) else 200
         f.write(f'10.0.{i % 5}.{i % 250} - - [08/Nov/2026:10:{i // 60 % 60:02}:{i % 60:02} +0000] "GET /static/app.{i % 3}.js HTTP/1.1" {code} {1000 + i % 300} "-" "Mozilla/5.0"\n')
 PY
-run logs access-log '["\" 500 "]' cat "$W/access.log"
+run logs access-log '["10:11:40 +0000] \"GET /static/app.1.js HTTP/1.1\" 500", "10:30:00 +0000] \"GET /static/app.0.js HTTP/1.1\" 500"]' cat "$W/access.log"  # every 5xx line
 
 # ---------- containers / clusters (no daemon or cluster needed: real error output) ----------
 if have kubectl; then

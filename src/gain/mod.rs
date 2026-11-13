@@ -70,6 +70,28 @@ pub struct StyleUsage {
 
 /// Label for sessions Lagom injected no styles into.
 pub const NO_STYLES: &str = "no styles injected";
+/// Label for sessions that ended before Lagom recorded session ids: whether they got
+/// styles is unknown, so they must not count as the no-styles baseline.
+pub const BEFORE_TRACKING: &str = "before Lagom tracked sessions";
+
+/// Seconds since 1970 for an ISO 8601 UTC time such as `2026-11-08T10:00:01.123Z`
+/// (the fraction and zone are ignored; Claude Code writes UTC).
+pub fn iso_to_unix(ts: &str) -> Option<u64> {
+    let num = |r: std::ops::Range<usize>| ts.get(r)?.parse::<i64>().ok();
+    let (y, m, d) = (num(0..4)?, num(5..7)?, num(8..10)?);
+    let (h, min, s) = (num(11..13)?, num(14..16)?, num(17..19)?);
+    if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
+        return None;
+    }
+    // Days from 1970-01-01 to the date (Howard Hinnant's days_from_civil).
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let doy = (153 * ((m + 9) % 12) + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+    u64::try_from(days * 86_400 + h * 3600 + min * 60 + s).ok()
+}
 
 fn median(mut v: Vec<u64>) -> u64 {
     if v.is_empty() {
@@ -85,12 +107,28 @@ fn median(mut v: Vec<u64>) -> u64 {
 }
 
 /// Group sessions by the style set Lagom injected (`styles`: session id → style key).
+/// A session without one is the no-styles baseline only if it ran after `tracked_since`
+/// (when Lagom started recording session ids); earlier ones go to [`BEFORE_TRACKING`].
 /// Observational: different sessions do different work, so differences between
 /// styles are not proof of an effect (holdout experiments are, see GAIN-05).
-pub fn by_style(sessions: &[SessionUsage], styles: &HashMap<String, String>) -> Vec<StyleUsage> {
+pub fn by_style(
+    sessions: &[SessionUsage],
+    styles: &HashMap<String, String>,
+    tracked_since: Option<u64>,
+) -> Vec<StyleUsage> {
     let mut groups: BTreeMap<&str, Vec<&SessionUsage>> = BTreeMap::new();
     for s in sessions {
-        let key = styles.get(&s.session_id).map_or(NO_STYLES, String::as_str);
+        let tracked = |since: u64| {
+            s.last_ts
+                .as_deref()
+                .and_then(iso_to_unix)
+                .is_some_and(|t| t >= since)
+        };
+        let key = match styles.get(&s.session_id) {
+            Some(style) => style.as_str(),
+            None if tracked_since.is_some_and(tracked) => NO_STYLES,
+            None => BEFORE_TRACKING,
+        };
         groups.entry(key).or_default().push(s);
     }
     groups
@@ -130,6 +168,7 @@ mod tests {
     fn session(id: &str, turns: &[(u64, u64)]) -> SessionUsage {
         let mut s = SessionUsage {
             session_id: id.into(),
+            last_ts: Some("2026-11-08T10:00:00Z".into()),
             turns: turns.to_vec(),
             ..Default::default()
         };
@@ -156,7 +195,7 @@ mod tests {
             ("a".to_string(), "terse+lean-code".to_string()),
             ("b".to_string(), "terse+lean-code".to_string()),
         ]);
-        let r = by_style(&sessions, &styles);
+        let r = by_style(&sessions, &styles, Some(0));
         assert_eq!(r.len(), 2);
         let none = r.iter().find(|s| s.style == NO_STYLES).unwrap();
         assert_eq!(
@@ -169,5 +208,32 @@ mod tests {
         assert_eq!(terse.median_input_per_turn, 1500); // 1000,1000,2000,3000
         assert_eq!(terse.total.output, 650);
         assert!((terse.cache_read_share - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn iso_times_convert_to_unix_seconds() {
+        assert_eq!(iso_to_unix("1970-01-01T00:00:00Z"), Some(0));
+        assert_eq!(iso_to_unix("2026-11-08T10:00:01.123Z"), Some(1_794_132_001));
+        assert_eq!(iso_to_unix("2024-02-29T23:59:59Z"), Some(1_709_251_199));
+        assert_eq!(iso_to_unix("not a time"), None);
+    }
+
+    #[test]
+    fn sessions_before_tracking_are_not_the_baseline() {
+        let old = session("old", &[(10, 1)]); // ended 2026-11-08T10:00:00Z
+        let mut new = session("new", &[(10, 2)]);
+        new.last_ts = Some("2026-11-09T00:00:00Z".into());
+        let sessions = vec![old, new];
+        let r = by_style(
+            &sessions,
+            &HashMap::new(),
+            iso_to_unix("2026-11-08T12:00:00Z"),
+        );
+        let output_of = |style: &str| r.iter().find(|g| g.style == style).map(|g| g.total.output);
+        assert_eq!(output_of(BEFORE_TRACKING), Some(1));
+        assert_eq!(output_of(NO_STYLES), Some(2));
+        // No session tracked yet: nothing can be called the baseline.
+        let r = by_style(&sessions, &HashMap::new(), None);
+        assert_eq!((r.len(), r[0].style.as_str()), (1, BEFORE_TRACKING));
     }
 }

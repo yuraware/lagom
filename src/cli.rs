@@ -20,10 +20,11 @@ Usage:
   lagom style show <name>                   Print a style
   lagom style use [--project] <names…|off>  Set active styles (user or this project)
   lagom run -- <command> [args…]            Run a command and compress its output
+            [--session AGENT:ID]            (set by the agent hook, for stats)
   lagom compress                            Compress text from stdin
   lagom recall <id> [--grep TEXT]           Print the full output behind a compressed result
                   [--lines A-B] [--head N] [--tail N]  or only part of it
-  lagom recall --list | --clear              List or delete saved outputs
+  lagom recall --list | --clear             List or delete saved outputs
   lagom stats                               Show estimated savings
   lagom experiment start [--holdout 0.2]    Measure styles: some sessions run without them
                   [--days 14] | status | stop
@@ -70,7 +71,13 @@ pub fn main() -> ExitCode {
         Some("stats") => match args.get(1).map(String::as_str) {
             Some("--usage") => cmd_usage(&rest(2)),
             Some("--experiment") => cmd_experiment_report(),
-            _ => cmd_stats(),
+            None => cmd_stats(),
+            Some(other) => {
+                eprintln!(
+                    "lagom: unknown option `{other}`\nusage: lagom stats [--usage [--days N] | --experiment]"
+                );
+                ExitCode::from(2)
+            }
         },
         Some("bench") => crate::bench::run(&rest(1)),
         Some("experiment") => cmd_experiment(&rest(1)),
@@ -154,13 +161,21 @@ fn cmd_recall(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    if !store::is_recall_id(id) {
+        eprintln!(
+            "lagom: `{id}` is not a recall id (10 hex characters, from a `[lagom: … lagom recall <id> …]` line)\n{USAGE}"
+        );
+        return ExitCode::from(2);
+    }
     match store::load_original(id) {
         Some(text) => {
             print!("{}", selection.apply(&text));
             ExitCode::SUCCESS
         }
         None => {
-            eprintln!("lagom: no stored output for `{id}` (Lagom keeps the last 500)");
+            eprintln!(
+                "lagom: no stored output for `{id}`: it may have been pruned (Lagom keeps up to 500 outputs, 200 MB, for 14 days; see `lagom recall --list`)"
+            );
             ExitCode::from(1)
         }
     }
@@ -191,13 +206,25 @@ fn parse_agents(names: &[String], only_present: bool) -> Result<Vec<Agent>, Stri
         .collect()
 }
 
+/// Ask a yes/no question. Enter or "y" means yes; "n", end of input or a read error means no.
+fn confirm(question: &str, input: &mut impl std::io::BufRead, out: &mut impl Write) -> bool {
+    let _ = write!(out, "{question} [Y/n] ");
+    let _ = out.flush();
+    let mut answer = String::new();
+    match input.read_line(&mut answer) {
+        Ok(0) | Err(_) => false,
+        Ok(_) => !answer.trim().to_lowercase().starts_with('n'),
+    }
+}
+
 fn cmd_install(args: &[String], installing: bool) -> ExitCode {
-    let (mut dry_run, mut yes, mut purge, mut names) = (false, false, false, Vec::new());
+    let (mut dry_run, mut yes, mut purge, mut all, mut names) =
+        (false, false, false, false, Vec::new());
     for a in args {
         match a.as_str() {
             "--dry-run" | "-n" => dry_run = true,
             "--yes" | "-y" => yes = true,
-            "--all" => {} // the default when no agent is named
+            "--all" => all = true, // the default when no agent is named
             "--purge" if !installing => purge = true,
             s if s.starts_with('-') => {
                 eprintln!("lagom: unknown option `{s}`");
@@ -205,6 +232,21 @@ fn cmd_install(args: &[String], installing: bool) -> ExitCode {
             }
             _ => names.push(a.clone()),
         }
+    }
+    if all && !names.is_empty() {
+        eprintln!("lagom: use either --all or agent names, not both");
+        return ExitCode::from(2);
+    }
+    if purge && !names.is_empty() {
+        eprintln!(
+            "lagom: --purge deletes data every agent shares; run `lagom uninstall --all --purge`"
+        );
+        return ExitCode::from(2);
+    }
+    // Decide before changing anything: without a terminal there is no one to ask.
+    if purge && !dry_run && !yes && !std::io::stdin().is_terminal() {
+        eprintln!("lagom: --purge deletes Lagom's data and config; rerun with --yes to confirm");
+        return ExitCode::from(2);
     }
     let agents = match parse_agents(&names, installing) {
         Ok(a) if a.is_empty() => {
@@ -219,17 +261,21 @@ fn cmd_install(args: &[String], installing: bool) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    if installing && cfg!(windows) {
+        eprintln!(
+            "lagom: `lagom install` doesn't support Windows yet: the hooks it writes need a POSIX shell. `lagom uninstall` still works."
+        );
+        return ExitCode::from(2);
+    }
     if installing && !dry_run && !yes && std::io::stdin().is_terminal() {
         let list: Vec<&str> = agents.iter().map(|a| a.name()).collect();
-        print!(
-            "Install Lagom hooks and skills into {}? [Y/n] ",
-            list.join(", ")
-        );
-        let _ = std::io::stdout().flush();
-        let mut answer = String::new();
-        let _ = std::io::stdin().read_line(&mut answer);
-        if answer.trim().to_lowercase().starts_with('n') {
-            println!("Cancelled. Nothing was changed.");
+        let question = format!("Install Lagom hooks and skills into {}?", list.join(", "));
+        if !confirm(
+            &question,
+            &mut std::io::stdin().lock(),
+            &mut std::io::stdout(),
+        ) {
+            println!("\nCancelled. Nothing was changed.");
             return ExitCode::from(1);
         }
     }
@@ -311,13 +357,6 @@ fn cmd_purge(dry_run: bool, yes: bool) -> bool {
     }
     if !dry_run && !yes {
         let list: Vec<String> = dirs.iter().map(|d| d.display().to_string()).collect();
-        if !std::io::stdin().is_terminal() {
-            eprintln!(
-                "lagom: --purge would delete {}; rerun with --yes to confirm",
-                list.join(" and ")
-            );
-            return false;
-        }
         print!(
             "Delete {} (stats, saved outputs, styles, config)? [y/N] ",
             list.join(" and ")
@@ -458,7 +497,7 @@ fn cmd_usage(args: &[String]) -> ExitCode {
     };
     let since =
         std::time::SystemTime::now().checked_sub(std::time::Duration::from_secs(days * 86_400));
-    let styles = store::session_styles();
+    let (styles, tracked_since) = store::session_styles();
     let agents = [
         ("Claude Code", crate::gain::claude::sessions(since)),
         ("Codex", crate::gain::codex::sessions(since)),
@@ -470,12 +509,12 @@ fn cmd_usage(args: &[String]) -> ExitCode {
     for (name, sessions) in agents.iter().filter(|(_, s)| !s.is_empty()) {
         println!("{name} token usage, last {days} days (from its own logs):");
         println!(
-            "{:<22} {:>8} {:>7} {:>14} {:>15} {:>11}",
+            "{:<30} {:>8} {:>7} {:>14} {:>15} {:>11}",
             "style", "sessions", "turns", "output/turn", "input/turn", "cache read"
         );
-        for g in &crate::gain::by_style(sessions, &styles) {
+        for g in &crate::gain::by_style(sessions, &styles, tracked_since) {
             println!(
-                "{:<22} {:>8} {:>7} {:>14} {:>15} {:>10.0}%",
+                "{:<30} {:>8} {:>7} {:>14} {:>15} {:>10.0}%",
                 g.style,
                 g.sessions,
                 g.turns,
@@ -665,4 +704,26 @@ fn cmd_stats() -> ExitCode {
         }
     }
     ExitCode::SUCCESS
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn answer(input: &str) -> bool {
+        let mut out = Vec::new();
+        let yes = confirm("Install?", &mut input.as_bytes(), &mut out);
+        assert_eq!(String::from_utf8(out).unwrap(), "Install? [Y/n] ");
+        yes
+    }
+
+    #[test]
+    fn confirm_defaults_to_yes_and_cancels_on_no_or_end_of_input() {
+        assert!(answer("\n"));
+        assert!(answer("y\n"));
+        assert!(answer("Yes\n"));
+        assert!(!answer("n\n"));
+        assert!(!answer("No\n"));
+        assert!(!answer(""), "Ctrl-D at the prompt must not install");
+    }
 }

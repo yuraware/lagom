@@ -129,7 +129,9 @@ pub fn report(results: &[CaseResult], baseline: Option<&Value>) -> String {
             r.must_keep - r.lost.len(),
             r.must_keep,
             match (&r.known_gap, r.lost.is_empty()) {
-                (_, true) => String::new(),
+                // A gap that closed: say so, so the marker doesn't outlive the problem.
+                (Some(task), true) => format!(" (known gap {task} now met: remove the marker)"),
+                (None, true) => String::new(),
                 (Some(task), false) => format!(" (known gap: {task})"),
                 (None, false) => " **LOST**".to_string(),
             }
@@ -188,8 +190,17 @@ pub fn run(args: &[String]) -> ExitCode {
     let mut it = rest.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
-            "--json" => json_out = it.next().cloned(),
-            "--compare" => compare = it.next().cloned(),
+            "--json" | "--compare" => {
+                let Some(v) = it.next().cloned() else {
+                    eprintln!("lagom: {a} needs a file\n{USAGE}");
+                    return ExitCode::from(2);
+                };
+                if a == "--json" {
+                    json_out = Some(v);
+                } else {
+                    compare = Some(v);
+                }
+            }
             s if s.starts_with('-') => {
                 eprintln!("lagom: unknown option `{s}`\n{USAGE}");
                 return ExitCode::from(2);
@@ -233,8 +244,16 @@ pub fn run(args: &[String]) -> ExitCode {
             }
         }
     }
-    let baseline = match compare.map(|p| fs::read(&p).map_err(|e| format!("{p}: {e}"))) {
-        Some(Ok(b)) => serde_json::from_slice::<Value>(&b).ok(),
+    // A baseline that can't be read or isn't a bench report is an error: silently
+    // comparing against nothing would hide the very change the comparison is for.
+    let baseline = match compare.map(|p| {
+        let b = fs::read(&p).map_err(|e| format!("{p}: {e}"))?;
+        serde_json::from_slice::<Value>(&b)
+            .ok()
+            .filter(|v| v["totals"]["bytes_out"].is_u64() && v["cases"].is_array())
+            .ok_or(format!("{p}: not a `lagom bench compress --json` report"))
+    }) {
+        Some(Ok(b)) => Some(b),
         Some(Err(e)) => {
             eprintln!("lagom: {e}");
             return ExitCode::from(2);

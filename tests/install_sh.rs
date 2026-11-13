@@ -533,6 +533,12 @@ fn help_prints_usage_without_downloading() {
 #[test]
 fn passes_shellcheck() {
     let Some(shellcheck) = which("shellcheck") else {
+        // GitHub's Ubuntu runner ships shellcheck, so on Linux CI a missing one is an
+        // error, not a quiet skip (REL-19). Elsewhere it is optional.
+        assert!(
+            !(cfg!(target_os = "linux") && std::env::var_os("CI").is_some()),
+            "shellcheck is missing on Linux CI"
+        );
         eprintln!("skipped: shellcheck is not installed");
         return;
     };

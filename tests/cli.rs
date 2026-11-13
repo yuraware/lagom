@@ -25,6 +25,7 @@ fn lagom(home: &Path, args: &[&str], stdin: Option<&str>) -> Output {
         .env_remove("LAGOM_HOME")
         .env_remove("LAGOM_STYLES")
         .env_remove("LAGOM_DISABLE")
+        .env_remove("LAGOM_REWRITE")
         .current_dir(home)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -663,6 +664,64 @@ fn purge_refuses_unsafe_lagom_home() {
     assert_eq!(out.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&out.stderr).contains("refusing to delete"));
     assert!(home.exists());
+}
+
+#[test]
+fn rewrite_can_be_turned_off_per_project_or_by_env() {
+    let home = sandbox("norewrite");
+    let repo = home.join("repo");
+    fs::create_dir_all(&repo).unwrap();
+    let payload = json!({"tool_name": "Bash", "cwd": repo, "permission_mode": "bypassPermissions",
+                         "tool_input": {"command": "git log"}})
+    .to_string();
+    let hook = |extra_env: Option<(&str, &str)>| {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_lagom"));
+        cmd.args(["hook", "claude", "pre-tool"])
+            .env("HOME", &home)
+            .env_remove("CLAUDE_CONFIG_DIR")
+            .env_remove("XDG_CONFIG_HOME")
+            .env_remove("LAGOM_REWRITE")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped());
+        if let Some((k, v)) = extra_env {
+            cmd.env(k, v);
+        }
+        let mut child = cmd.spawn().unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(payload.as_bytes())
+            .unwrap();
+        text(&child.wait_with_output().unwrap())
+    };
+    assert!(hook(None).contains("run -- git log"), "rewrites by default");
+    assert_eq!(hook(Some(("LAGOM_REWRITE", "off"))), "");
+    fs::create_dir_all(repo.join(".lagom")).unwrap();
+    fs::write(repo.join(".lagom/config.json"), r#"{"rewrite": false}"#).unwrap();
+    assert_eq!(hook(None), "", "project turns rewriting off");
+    assert!(
+        hook(Some(("LAGOM_REWRITE", "on"))).contains("run -- git log"),
+        "env wins"
+    );
+
+    // The user turns it off everywhere; a project file can't turn it back on.
+    fs::write(repo.join(".lagom/config.json"), r#"{"rewrite": true}"#).unwrap();
+    assert!(
+        hook(None).contains("run -- git log"),
+        "project on, user unset"
+    );
+    fs::create_dir_all(home.join(".config/lagom")).unwrap();
+    fs::write(
+        home.join(".config/lagom/config.json"),
+        r#"{"rewrite": false}"#,
+    )
+    .unwrap();
+    assert_eq!(hook(None), "", "user off wins over project on");
+    assert!(
+        hook(Some(("LAGOM_REWRITE", "on"))).contains("run -- git log"),
+        "env still wins"
+    );
 }
 
 #[test]

@@ -455,6 +455,17 @@ fn permission_objects(v: &Value, depth: usize, out: &mut Vec<Value>) {
     }
 }
 
+/// True if `key` is `true` anywhere in `v`, up to `depth` levels down. Used for
+/// `allowManagedPermissionRulesOnly` in the server-managed cache: like its deny rules,
+/// an unexpected layout can only make Lagom stricter.
+fn flag_anywhere(v: &Value, key: &str, depth: usize) -> bool {
+    let Some(map) = v.as_object() else {
+        return false;
+    };
+    map.get(key) == Some(&json!(true))
+        || (depth > 0 && map.values().any(|c| flag_anywhere(c, key, depth - 1)))
+}
+
 /// Collect Claude Code's permission rules the way Claude Code applies them, or `None`
 /// when a server-managed policy cache exists but can't be read.
 /// - server-managed settings (Claude Code's cache, see [`claude_remote_policy`]): deny
@@ -490,7 +501,7 @@ fn claude_rules(
     let mut managed_only = false;
     if let Some(v) = &remote {
         let settings = remote_settings(v);
-        managed_only = settings.get("allowManagedPermissionRulesOnly") == Some(&json!(true));
+        managed_only = flag_anywhere(v, "allowManagedPermissionRulesOnly", 4);
         rules.add_value(settings, "Bash", Source::Trusted, None);
         let mut nested = vec![];
         permission_objects(v, 4, &mut nested);
@@ -991,6 +1002,17 @@ mod tests {
         );
         let r = claude_rules(&repo, None, &user, &managed).unwrap();
         assert!(r.allows("git log --oneline") && !r.allows("cargo test"));
+
+        // Managed-only policy nested anywhere in the cache still counts (HK-16).
+        write(
+            &remote,
+            json!({"payload": {"policy": {"allowManagedPermissionRulesOnly": true}}}),
+        );
+        let r = claude_rules(&repo, None, &user, &managed).unwrap();
+        assert!(
+            !r.allows("git log"),
+            "nested managed-only must drop user allow rules"
+        );
 
         // A wrapped or nested layout still contributes its deny rules.
         write(

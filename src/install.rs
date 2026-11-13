@@ -186,12 +186,24 @@ fn read_json_object(path: &Path) -> Result<Map<String, Value>, String> {
     }
 }
 
+/// Where the first change to an existing file keeps a copy of the original.
+fn backup_path(path: &Path) -> PathBuf {
+    PathBuf::from(format!("{}.lagom.bak", path.display()))
+}
+
+/// Dry-run note for the backup `write_json_atomic` would create, if any.
+fn backup_note(path: &Path) -> Option<String> {
+    let backup = backup_path(path);
+    (path.exists() && !backup.exists())
+        .then(|| format!("would back up the original to {}", backup.display()))
+}
+
 fn write_json_atomic(path: &Path, value: &Map<String, Value>) -> Result<(), String> {
     let err = |e: std::io::Error| format!("cannot write {}: {e}", path.display());
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(err)?;
     }
-    let backup = PathBuf::from(format!("{}.lagom.bak", path.display()));
+    let backup = backup_path(path);
     if path.exists() && !backup.exists() {
         fs::copy(path, &backup).map_err(err)?;
     }
@@ -349,6 +361,7 @@ pub fn install(agent: Agent, bin: &str, dry_run: bool) -> Result<Outcome, String
         if dry_run {
             out.notes
                 .push(format!("hooks: would update {}", t.hooks_file.display()));
+            out.notes.extend(backup_note(&t.hooks_file));
         } else {
             write_json_atomic(&t.hooks_file, &config)?;
             out.notes
@@ -400,6 +413,9 @@ pub fn uninstall(agent: Agent, dry_run: bool) -> Result<Outcome, String> {
             } else {
                 format!("hooks: {verb} from {}", t.hooks_file.display())
             });
+            if dry_run && !delete {
+                out.notes.extend(backup_note(&t.hooks_file));
+            }
         } else {
             out.notes
                 .push(format!("hooks: none found in {}", t.hooks_file.display()));

@@ -116,6 +116,17 @@ fn parse_agents(names: &[String], only_present: bool) -> Result<Vec<Agent>, Stri
         .collect()
 }
 
+/// Ask a yes/no question. Enter or "y" means yes; "n", end of input or a read error means no.
+fn confirm(question: &str, input: &mut impl std::io::BufRead, out: &mut impl Write) -> bool {
+    let _ = write!(out, "{question} [Y/n] ");
+    let _ = out.flush();
+    let mut answer = String::new();
+    match input.read_line(&mut answer) {
+        Ok(0) | Err(_) => false,
+        Ok(_) => !answer.trim().to_lowercase().starts_with('n'),
+    }
+}
+
 fn cmd_install(args: &[String], installing: bool) -> ExitCode {
     let (mut dry_run, mut yes, mut names) = (false, false, Vec::new());
     for a in args {
@@ -142,17 +153,21 @@ fn cmd_install(args: &[String], installing: bool) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    if installing && cfg!(windows) {
+        eprintln!(
+            "lagom: `lagom install` doesn't support Windows yet: the hooks it writes need a POSIX shell. `lagom uninstall` still works."
+        );
+        return ExitCode::from(2);
+    }
     if installing && !dry_run && !yes && std::io::stdin().is_terminal() {
         let list: Vec<&str> = agents.iter().map(|a| a.name()).collect();
-        print!(
-            "Install Lagom hooks and skills into {}? [Y/n] ",
-            list.join(", ")
-        );
-        let _ = std::io::stdout().flush();
-        let mut answer = String::new();
-        let _ = std::io::stdin().read_line(&mut answer);
-        if answer.trim().to_lowercase().starts_with('n') {
-            println!("Cancelled. Nothing was changed.");
+        let question = format!("Install Lagom hooks and skills into {}?", list.join(", "));
+        if !confirm(
+            &question,
+            &mut std::io::stdin().lock(),
+            &mut std::io::stdout(),
+        ) {
+            println!("\nCancelled. Nothing was changed.");
             return ExitCode::from(1);
         }
     }
@@ -329,4 +344,26 @@ fn cmd_stats() -> ExitCode {
         "net: ~{net} tokens (estimate: 4 bytes ≈ 1 token; style effects on answer length are not measured)"
     );
     ExitCode::SUCCESS
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn answer(input: &str) -> bool {
+        let mut out = Vec::new();
+        let yes = confirm("Install?", &mut input.as_bytes(), &mut out);
+        assert_eq!(String::from_utf8(out).unwrap(), "Install? [Y/n] ");
+        yes
+    }
+
+    #[test]
+    fn confirm_defaults_to_yes_and_cancels_on_no_or_end_of_input() {
+        assert!(answer("\n"));
+        assert!(answer("y\n"));
+        assert!(answer("Yes\n"));
+        assert!(!answer("n\n"));
+        assert!(!answer("No\n"));
+        assert!(!answer(""), "Ctrl-D at the prompt must not install");
+    }
 }

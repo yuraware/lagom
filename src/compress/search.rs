@@ -96,8 +96,12 @@ pub fn compress(lines: &[String], limits: Limits) -> Option<Vec<String>> {
     for (path, matches) in files.iter().take(DETAIL_FILES) {
         out.push(format!("{path} ({})", matches.len()));
         for (num, text) in matches.iter().take(PER_FILE) {
-            let text: String = text.trim().chars().take(MAX_TEXT).collect();
-            out.push(format!("  {num}: {text}"));
+            let text = text.trim();
+            let mut shown: String = text.chars().take(MAX_TEXT).collect();
+            if shown.len() < text.len() {
+                shown.push_str(" …"); // cut: the full line is in the recalled output
+            }
+            out.push(format!("  {num}: {shown}"));
         }
         if matches.len() > PER_FILE {
             out.push(format!("  … +{} more", matches.len() - PER_FILE));
@@ -128,7 +132,17 @@ pub fn compress(lines: &[String], limits: Limits) -> Option<Vec<String>> {
             }
         }
     }
-    out.extend(other.into_iter().take(20).map(str::to_string));
+    // Lines that aren't matches (a summary, a warning) come last; say when some are left out.
+    const OTHER: usize = 20;
+    if other.len() > OTHER {
+        out.extend(other[..OTHER].iter().map(|l| l.to_string()));
+        out.push(format!(
+            "… [{} more lines that aren't matches]",
+            other.len() - OTHER
+        ));
+    } else {
+        out.extend(other.into_iter().map(str::to_string));
+    }
     Some(out)
 }
 
@@ -164,6 +178,38 @@ mod tests {
             parse("Makefile:3:all:"),
             None,
             "no folder or extension: not trusted as a path"
+        );
+    }
+
+    #[test]
+    fn every_cut_is_marked() {
+        let mut s = String::new();
+        for f in 0..30 {
+            for m in 0..5 {
+                s.push_str(&format!("src/f{f}.rs:{m}:{}\n", "x".repeat(300)));
+            }
+        }
+        for i in 0..15 {
+            s.push_str(&format!("note {i}: not a match\n"));
+        }
+        let out = compress(&lines(&s), Limits::default()).unwrap().join("\n");
+        assert!(
+            out.contains(&format!("{} …", "x".repeat(MAX_TEXT))),
+            "long match text cut with a marker"
+        );
+        assert!(out.contains("note 14: not a match"));
+
+        let mut s = String::new();
+        for f in 0..400 {
+            s.push_str(&format!("src/g{f}.rs:1:hit\n"));
+        }
+        for i in 0..30 {
+            s.push_str(&format!("note {i}: not a match\n"));
+        }
+        let out = compress(&lines(&s), Limits::default()).unwrap().join("\n");
+        assert!(
+            out.contains("… [10 more lines that aren't matches]"),
+            "{out}"
         );
     }
 

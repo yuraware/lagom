@@ -151,11 +151,6 @@ fn truncate(s: &str, max: usize) -> String {
     }
 }
 
-/// Used by `is_compressed`.
-pub fn is_marker_line(line: &str) -> bool {
-    line.starts_with("[×") && line.contains(" lines like this: ")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

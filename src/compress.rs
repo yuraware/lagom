@@ -62,8 +62,10 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
             errors_despite_success: false,
         };
     }
+    // Colors first: `\x1b[31merror\x1b[0m: boom` is an error line once they're gone.
+    let cleaned = strip_ansi(raw);
     // Some tools exit 0 and still print errors: treat those like failures.
-    let errors_despite_success = !failed && raw.lines().any(is_error_line);
+    let errors_despite_success = !failed && cleaned.lines().any(is_error_line);
     let limits = if failed || errors_despite_success {
         limits.for_failure()
     } else {
@@ -71,7 +73,6 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
     };
     let mut lossy = false;
 
-    let cleaned = strip_ansi(raw);
     if let Some((text, lossy)) = json::compress(&cleaned, limits) {
         return Compressed {
             text,
@@ -80,16 +81,23 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
         };
     }
     let lines = normalize_lines(&cleaned);
-    if let Some(grouped) =
-        search::compress(&lines, limits).or_else(|| diff::compress(&lines, limits))
+    // Search results come from a command that succeeded (`rg`, `grep`, `git grep` exit 0
+    // when they match). A failed command printing `path:line:` lines is usually a linter
+    // or compiler reporting problems; those go through the general path, which keeps far
+    // more of them.
+    if let Some(grouped) = (!failed)
+        .then(|| search::compress(&lines, limits))
+        .flatten()
+        .or_else(|| diff::compress(&lines, limits))
     {
+        let lossy = grouped != lines;
         let mut text = grouped.join("\n");
         if raw.ends_with('\n') {
             text.push('\n');
         }
         return Compressed {
             text,
-            lossy: true,
+            lossy,
             errors_despite_success,
         };
     }
@@ -135,45 +143,27 @@ pub fn is_error_line(line: &str) -> bool {
         .any(|w| w == "FAILED" || w == "FAIL")
 }
 
-/// True if `text` already went through Lagom: it carries one of the markers the
-/// compressor writes (`… [N lines omitted]`, `… [N similar lines]`, `  [×N]`,
-/// `…[+N chars]`, the search summary's `  … +N more` and `N more files:`) or
-/// `lagom run`'s recall footer.
+/// True if `text` is already Lagom's output: its last line is the recall footer that
+/// `lagom run` writes whenever it drops lines (`[lagom: N → M lines; full output: lagom
+/// recall <id>]`). Only that footer counts. A marker-shaped line inside ordinary output
+/// (`… [12 lines omitted]` in a log, a fixture, or an earlier session pasted into a file)
+/// must not switch compression off for everything else. Output that dropped nothing has
+/// no footer, and compressing it again changes nothing anyway.
 pub fn is_compressed(text: &str) -> bool {
-    text.lines().any(|line| {
-        let line = line.trim_end();
-        if line.starts_with("[lagom: ") && line.contains("lagom recall ") {
-            return true;
-        }
-        let bracket = |start: &str, end: &str| {
-            line.strip_prefix(start)
-                .and_then(|r| r.strip_suffix(end))
-                .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
-        };
-        if bracket("… [", " lines omitted]")
-            || bracket("… [", " similar lines]")
-            || bracket("  … +", " more")
-            || bracket("", " more files:")
-            || bracket("… +", " more changed lines in this file")
-            || (line.starts_with("[lockfile ") && line.ends_with(", not shown]"))
-            || json::is_marker_line(line)
-            || log::is_marker_line(line)
-            || (line.starts_with("[+") && line.ends_with(" lines in this file, not shown]"))
-        {
-            return true;
-        }
-        let tail = |marker: &str, end: &str| {
-            line.rfind(marker).is_some_and(|i| {
-                let n = &line[i + marker.len()..];
-                n.strip_suffix(end)
-                    .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
-            })
-        };
-        tail("  [×", "]") || tail(" …[+", " chars]")
-    })
+    text.lines()
+        .rev()
+        .find(|l| !l.trim().is_empty())
+        .is_some_and(|l| {
+            let l = l.trim_end();
+            l.starts_with("[lagom: ") && l.contains("lagom recall ") && l.ends_with(']')
+        })
 }
 
 /// Remove ANSI escape sequences (colors, cursor moves, OSC titles/links).
+///
+/// A sequence never spans lines. One that isn't terminated before the end of its line
+/// (a broken title, a cut-off color code) is dropped up to that line end only, so it can
+/// never swallow the rest of the output.
 pub fn strip_ansi(s: &str) -> String {
     let Some(first) = s.find('\u{1b}') else {
         return s.to_string();
@@ -186,18 +176,20 @@ pub fn strip_ansi(s: &str) -> String {
         out.push_str(&rest[..esc]);
         let tail = &rest[esc + 1..];
         let b = tail.as_bytes();
+        // Where this line ends: an unterminated sequence stops there.
+        let line_end = b.iter().position(|c| *c == b'\n').unwrap_or(b.len());
         let skip = match b.first() {
             // CSI: parameters, then one final byte in '@'..='~'.
-            Some(b'[') => b[1..]
+            Some(b'[') => b[1..line_end]
                 .iter()
                 .position(|c| (b'@'..=b'~').contains(c))
-                .map_or(b.len(), |k| k + 2),
+                .map_or(line_end, |k| k + 2),
             // OSC: ends with BEL or ESC '\'.
             Some(b']') => {
                 let mut k = 1;
                 loop {
                     match b.get(k) {
-                        None => break b.len(),
+                        None | Some(b'\n') => break k,
                         Some(0x07) => break k + 1,
                         Some(0x1b) if b.get(k + 1) == Some(&b'\\') => break k + 2,
                         _ => k += 1,
@@ -331,10 +323,11 @@ fn shorten_line(line: String, max_chars: usize, lossy: &mut bool) -> String {
 
 /// Lines that must survive compression: errors, failures, warnings, file:line locations.
 pub fn is_important(line: &str) -> bool {
-    const WORDS: [&str; 14] = [
+    const WORDS: [&str; 15] = [
         "error",
         "fail",
         "panic",
+        "crash", // also "CrashLoopBackOff"
         "exception",
         "traceback",
         "fatal",
@@ -397,18 +390,41 @@ fn keep_head_tail_important(lines: Vec<String>, limits: Limits, lossy: &mut bool
     *lossy = true;
     let head_end = limits.head.min(lines.len());
     let tail_start = lines.len().saturating_sub(limits.tail).max(head_end);
+    let middle = &lines[head_end..tail_start];
+
+    // Which middle lines to keep, at most `max_important`: error lines first, then the
+    // other important lines (warnings, `file:line`), each in the order they appear.
+    // Many warnings early in a build must not push a later error out.
+    let errors: Vec<bool> = middle.iter().map(|l| is_error_priority(l)).collect();
+    let mut keep = vec![false; middle.len()];
+    let mut slots = limits.max_important;
+    for i in 0..middle.len() {
+        if slots > 0 && errors[i] {
+            keep[i] = true;
+            slots -= 1;
+        }
+    }
+    let errors_left_out = errors
+        .iter()
+        .zip(&keep)
+        .filter(|(e, k)| **e && !**k)
+        .count();
+    for (i, line) in middle.iter().enumerate() {
+        if slots > 0 && !keep[i] && is_important(line) {
+            keep[i] = true;
+            slots -= 1;
+        }
+    }
 
     let mut out: Vec<String> = lines[..head_end].to_vec();
     let mut skipped = 0usize;
-    let mut kept_important = 0usize;
-    for line in &lines[head_end..tail_start] {
-        if kept_important < limits.max_important && is_important(line) {
+    for (line, kept) in middle.iter().zip(&keep) {
+        if *kept {
             if skipped > 0 {
                 out.push(format!("… [{skipped} lines omitted]"));
                 skipped = 0;
             }
             out.push(line.clone());
-            kept_important += 1;
         } else {
             skipped += 1;
         }
@@ -416,13 +432,69 @@ fn keep_head_tail_important(lines: Vec<String>, limits: Limits, lossy: &mut bool
     if skipped > 0 {
         out.push(format!("… [{skipped} lines omitted]"));
     }
+    if errors_left_out > 0 {
+        // Never drop an error line without saying so.
+        out.push(format!(
+            "… [{errors_left_out} more error lines left out; `lagom recall <id> --grep error` with the id below lists them]"
+        ));
+    }
     out.extend_from_slice(&lines[tail_start..]);
     out
+}
+
+/// An error line, or a log line at level ERROR, FATAL, CRITICAL or PANIC. These are
+/// kept before warnings when the middle of a long output is cut.
+fn is_error_priority(line: &str) -> bool {
+    is_error_line(line)
+        || line
+            .split(|c: char| !c.is_ascii_alphanumeric())
+            .any(|w| matches!(w, "ERROR" | "FATAL" | "CRITICAL" | "PANIC"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn errors_outrank_warnings_and_overflow_is_announced() {
+        // A build that warns 100 times, then fails in the middle of its output.
+        let mut raw: String = (0..50).map(|i| format!("Compiling dep_{i}\n")).collect();
+        for i in 0..100 {
+            raw.push_str(&format!("warning: unused import in src/m{i}.rs:1\n"));
+        }
+        raw.push_str("src/main.rs:9:5: error: cannot find value `x`\n");
+        raw.push_str("2026-11-08T10:00:00Z ERROR worker crashed\n");
+        raw.push_str(&(0..100).map(|i| format!("note {i}\n")).collect::<String>());
+        let c = compress(&raw, true, Limits::default());
+        assert!(
+            c.text.contains("error: cannot find value `x`"),
+            "error kept"
+        );
+        assert!(c.text.contains("ERROR worker crashed"), "log ERROR kept");
+        assert!(!c.text.contains("more error lines left out"));
+
+        // More error lines than slots: the rest are counted, never dropped silently.
+        // Filler lines differ in letters, so repeat collapsing can't shorten them.
+        let filler = |i: usize| {
+            format!(
+                "filler {}\n",
+                &"abcdefghijklmnopqrstuvwxyz".repeat(2)[i % 26..][..5]
+            )
+        };
+        let mut raw: String = (0..50).map(filler).collect();
+        for i in 0..150 {
+            raw.push_str(&format!("src/f{i}.rs:1:1: error: bad thing {i}\n"));
+        }
+        raw.push_str(&(0..100).map(filler).collect::<String>());
+        let c = compress(&raw, true, Limits::default());
+        let shown = c
+            .text
+            .lines()
+            .filter(|l| l.contains("error: bad thing"))
+            .count();
+        let note = format!("{} more error lines left out", 150 - shown);
+        assert!(c.text.contains(&note), "{note}");
+    }
 
     #[test]
     fn timestamped_log_keeps_error_and_warn_lines() {
@@ -472,6 +544,16 @@ mod tests {
             "ESC inside OSC"
         );
         assert_eq!(strip_ansi(&format!("a{e}]0;never ends")), "a");
+        assert_eq!(
+            strip_ansi(&format!("{e}]0;broken title\nerror: build failed\n")),
+            "\nerror: build failed\n",
+            "an unterminated OSC stops at the end of its line"
+        );
+        assert_eq!(
+            strip_ansi(&format!("x{e}[12\nsrc/a.rs:3: error: boom\n")),
+            "x\nsrc/a.rs:3: error: boom\n",
+            "an unterminated CSI stops at the end of its line"
+        );
         assert_eq!(
             strip_ansi(&format!("a{e}(Bb{e}éc")),
             "abc",
@@ -531,6 +613,15 @@ mod tests {
             "kept {kept} error lines"
         );
         assert!(!compress("all good\n", false, Limits::default()).errors_despite_success);
+        // Colored error lines count too (cargo and many tools color `error`).
+        assert!(
+            compress(
+                "\x1b[1m\x1b[31merror\x1b[0m\x1b[1m: could not compile\x1b[0m\n",
+                false,
+                Limits::default()
+            )
+            .errors_despite_success
+        );
         assert!(
             !compress(&raw, true, Limits::default()).errors_despite_success,
             "already a failure"
@@ -544,36 +635,67 @@ mod tests {
             .chain(["src/app.rs:9: error: boom\n".to_string()])
             .collect();
         let once = compress(&raw, true, Limits::default());
-        assert!(once.lossy && is_compressed(&once.text));
-        let twice = compress(&once.text, true, Limits::default());
-        assert_eq!(twice.text, once.text);
-        assert!(!twice.lossy);
-        // With `lagom run`'s footer too.
+        assert!(once.lossy);
+        // What `lagom run` hands the agent: the output plus its recall footer.
         let footed = format!(
             "{}[lagom: 501 → 90 lines; full output: lagom recall 3fa9c01d2e]\n",
             once.text
         );
-        assert_eq!(compress(&footed, false, Limits::default()).text, footed);
+        assert!(is_compressed(&footed));
+        let twice = compress(&footed, true, Limits::default());
+        assert_eq!(twice.text, footed);
+        assert!(!twice.lossy);
+
+        // Output that dropped nothing (only exact repeats folded) is a fixed point.
+        let raw = "a\na\na\nb\nc\n";
+        let once = compress(raw, false, Limits::default());
+        assert!(!once.lossy);
+        assert_eq!(
+            compress(&once.text, false, Limits::default()).text,
+            once.text
+        );
     }
 
     #[test]
     fn plain_output_is_not_mistaken_for_compressed() {
-        for line in [
+        for text in [
             "… [many lines omitted]",
-            "price [×]",
             "see lagom recall docs",
             "[lagom: notes]",
-            "ok  [×3] extra",
+            "ok  [×3]",
+            "x …[+12 chars]",
+            "… [12 lines omitted]",
+            "[lagom: 9 → 3 lines; full output: lagom recall 3fa9c01d2e]\nmore output after it",
         ] {
-            assert!(!is_compressed(line), "{line}");
+            assert!(!is_compressed(text), "{text}");
         }
-        assert!(is_compressed("ok  [×3]"));
-        assert!(is_compressed("x …[+12 chars]"));
-        assert!(
-            is_compressed("a.rs (9)\n  … +6 more"),
-            "search summary marker"
-        );
-        assert!(is_compressed("x (1)\n12 more files:\n  d/: a (1)"));
+    }
+
+    #[test]
+    fn a_marker_line_inside_long_output_does_not_stop_compression() {
+        // For example `cat` of a log that holds an earlier Lagom result.
+        let raw: String = (0..400)
+            .map(|i| format!("line {i} of a long file with text {}\n", i * 31 % 17))
+            .chain(["… [88 similar lines]\n".to_string()])
+            .chain((0..400).map(|i| format!("more {i} text {}\n", i * 13 % 7)))
+            .collect();
+        let c = compress(&raw, false, Limits::default());
+        assert!(c.lossy, "the output must still be compressed");
+        assert!(c.text.lines().count() < raw.lines().count() / 2);
+    }
+
+    #[test]
+    fn a_failed_linter_is_not_squeezed_like_search_results() {
+        // `ruff check` style: path:line:col: CODE message, exit code 1.
+        let raw: String = (0..300)
+            .map(|i| format!("pkg/m{}.py:{i}:1: F401 `os` imported but unused\n", i % 10))
+            .collect();
+        let as_search = compress(&raw, false, Limits::default());
+        assert!(as_search.text.contains("matches in 10 files"));
+        let failed = compress(&raw, true, Limits::default());
+        assert!(!failed.text.contains("matches in"), "{}", failed.text);
+        let kept = failed.text.lines().filter(|l| l.contains("F401")).count();
+        assert!(kept > 100, "kept only {kept} findings");
     }
 
     #[test]

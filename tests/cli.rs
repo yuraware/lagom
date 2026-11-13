@@ -1151,6 +1151,20 @@ fn session_start_adds_the_projects_test_policy() {
     ));
     assert!(out.contains("Rust project with tests (tests/)"), "{out}");
 
+    // A project without tests gets no line, never "don't add tests" (D-36).
+    let bare = home.join("bare");
+    fs::create_dir_all(bare.join(".git")).unwrap();
+    fs::write(bare.join("Cargo.toml"), "[package]\nname = \"y\"\n").unwrap();
+    let out = text(&lagom(
+        &home,
+        &["hook", "claude", "session-start"],
+        Some(&json!({"cwd": bare}).to_string()),
+    ));
+    assert!(
+        out.contains("(lagom: lean-code)") && !out.contains("Rust project"),
+        "{out}"
+    );
+
     // Only with the code style active.
     let out = Command::new(env!("CARGO_BIN_EXE_lagom"))
         .args(["hook", "claude", "session-start"])

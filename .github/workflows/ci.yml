@@ -36,10 +36,12 @@ jobs:
           LAGOM_NO_CHANGELOG: ${{ contains(github.event.pull_request.labels.*.name, 'no-changelog') && '1' || '0' }}
 
   latency:
-    # Measures only; the regression gate comes with QA-08.
+    # Measures only; the regression gate comes with QA-08. macOS arm64 runners are scarce
+    # (GitHub cancels jobs it can't place within 15 minutes), so pull requests measure on
+    # Linux and pushes to main measure on both.
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: ${{ github.event_name == 'push' && fromJSON('["ubuntu-latest", "macos-latest"]') || fromJSON('["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

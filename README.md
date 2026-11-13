@@ -1,11 +1,13 @@
 # lagom
 
+[![crates.io](https://img.shields.io/crates/v/lagom.svg)](https://crates.io/crates/lagom)
+
 Fewer tokens, simpler answers for coding agents. *Lagom* is Swedish for "just the right amount".
 
-One small Rust binary (~0.5 MB, no runtime, no daemon) that plugs into **Claude Code**, **Codex** and **Cursor**:
+One small Rust binary (~0.6 MB, no runtime, no daemon) that plugs into **Claude Code**, **Codex** and **Cursor**:
 
 - **Styles.** Rules injected at session start that make the agent say less (`terse`) and write less code (`lean-code`). Plain Markdown files: edit them or add your own, per user or per project.
-- **Compressor.** Long command output is shortened before the agent reads it, and **every error, warning and `file:line` line is kept**. Exit codes are unchanged; anything dropped stays available through `lagom recall <id>`.
+- **Compressor.** Long command output is shortened before the agent reads it. The start, the end and the error, warning and `file:line` lines are kept first. Exit codes are unchanged; anything dropped stays available through `lagom recall <id>`.
 - **Skills.** `lagom`, `lagom-run`, `lagom-review`, `lagom-commit`, `lagom-stats`.
 
 Status: **0.1.0, first public preview.** Tested on macOS; Linux should work; Windows is not supported yet.
@@ -13,11 +15,12 @@ Status: **0.1.0, first public preview.** Tested on macOS; Linux should work; Win
 ## Install
 
 ```sh
-cargo install --git https://github.com/yuraware/lagom
-lagom install            # every agent found; --dry-run shows changes first
+brew install yuraware/tap/lagom    # Homebrew
+cargo install lagom                # or crates.io (needs Rust 1.87+)
+lagom install                      # connect every agent found; --dry-run shows changes first
 ```
 
-Then start a new agent session. Codex needs one more step: run `/hooks` in Codex and approve Lagom's hooks. `lgm` works as a short alias for `lagom`.
+Then start a new agent session. Codex needs one more step: run `/hooks` in Codex and approve Lagom's hooks. `lgm` works as a short alias for `lagom`. Upgrading, unreleased builds and removal: [docs/install.md](docs/install.md).
 
 | Agent | Session start | Subagents | Command rewrite |
 |---|---|---|---|

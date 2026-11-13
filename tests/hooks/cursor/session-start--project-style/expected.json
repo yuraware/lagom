@@ -1,0 +1,3 @@
+{
+  "additional_context": "<lagom>\nTeam rule: answer in one line.\n\nLagom compresses long command output. A line like `[lagom: … lagom recall <id>]` means lines were omitted; run `lagom recall <id>` if you need them.\n</lagom>"
+}

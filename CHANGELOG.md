@@ -25,4 +25,5 @@ First preview.
   - simple known commands only;
   - never widens permissions: Claude Code and Cursor need the user's own allow rule, and deny or ask rules always win.
 - Skills: `lagom`, `lagom-run`, `lagom-review`, `lagom-commit`, `lagom-stats`.
+- Hooks use a stable binary path (for example `/opt/homebrew/bin/lagom`, never the versioned Homebrew Cellar path), so upgrades don't break them.
 - `lgm`, a short alias binary for `lagom`. Hooks always point to `lagom`, and hooks written under either name are recognized as Lagom's own.

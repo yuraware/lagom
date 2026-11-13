@@ -376,18 +376,41 @@ fn keep_head_tail_important(lines: Vec<String>, limits: Limits, lossy: &mut bool
     *lossy = true;
     let head_end = limits.head.min(lines.len());
     let tail_start = lines.len().saturating_sub(limits.tail).max(head_end);
+    let middle = &lines[head_end..tail_start];
+
+    // Which middle lines to keep, at most `max_important`: error lines first, then the
+    // other important lines (warnings, `file:line`), each in the order they appear.
+    // Many warnings early in a build must not push a later error out.
+    let errors: Vec<bool> = middle.iter().map(|l| is_error_priority(l)).collect();
+    let mut keep = vec![false; middle.len()];
+    let mut slots = limits.max_important;
+    for i in 0..middle.len() {
+        if slots > 0 && errors[i] {
+            keep[i] = true;
+            slots -= 1;
+        }
+    }
+    let errors_left_out = errors
+        .iter()
+        .zip(&keep)
+        .filter(|(e, k)| **e && !**k)
+        .count();
+    for (i, line) in middle.iter().enumerate() {
+        if slots > 0 && !keep[i] && is_important(line) {
+            keep[i] = true;
+            slots -= 1;
+        }
+    }
 
     let mut out: Vec<String> = lines[..head_end].to_vec();
     let mut skipped = 0usize;
-    let mut kept_important = 0usize;
-    for line in &lines[head_end..tail_start] {
-        if kept_important < limits.max_important && is_important(line) {
+    for (line, kept) in middle.iter().zip(&keep) {
+        if *kept {
             if skipped > 0 {
                 out.push(format!("… [{skipped} lines omitted]"));
                 skipped = 0;
             }
             out.push(line.clone());
-            kept_important += 1;
         } else {
             skipped += 1;
         }
@@ -395,13 +418,69 @@ fn keep_head_tail_important(lines: Vec<String>, limits: Limits, lossy: &mut bool
     if skipped > 0 {
         out.push(format!("… [{skipped} lines omitted]"));
     }
+    if errors_left_out > 0 {
+        // Never drop an error line without saying so.
+        out.push(format!(
+            "… [{errors_left_out} more error lines left out; `lagom recall <id> --grep error` with the id below lists them]"
+        ));
+    }
     out.extend_from_slice(&lines[tail_start..]);
     out
+}
+
+/// An error line, or a log line at level ERROR, FATAL, CRITICAL or PANIC. These are
+/// kept before warnings when the middle of a long output is cut.
+fn is_error_priority(line: &str) -> bool {
+    is_error_line(line)
+        || line
+            .split(|c: char| !c.is_ascii_alphanumeric())
+            .any(|w| matches!(w, "ERROR" | "FATAL" | "CRITICAL" | "PANIC"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn errors_outrank_warnings_and_overflow_is_announced() {
+        // A build that warns 100 times, then fails in the middle of its output.
+        let mut raw: String = (0..50).map(|i| format!("Compiling dep_{i}\n")).collect();
+        for i in 0..100 {
+            raw.push_str(&format!("warning: unused import in src/m{i}.rs:1\n"));
+        }
+        raw.push_str("src/main.rs:9:5: error: cannot find value `x`\n");
+        raw.push_str("2026-11-08T10:00:00Z ERROR worker crashed\n");
+        raw.push_str(&(0..100).map(|i| format!("note {i}\n")).collect::<String>());
+        let c = compress(&raw, true, Limits::default());
+        assert!(
+            c.text.contains("error: cannot find value `x`"),
+            "error kept"
+        );
+        assert!(c.text.contains("ERROR worker crashed"), "log ERROR kept");
+        assert!(!c.text.contains("more error lines left out"));
+
+        // More error lines than slots: the rest are counted, never dropped silently.
+        // Filler lines differ in letters, so repeat collapsing can't shorten them.
+        let filler = |i: usize| {
+            format!(
+                "filler {}\n",
+                &"abcdefghijklmnopqrstuvwxyz".repeat(2)[i % 26..][..5]
+            )
+        };
+        let mut raw: String = (0..50).map(filler).collect();
+        for i in 0..150 {
+            raw.push_str(&format!("src/f{i}.rs:1:1: error: bad thing {i}\n"));
+        }
+        raw.push_str(&(0..100).map(filler).collect::<String>());
+        let c = compress(&raw, true, Limits::default());
+        let shown = c
+            .text
+            .lines()
+            .filter(|l| l.contains("error: bad thing"))
+            .count();
+        let note = format!("{} more error lines left out", 150 - shown);
+        assert!(c.text.contains(&note), "{note}");
+    }
 
     #[test]
     fn timestamped_log_keeps_error_and_warn_lines() {

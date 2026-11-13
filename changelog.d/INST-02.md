@@ -1,0 +1,2 @@
+### Added
+- `install.sh` now does the whole setup: on macOS with Homebrew it installs or upgrades `yuraware/tap/lagom` when the tap's formula is at the latest release (otherwise, or if Homebrew fails, it uses the verified archive), adds an `lgm` alias unless another `lgm` exists, and runs `lagom install --yes` to add the hooks to every agent found. A second run upgrades or says lagom is already up to date. New options: `--no-agents` and `--no-brew` (or `LAGOM_NO_AGENTS=1`, `LAGOM_NO_BREW=1`).

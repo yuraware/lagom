@@ -113,6 +113,13 @@ def test_workflow_publishes_only_exact_version_tags(workflow):
     assert '"$crate") publish=true ;;' in workflow
 
 
+def test_workflow_publishes_only_after_the_github_release(workflow):
+    # A PyPI upload can't be undone: release.yml must have released the tag first.
+    assert 'gh release view "$TAG"' in workflow
+    publish = workflow[workflow.index("\n  publish:"):]
+    assert publish.index("Wait for the GitHub Release") < publish.index("pypa/gh-action-pypi-publish")
+
+
 def test_workflow_actions_are_pinned_by_sha(workflow):
     uses = re.findall(r"uses:\s*(\S+)", workflow)
     assert uses

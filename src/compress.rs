@@ -71,7 +71,14 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
     let mut lossy = false;
 
     let lines = normalize_lines(&cleaned);
-    if let Some(grouped) = search::compress(&lines, limits) {
+    // Search results come from a command that succeeded (`rg`, `grep`, `git grep` exit 0
+    // when they match). A failed command printing `path:line:` lines is usually a linter
+    // or compiler reporting problems; those go through the general path, which keeps far
+    // more of them.
+    if let Some(grouped) = (!failed)
+        .then(|| search::compress(&lines, limits))
+        .flatten()
+    {
         let mut text = grouped.join("\n");
         if raw.ends_with('\n') {
             text.push('\n');
@@ -478,6 +485,20 @@ mod tests {
         let c = compress(&raw, false, Limits::default());
         assert!(c.lossy, "the output must still be compressed");
         assert!(c.text.lines().count() < raw.lines().count() / 2);
+    }
+
+    #[test]
+    fn a_failed_linter_is_not_squeezed_like_search_results() {
+        // `ruff check` style: path:line:col: CODE message, exit code 1.
+        let raw: String = (0..300)
+            .map(|i| format!("pkg/m{}.py:{i}:1: F401 `os` imported but unused\n", i % 10))
+            .collect();
+        let as_search = compress(&raw, false, Limits::default());
+        assert!(as_search.text.contains("matches in 10 files"));
+        let failed = compress(&raw, true, Limits::default());
+        assert!(!failed.text.contains("matches in"), "{}", failed.text);
+        let kept = failed.text.lines().filter(|l| l.contains("F401")).count();
+        assert!(kept > 100, "kept only {kept} findings");
     }
 
     #[test]

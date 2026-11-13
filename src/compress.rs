@@ -3,6 +3,7 @@
 //! Rules: never hide failures, keep exact text of what survives, and report
 //! anything dropped so the caller can store the original for `lagom recall`.
 
+mod diff;
 mod search;
 
 /// Output budget. Failed commands get double, so errors are never squeezed out.
@@ -78,14 +79,16 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
     if let Some(grouped) = (!failed)
         .then(|| search::compress(&lines, limits))
         .flatten()
+        .or_else(|| diff::compress(&lines, limits))
     {
+        let lossy = grouped != lines;
         let mut text = grouped.join("\n");
         if raw.ends_with('\n') {
             text.push('\n');
         }
         return Compressed {
             text,
-            lossy: true,
+            lossy,
             errors_despite_success,
         };
     }

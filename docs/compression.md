@@ -5,6 +5,7 @@ Long command output (tests, builds, `git log`, searches) is shortened before the
 - ANSI colors removed, progress bars resolved to their final state, blank-line runs collapsed.
 - Exact repeats become one line with a count (`[×37]`); runs of lines that differ only in numbers keep their first and last line.
 - Over 120 lines, the output keeps its first 30 and last 50 lines, plus up to 40 error, warning and `file:line` lines from the middle, in the order they appear. Failed commands get double these limits. Anything past them is left out, so check the footer below when a long log has many errors.
+- Diffs (`git diff`, `git show`, `git log -p`) over 120 lines keep every changed line with its file and hunk headers, plus one unchanged line beside each change. Past 480 changed lines (960 for a failed command), later files show only their `+`/`-` counts. Lockfiles (`Cargo.lock`, `package-lock.json`, `uv.lock` …) and `GIT binary patch` bodies become one line each. A diff without `diff --git` headers (`diff -u`) is shortened like any other output.
 - Exit codes are unchanged.
 - Anything dropped stays available: the output ends with `[lagom: N → M lines; full output: lagom recall <id> (or part: --grep TEXT, --lines A-B)]`. `lagom recall <id> --grep error` prints only matching lines with their line numbers (lowercase text matches any case, so `error` also finds `ERROR`; text with a capital letter matches exactly); `--lines 120-160`, `--head N` and `--tail N` print a slice.
 

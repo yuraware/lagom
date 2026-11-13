@@ -91,20 +91,33 @@ def release(root, version, date, dry_run):
     print(f"CHANGELOG.md: added [{version}] from {len(names)} fragment(s)")
 
 
+# What users get: the code, and the styles and skills built into the binary.
+USER_VISIBLE = ("src/", "styles/", "skills/")
+
+
+def changed_files(root, base, diff_filter=None):
+    cmd = ["git", "diff", "--name-only"]
+    if diff_filter:
+        cmd.append(f"--diff-filter={diff_filter}")
+    cmd.append(f"{base}...HEAD")
+    return subprocess.run(cmd, cwd=root, capture_output=True, text=True, check=True).stdout.split()
+
+
 def check(root, base):
-    """Fail when src/ changed but no fragment was added (label `no-changelog` skips this)."""
+    """Fail when user-visible files changed but no fragment was added (label `no-changelog`
+    skips this). Only a newly added `changelog.d/*.md` counts: editing or deleting an
+    existing fragment doesn't describe this change."""
     if os.environ.get("LAGOM_NO_CHANGELOG") == "1":
         print("changelog check skipped (no-changelog label)")
         return 0
-    out = subprocess.run(
-        ["git", "diff", "--name-only", f"{base}...HEAD"],
-        cwd=root, capture_output=True, text=True, check=True,
-    ).stdout.split()
     names, _ = read_fragments(os.path.join(root, "changelog.d"))  # also validates every fragment
-    code_changed = any(p.startswith("src/") for p in out)
-    fragment_added = any(p.startswith("changelog.d/") and not p.endswith("README.md") for p in out)
+    code_changed = any(p.startswith(USER_VISIBLE) for p in changed_files(root, base))
+    fragment_added = any(
+        p.startswith("changelog.d/") and p.endswith(".md") and p != "changelog.d/README.md"
+        for p in changed_files(root, base, "A")
+    )
     if code_changed and not fragment_added:
-        print("src/ changed but no changelog.d/ fragment was added (see changelog.d/README.md)")
+        print(f"{', '.join(USER_VISIBLE)} changed but no changelog.d/ fragment was added (see changelog.d/README.md)")
         return 1
     print(f"changelog check ok ({len(names)} pending fragment(s))")
     return 0

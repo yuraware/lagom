@@ -838,3 +838,84 @@ fn exit_zero_with_error_lines_says_so_in_the_footer() {
         "{s}"
     );
 }
+
+#[test]
+fn bench_compress_reports_and_gates_on_lost_strings() {
+    let home = sandbox("bench");
+    let case = |name: &str, input: &str, meta: Value| {
+        let d = home.join("corpus").join(name);
+        fs::create_dir_all(&d).unwrap();
+        fs::write(d.join("input.txt"), input).unwrap();
+        fs::write(d.join("meta.json"), meta.to_string()).unwrap();
+    };
+    let long: String = (0..400).map(|i| format!("line {i} plain\n")).collect();
+    case(
+        "ok",
+        "src/a.rs:1: error: boom\n",
+        json!({"exit_code": 1, "must_keep": ["error: boom"]}),
+    );
+    case(
+        "gap",
+        &long,
+        json!({"exit_code": 0, "must_keep": ["line 200 plain"], "known_gap": "CMP-99"}),
+    );
+    let dir = home.join("corpus").to_string_lossy().into_owned();
+    let json_path = home.join("out.json").to_string_lossy().into_owned();
+
+    let out = lagom(
+        &home,
+        &["bench", "compress", &dir, "--json", &json_path],
+        None,
+    );
+    assert_eq!(out.status.code(), Some(0), "known gaps don't fail");
+    let report = text(&out);
+    assert!(
+        report.contains("(known gap: CMP-99)") && report.contains("Unexpected must_keep losses: 0"),
+        "{report}"
+    );
+    let saved: Value = serde_json::from_str(&fs::read_to_string(&json_path).unwrap()).unwrap();
+    assert_eq!(saved["totals"]["cases"], 2);
+
+    case(
+        "lost",
+        &long,
+        json!({"exit_code": 0, "must_keep": ["line 201 plain"]}),
+    );
+    let out = lagom(
+        &home,
+        &["bench", "compress", &dir, "--compare", &json_path],
+        None,
+    );
+    assert_eq!(out.status.code(), Some(1), "an unexpected loss fails");
+    assert!(text(&out).contains("**LOST**") && text(&out).contains("new |"));
+
+    // A baseline that isn't a bench report, or a flag without its file, is an error.
+    let junk = home.join("junk.json");
+    fs::write(&junk, "{\"hello\": 1}").unwrap();
+    let junk = junk.to_string_lossy().into_owned();
+    let out = lagom(
+        &home,
+        &["bench", "compress", &dir, "--compare", &junk],
+        None,
+    );
+    assert_eq!(out.status.code(), Some(2));
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("not a `lagom bench compress --json` report")
+    );
+    let out = lagom(&home, &["bench", "compress", &dir, "--json"], None);
+    assert_eq!(out.status.code(), Some(2));
+
+    // A known gap whose strings are all kept now says the marker can go.
+    let d = home.join("corpus").join("gap");
+    fs::write(
+        d.join("meta.json"),
+        json!({"exit_code": 0, "must_keep": ["line 0 plain"], "known_gap": "CMP-99"}).to_string(),
+    )
+    .unwrap();
+    let out = lagom(&home, &["bench", "compress", &dir], None);
+    assert!(
+        text(&out).contains("known gap CMP-99 now met: remove the marker"),
+        "{}",
+        text(&out)
+    );
+}

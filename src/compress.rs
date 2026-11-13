@@ -147,6 +147,10 @@ pub fn is_compressed(text: &str) -> bool {
 }
 
 /// Remove ANSI escape sequences (colors, cursor moves, OSC titles/links).
+///
+/// A sequence never spans lines. One that isn't terminated before the end of its line
+/// (a broken title, a cut-off color code) is dropped up to that line end only, so it can
+/// never swallow the rest of the output.
 pub fn strip_ansi(s: &str) -> String {
     let Some(first) = s.find('\u{1b}') else {
         return s.to_string();
@@ -159,18 +163,20 @@ pub fn strip_ansi(s: &str) -> String {
         out.push_str(&rest[..esc]);
         let tail = &rest[esc + 1..];
         let b = tail.as_bytes();
+        // Where this line ends: an unterminated sequence stops there.
+        let line_end = b.iter().position(|c| *c == b'\n').unwrap_or(b.len());
         let skip = match b.first() {
             // CSI: parameters, then one final byte in '@'..='~'.
-            Some(b'[') => b[1..]
+            Some(b'[') => b[1..line_end]
                 .iter()
                 .position(|c| (b'@'..=b'~').contains(c))
-                .map_or(b.len(), |k| k + 2),
+                .map_or(line_end, |k| k + 2),
             // OSC: ends with BEL or ESC '\'.
             Some(b']') => {
                 let mut k = 1;
                 loop {
                     match b.get(k) {
-                        None => break b.len(),
+                        None | Some(b'\n') => break k,
                         Some(0x07) => break k + 1,
                         Some(0x1b) if b.get(k + 1) == Some(&b'\\') => break k + 2,
                         _ => k += 1,
@@ -418,6 +424,16 @@ mod tests {
             "ESC inside OSC"
         );
         assert_eq!(strip_ansi(&format!("a{e}]0;never ends")), "a");
+        assert_eq!(
+            strip_ansi(&format!("{e}]0;broken title\nerror: build failed\n")),
+            "\nerror: build failed\n",
+            "an unterminated OSC stops at the end of its line"
+        );
+        assert_eq!(
+            strip_ansi(&format!("x{e}[12\nsrc/a.rs:3: error: boom\n")),
+            "x\nsrc/a.rs:3: error: boom\n",
+            "an unterminated CSI stops at the end of its line"
+        );
         assert_eq!(
             strip_ansi(&format!("a{e}(Bb{e}éc")),
             "abc",

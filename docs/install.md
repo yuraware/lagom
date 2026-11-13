@@ -3,11 +3,17 @@
 ## Get the binary
 
 ```sh
-cargo install --git https://github.com/yuraware/lagom   # from source
-cargo install --path .                                  # from a checkout
+brew install yuraware/tap/lagom    # Homebrew
+cargo install lagom                # or crates.io (needs Rust 1.87+)
 ```
 
-Homebrew, an install script for macOS and Linux, Windows packages and `pip install lagom-ai` are planned for the first release.
+| | Homebrew | Cargo |
+|---|---|---|
+| Upgrade | `brew upgrade lagom` | `cargo install lagom --force` |
+| Unreleased `main` | `brew install --HEAD yuraware/tap/lagom` | `cargo install --git https://github.com/yuraware/lagom` |
+| Remove the binary | `brew uninstall lagom` | `cargo uninstall lagom` |
+
+Homebrew builds from source, so the first install also downloads Rust as a build dependency. The formula lives in [yuraware/homebrew-tap](https://github.com/yuraware/homebrew-tap). From a local checkout, use `cargo install --path .`. An install script for macOS and Linux and `pip install lagom-ai` are planned.
 
 `lgm` is a short alias: `lgm <command>` does exactly what `lagom <command>` does. If you already have the unrelated `lgm` crate installed, use `cargo install lagom --bin lagom`.
 
@@ -36,4 +42,6 @@ lagom uninstall cursor           # or from one agent
 lagom uninstall --all --purge    # also delete ~/.lagom and ~/.config/lagom (asks first)
 ```
 
-`--purge` needs `--yes` when not run in a terminal. It keeps the `.lagom.bak` backups, refuses to delete a folder that is your home folder or above it, and prints the command that removes the binary for the way you installed it, for example `cargo uninstall lagom`.
+`--purge` needs `--yes` when not run in a terminal, and works only without agent names: the data it deletes is shared by every agent. It keeps the `.lagom.bak` backups. It deletes only folders Lagom created: the default `~/.lagom` and `~/.config/lagom`, or a folder holding Lagom's `.lagom-dir` marker, so a `LAGOM_HOME` pointing at one of your own folders is refused. At the end it prints the command that removes the binary for the way you installed it, for example `brew uninstall lagom`.
+
+Run `lagom uninstall` before removing the binary, so no hook is left pointing at a missing file.

@@ -1,12 +1,16 @@
 name: release
 
 # A pushed `v*` tag builds the archives and publishes a GitHub Release.
-# Running it by hand (workflow_dispatch) builds, checks and attests the same
-# archives and keeps them as workflow artifacts, without creating a release.
+# Running it by hand (workflow_dispatch, only once this file is on the default branch)
+# builds, checks and attests the same archives and keeps them as workflow artifacts,
+# without creating a release. A pull request that changes this file runs the same dry
+# run without the attestation, so the workflow is tested before it lands.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+  pull_request:
+    paths: [".github/workflows/release.yml"]
 
 permissions:
   contents: read
@@ -48,10 +52,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - { target: aarch64-apple-darwin, os: macos-15, native: true }
-          - { target: x86_64-apple-darwin, os: macos-15-intel, native: true }
-          - { target: x86_64-unknown-linux-musl, os: ubuntu-latest, zig: true, native: true }
-          - { target: aarch64-unknown-linux-musl, os: ubuntu-latest, zig: true }
+          - { target: aarch64-apple-darwin, os: macos-15 }
+          - { target: x86_64-apple-darwin, os: macos-15-intel }
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-latest, zig: true }
+          # Cross-built: checked by running it under user-mode emulation.
+          - { target: aarch64-unknown-linux-musl, os: ubuntu-latest, zig: true, emulator: qemu-aarch64-static }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
@@ -76,11 +81,15 @@ jobs:
       - name: Build
         run: cargo ${ZIG:+zig}build --release --locked --target "$TARGET" --bin lagom
       - name: Check the binary
-        if: matrix.native
+        env:
+          EMULATOR: ${{ matrix.emulator }}
         run: |
           bin="target/$TARGET/release/lagom"
           kind=$(file "$bin") && echo "$kind"
-          out=$("$bin" --version) && echo "$out"
+          if [ -n "$EMULATOR" ]; then
+            sudo apt-get install -y -qq qemu-user-static > /dev/null
+          fi
+          out=$(${EMULATOR:+"$EMULATOR"} "$bin" --version) && echo "$out"
           case "$out" in "lagom "*) ;; *) echo "::error::unexpected --version output"; exit 1 ;; esac
           if [ -n "$ZIG" ]; then
             case "$kind" in *"statically linked"* | *"static-pie linked"*) ;; *) echo "::error::not a static binary"; exit 1 ;; esac
@@ -126,6 +135,7 @@ jobs:
           cat SHA256SUMS
           [ "$(wc -l < SHA256SUMS)" -eq 4 ] || { echo "::error::expected 4 archives"; exit 1; }
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        if: github.event_name != 'pull_request' # no attestations for builds that aren't released
         with:
           subject-checksums: dist/SHA256SUMS
       - name: Release notes from CHANGELOG.md

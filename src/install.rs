@@ -91,27 +91,27 @@ const SESSION_SOURCES: &str = "startup|resume|clear|compact|fork";
 /// styles survive compaction. Kept here until agent specs move to `agents/*.toml` (AG-01).
 pub struct Compaction {
     pub reinject: bool,
-    /// How it works, or why it can't.
-    pub how: &'static str,
     /// The documentation the answer comes from.
     pub source: &'static str,
 }
 
 pub fn compaction(agent: Agent) -> Compaction {
     match agent {
+        // SessionStart runs again with source "compact" after auto or manual compaction.
         Agent::Claude => Compaction {
             reinject: true,
-            how: "SessionStart runs again with source \"compact\" after auto or manual compaction",
             source: "https://code.claude.com/docs/en/hooks",
         },
+        // SessionStart hooks matching source "compact" run after a root session is
+        // compacted, before the next model request (also mid-turn).
         Agent::Codex => Compaction {
             reinject: true,
-            how: "SessionStart hooks matching source \"compact\" run after a root session is compacted, before the next model request",
-            source: "https://developers.openai.com/codex/hooks",
+            source: "https://learn.chatgpt.com/docs/hooks",
         },
+        // sessionStart runs only for a new conversation, and preCompact is observational
+        // (it can only show the user a message): no hook can add context after compaction.
         Agent::Cursor => Compaction {
             reinject: false,
-            how: "sessionStart runs only for a new conversation, and preCompact is observational (it can only show the user a message), so no hook can add context after compaction",
             source: "https://cursor.com/docs/hooks",
         },
     }
@@ -210,15 +210,33 @@ fn read_json_object(path: &Path) -> Result<Map<String, Value>, String> {
     }
 }
 
+/// Where the first change to an existing file keeps a copy of the original.
+fn backup_path(path: &Path) -> PathBuf {
+    PathBuf::from(format!("{}.lagom.bak", path.display()))
+}
+
+/// Dry-run note for the backup `write_json_atomic` would create, if any.
+fn backup_note(path: &Path) -> Option<String> {
+    let backup = backup_path(path);
+    (path.exists() && !backup.exists())
+        .then(|| format!("would back up the original to {}", backup.display()))
+}
+
 fn write_json_atomic(path: &Path, value: &Map<String, Value>) -> Result<(), String> {
     let err = |e: std::io::Error| format!("cannot write {}: {e}", path.display());
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(err)?;
     }
-    let backup = PathBuf::from(format!("{}.lagom.bak", path.display()));
+    let backup = backup_path(path);
     if path.exists() && !backup.exists() {
         fs::copy(path, &backup).map_err(err)?;
     }
+    // A settings file linked from a dotfiles folder stays a link: write its target.
+    let target = match fs::symlink_metadata(path) {
+        Ok(m) if m.file_type().is_symlink() => fs::canonicalize(path).map_err(err)?,
+        _ => path.to_path_buf(),
+    };
+    let path = target.as_path();
     let tmp = PathBuf::from(format!("{}.lagom.tmp", path.display()));
     let text = serde_json::to_string_pretty(&Value::Object(value.clone()))
         .map_err(|e| e.to_string())?
@@ -367,6 +385,7 @@ pub fn install(agent: Agent, bin: &str, dry_run: bool) -> Result<Outcome, String
         if dry_run {
             out.notes
                 .push(format!("hooks: would update {}", t.hooks_file.display()));
+            out.notes.extend(backup_note(&t.hooks_file));
         } else {
             write_json_atomic(&t.hooks_file, &config)?;
             out.notes
@@ -424,6 +443,9 @@ pub fn uninstall(agent: Agent, dry_run: bool) -> Result<Outcome, String> {
             } else {
                 format!("hooks: {verb} from {}", t.hooks_file.display())
             });
+            if dry_run && !delete {
+                out.notes.extend(backup_note(&t.hooks_file));
+            }
         } else {
             out.notes
                 .push(format!("hooks: none found in {}", t.hooks_file.display()));
@@ -444,22 +466,27 @@ pub fn purge_targets() -> Vec<PathBuf> {
     vec![crate::store::lagom_dir(), crate::style::config_dir()]
 }
 
-/// Delete Lagom's data and config folders. Refuses folders that look unsafe to delete
-/// (the home folder, an ancestor of it, or a filesystem root), e.g. a bad `LAGOM_HOME`.
+/// Delete Lagom's data and config folders. Only folders Lagom created are deleted: the
+/// default `~/.lagom` and `~/.config/lagom`, or any folder holding Lagom's marker file.
+/// Anything else (a `LAGOM_HOME` pointing at `~/Documents`, the home folder, a filesystem
+/// root) is refused before anything is deleted.
 pub fn purge(dry_run: bool) -> Result<Vec<String>, String> {
     let home = home_dir();
-    let mut notes = Vec::new();
-    for dir in purge_targets() {
-        if !dir.exists() {
-            continue;
-        }
+    let defaults = [home.join(".lagom"), home.join(".config").join("lagom")];
+    let dirs: Vec<PathBuf> = purge_targets().into_iter().filter(|d| d.exists()).collect();
+    for dir in &dirs {
         let shallow = dir.components().count() < 3;
-        if shallow || home.starts_with(&dir) {
+        let ours = defaults.contains(dir) || dir.join(crate::store::DIR_MARKER).is_file();
+        if shallow || home.starts_with(dir) || !ours {
             return Err(format!(
-                "refusing to delete {}: not a Lagom folder",
-                dir.display()
+                "refusing to delete {}: Lagom didn't create it (no {} file); delete it yourself if you are sure",
+                dir.display(),
+                crate::store::DIR_MARKER
             ));
         }
+    }
+    let mut notes = Vec::new();
+    for dir in dirs {
         if dry_run {
             notes.push(format!("would delete {}", dir.display()));
         } else {
@@ -472,19 +499,23 @@ pub fn purge(dry_run: bool) -> Result<Vec<String>, String> {
 }
 
 /// The command that removes the binary itself, guessed from where it lives.
+/// Links are followed first: Homebrew on Intel Macs and pipx put a link on `PATH`
+/// (`/usr/local/bin/lagom`, `~/.local/bin/lagom`) that points into their own folders.
 pub fn removal_hint(exe: &Path) -> String {
-    let has = |part: &str| exe.components().any(|c| c.as_os_str() == part);
+    let resolved = fs::canonicalize(exe).unwrap_or_else(|_| exe.to_path_buf());
+    let has = |part: &str| resolved.components().any(|c| c.as_os_str() == part);
     let dir = exe.parent().unwrap_or(Path::new("."));
-    if has("Cellar") || exe.starts_with("/opt/homebrew") || exe.starts_with("/home/linuxbrew") {
+    if has("Cellar")
+        || resolved.starts_with("/opt/homebrew")
+        || resolved.starts_with("/home/linuxbrew")
+    {
         "brew uninstall lagom".into()
     } else if has(".cargo") {
         "cargo uninstall lagom".into()
     } else if has("pipx") {
         "pipx uninstall lagom-ai".into()
-    } else if has("site-packages") || exe.to_string_lossy().contains("/.local/share/uv/") {
+    } else if has("site-packages") || resolved.to_string_lossy().contains("/.local/share/uv/") {
         "pip uninstall lagom-ai (or: uv tool uninstall lagom-ai)".into()
-    } else if cfg!(windows) && has("WinGet") {
-        "winget uninstall yuraware.lagom".into()
     } else {
         let ext = std::env::consts::EXE_SUFFIX;
         format!(
@@ -520,6 +551,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn every_registered_hook_has_a_contract_fixture() {
+        // QA-03: tests/hooks/<agent>/<event>[--variant]/ must exist for every hook we install.
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/hooks");
+        for agent in [Agent::Claude, Agent::Codex, Agent::Cursor] {
+            let cases: Vec<String> = fs::read_dir(root.join(agent.name()))
+                .map(|d| {
+                    d.flatten()
+                        .map(|e| e.file_name().to_string_lossy().into_owned())
+                        .collect()
+                })
+                .unwrap_or_default();
+            for (_, event, _, _) in hook_specs(agent) {
+                assert!(
+                    cases
+                        .iter()
+                        .any(|c| c == event || c.starts_with(&format!("{event}--"))),
+                    "no fixture in tests/hooks/{}/ for `{event}`",
+                    agent.name()
+                );
+            }
+        }
+    }
+
+    #[test]
     fn removal_hint_matches_install_method() {
         let hint = |p: &str| removal_hint(Path::new(p));
         assert_eq!(
@@ -533,6 +588,30 @@ mod tests {
             "pipx uninstall lagom-ai"
         );
         assert!(hint("/home/a/.local/bin/lagom").starts_with("rm /home/a/.local/bin/lagom"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn removal_hint_follows_links_into_package_folders() {
+        let root = std::env::temp_dir().join(format!("lagom-hint-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        for (real, expected) in [
+            (
+                "usr/local/Cellar/lagom/0.1.0/bin/lagom",
+                "brew uninstall lagom",
+            ),
+            ("pipx/venvs/lagom-ai/bin/lagom", "pipx uninstall lagom-ai"),
+        ] {
+            let real = root.join(real);
+            fs::create_dir_all(real.parent().unwrap()).unwrap();
+            fs::write(&real, "").unwrap();
+            let link = root.join("bin/lagom");
+            fs::create_dir_all(link.parent().unwrap()).unwrap();
+            let _ = fs::remove_file(&link);
+            std::os::unix::fs::symlink(&real, &link).unwrap();
+            assert_eq!(removal_hint(&link), expected);
+        }
+        let _ = fs::remove_dir_all(&root);
     }
 
     const BIN: &str = "/opt/lagom/bin/lagom";

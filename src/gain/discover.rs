@@ -13,6 +13,9 @@ use crate::rewrite;
 /// Outputs this big (≈1,000 tokens) are worth compressing.
 pub const LARGE: usize = 4096;
 
+/// `offset` and `limit` of a `Read` call (`None` when not given).
+pub type ReadRange = (Option<u64>, Option<u64>);
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Call {
     Shell {
@@ -22,6 +25,13 @@ pub enum Call {
     Read {
         session: String,
         path: String,
+        /// `offset` and `limit` of a partial read: reading another part isn't a re-read.
+        range: ReadRange,
+        bytes: usize,
+    },
+    /// Any other tool (Grep, WebFetch, MCP tools …), for the share of large outputs.
+    Other {
+        tool: String,
         bytes: usize,
     },
 }
@@ -70,9 +80,10 @@ pub fn claude_calls(text: &str) -> Vec<Call> {
                         "Read" => out.push(Call::Read {
                             session,
                             path: input["file_path"].as_str().unwrap_or_default().to_string(),
+                            range: (input["offset"].as_u64(), input["limit"].as_u64()),
                             bytes,
                         }),
-                        _ => {}
+                        _ => out.push(Call::Other { tool: name, bytes }),
                     }
                 }
                 _ => {}
@@ -132,7 +143,9 @@ pub fn codex_calls(text: &str) -> Vec<Call> {
 }
 
 /// `program subcommand`, e.g. `cargo test` or `git log`; `bash -lc 'x'` style wrappers
-/// are shown as the wrapper.
+/// are shown as the wrapper. Only programs Lagom knows get a subcommand: for anything
+/// else the second word may be a host, a password or a token (`ssh prod-db`,
+/// `echo hunter2`), so only the program name is shown.
 pub fn command_key(command: &str) -> String {
     let words: Vec<&str> = command.split_whitespace().take(2).collect();
     // Codex's exec tool can run JavaScript; anything not shaped like a program name
@@ -150,7 +163,8 @@ pub fn command_key(command: &str) -> String {
         // A subcommand is a short plain word; anything else (URLs, files, flags,
         // tokens) is an argument and stays out of the report.
         [p, sub]
-            if sub.len() <= 20
+            if rewrite::is_known_program(p.rsplit('/').next().unwrap_or(p))
+                && sub.len() <= 20
                 && sub.starts_with(|c: char| c.is_ascii_lowercase())
                 && sub.bytes().all(|b| {
                     b.is_ascii_lowercase() || b.is_ascii_digit() || b"-_".contains(&b)
@@ -174,15 +188,28 @@ pub struct Group {
 pub struct Report {
     /// (command key, reason) → large uncompressed outputs.
     pub uncompressed: BTreeMap<(String, &'static str), Group>,
-    /// file path → reads of the same file in one session beyond the first.
+    /// file path → reads of the same part of a file in one session beyond the first.
     pub rereads: BTreeMap<String, Group>,
+    /// Large outputs (≥ [`LARGE`]) per tool: `shell`, `Read`, `Grep`, `MCP` …
+    pub by_tool: BTreeMap<String, Group>,
     pub compressed: usize,
 }
 
 pub fn analyze(calls: &[Call]) -> Report {
     let mut r = Report::default();
-    let mut reads: HashMap<(&str, &str), Vec<usize>> = HashMap::new();
+    let mut reads: HashMap<(&str, &str, ReadRange), Vec<usize>> = HashMap::new();
     for call in calls {
+        let (tool, bytes) = match call {
+            Call::Shell { bytes, .. } => ("shell", *bytes),
+            Call::Read { bytes, .. } => ("Read", *bytes),
+            Call::Other { tool, bytes } if tool.starts_with("mcp__") => ("MCP", *bytes),
+            Call::Other { tool, bytes } => (tool.as_str(), *bytes),
+        };
+        if bytes >= LARGE {
+            let g = r.by_tool.entry(tool.to_string()).or_default();
+            g.count += 1;
+            g.bytes += bytes;
+        }
         match call {
             Call::Shell { command, bytes } => {
                 if command.contains("lagom run") || command.contains("lgm run") {
@@ -205,11 +232,16 @@ pub fn analyze(calls: &[Call]) -> Report {
             Call::Read {
                 session,
                 path,
+                range,
                 bytes,
-            } => reads.entry((session, path)).or_default().push(*bytes),
+            } => reads
+                .entry((session, path, *range))
+                .or_default()
+                .push(*bytes),
+            Call::Other { .. } => {}
         }
     }
-    for ((_, path), sizes) in reads {
+    for ((_, path, _), sizes) in reads {
         let big: Vec<usize> = sizes.into_iter().filter(|b| *b >= LARGE).collect();
         if big.len() >= 2 {
             let g = r.rereads.entry(path.to_string()).or_default();
@@ -270,6 +302,35 @@ mod tests {
             })
         );
         assert!(!r.rereads.contains_key("/repo/src/small.rs"));
+        // Reading other parts of a file is not a re-read.
+        assert!(!r.rereads.contains_key("/repo/src/huge.rs"));
+        // A secret-looking argument never reaches the report.
+        assert!(
+            r.uncompressed.keys().all(|(k, _)| !k.contains("hunter2")),
+            "{:?}",
+            r.uncompressed.keys()
+        );
+        assert!(r.uncompressed.keys().any(|(k, _)| k == "echo"));
+        // Large outputs per tool, MCP tools grouped.
+        assert_eq!(
+            r.by_tool["MCP"],
+            Group {
+                count: 1,
+                bytes: 20_000
+            }
+        );
+        assert_eq!(
+            r.by_tool["Grep"],
+            Group {
+                count: 1,
+                bytes: 5_000
+            }
+        );
+        assert_eq!(
+            r.by_tool["Read"].count,
+            4 + 2,
+            "4 reads of big.rs, 2 parts of huge.rs"
+        );
     }
 
     #[test]
@@ -288,10 +349,10 @@ mod tests {
         );
         assert_eq!(command_key("npm ABCDEF0123secret"), "npm");
         assert_eq!(command_key("text(await tools.exec(x))"), "(script)");
-        assert_eq!(
-            command_key("const a = 1;"),
-            "const a",
-            "plain words look like a program and subcommand"
-        );
+        assert_eq!(command_key("const a = 1;"), "const");
+        // Only known programs get a subcommand: a second word may be a secret or a host.
+        assert_eq!(command_key("echo hunter2"), "echo");
+        assert_eq!(command_key("ssh prod-db"), "ssh");
+        assert_eq!(command_key("mysql -u root -phunter2"), "mysql");
     }
 }

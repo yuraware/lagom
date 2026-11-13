@@ -38,6 +38,29 @@ pub fn lagom_dir() -> PathBuf {
         .unwrap_or_else(|| home_dir().join(".lagom"))
 }
 
+/// File that marks a folder as Lagom's own, so `lagom uninstall --purge` may delete it.
+pub const DIR_MARKER: &str = ".lagom-dir";
+
+/// Create Lagom's data folder (private) and mark it as Lagom's.
+fn lagom_home() -> std::io::Result<PathBuf> {
+    let dir = lagom_dir();
+    private_dir(&dir)?;
+    mark_dir(&dir);
+    Ok(dir)
+}
+
+/// Write [`DIR_MARKER`] into a folder Lagom created. Best effort: a missing marker only
+/// makes `--purge` refuse the folder.
+pub fn mark_dir(dir: &Path) {
+    let marker = dir.join(DIR_MARKER);
+    if !marker.exists() {
+        let _ = fs::write(
+            marker,
+            "Created by Lagom. `lagom uninstall --purge` deletes this folder.\n",
+        );
+    }
+}
+
 fn recall_dir() -> PathBuf {
     lagom_dir().join("recall")
 }
@@ -88,6 +111,16 @@ impl Spill {
         })
     }
 
+    /// A spill whose writes fail, as on a full disk.
+    #[cfg(test)]
+    pub fn failing_in(dir: &Path) -> std::io::Result<Spill> {
+        let s = Spill::create_in(dir)?;
+        Ok(Spill {
+            file: fs::File::open(&s.tmp)?, // read-only: every write fails
+            ..s
+        })
+    }
+
     pub fn write(&mut self, data: &[u8]) -> std::io::Result<()> {
         self.hash = fnv(self.hash, data);
         self.file.write_all(data)
@@ -110,7 +143,7 @@ impl Spill {
 
 /// Save the full original output of `program` and return its id.
 pub fn save_original(content: &str, program: &str) -> std::io::Result<String> {
-    private_dir(&lagom_dir())?;
+    lagom_home()?;
     let dir = recall_dir();
     private_dir(&dir)?;
     let id = content_id(content);
@@ -127,11 +160,18 @@ pub fn save_original(content: &str, program: &str) -> std::io::Result<String> {
     Ok(id)
 }
 
+/// The shape of an id that [`content_id`] makes: 10 hex digits.
+pub fn is_recall_id(id: &str) -> bool {
+    id.len() == 10 && id.chars().all(|c| c.is_ascii_hexdigit())
+}
+
 pub fn load_original(id: &str) -> Option<String> {
-    if id.is_empty() || !id.chars().all(|c| c.is_ascii_hexdigit()) {
+    if !is_recall_id(id) {
         return None;
     }
-    fs::read_to_string(recall_dir().join(format!("{id}.log"))).ok()
+    // Spilled originals are raw bytes: show them even if they aren't valid UTF-8.
+    let bytes = fs::read(recall_dir().join(format!("{id}.log"))).ok()?;
+    Some(String::from_utf8_lossy(&bytes).into_owned())
 }
 
 /// Which part of a recalled output to print. Applied in order: `lines`, `grep`, `head`, `tail`.
@@ -139,7 +179,8 @@ pub fn load_original(id: &str) -> Option<String> {
 pub struct Selection {
     /// 1-based inclusive range; `None` end means "to the last line".
     pub lines: Option<(usize, Option<usize>)>,
-    /// Keep lines containing this text (case-sensitive); printed as `N: line`.
+    /// Keep lines containing this text; printed as `N: line`. Smart case, as in `rg`:
+    /// all-lowercase text matches any case (`error` finds `ERROR`), otherwise exact.
     pub grep: Option<String>,
     pub head: Option<usize>,
     pub tail: Option<usize>,
@@ -192,7 +233,11 @@ impl Selection {
             lines.retain(|(n, _)| *n >= start && end.is_none_or(|e| *n <= e));
         }
         if let Some(pat) = &self.grep {
-            lines.retain(|(_, l)| l.contains(pat.as_str()));
+            if pat.chars().any(char::is_uppercase) {
+                lines.retain(|(_, l)| l.contains(pat.as_str()));
+            } else {
+                lines.retain(|(_, l)| l.to_lowercase().contains(pat.as_str()));
+            }
         }
         if let Some(h) = self.head {
             lines.truncate(h);
@@ -224,7 +269,7 @@ pub struct RecallEntry {
 
 /// Saved originals, newest first.
 pub fn list_recall() -> Vec<RecallEntry> {
-    let mut out = entries(&recall_dir());
+    let mut out = entries(&recall_dir(), true);
     out.sort_by_key(|e| std::cmp::Reverse(e.modified));
     out
 }
@@ -232,14 +277,17 @@ pub fn list_recall() -> Vec<RecallEntry> {
 /// Delete every saved original. Returns how many were removed.
 pub fn clear_recall() -> usize {
     let dir = recall_dir();
-    let all = entries(&dir);
+    remove_stale_spills(&dir, SystemTime::now());
+    let all = entries(&dir, false);
     for e in &all {
         remove_entry(&dir, &e.id);
     }
     all.len()
 }
 
-fn entries(dir: &Path) -> Vec<RecallEntry> {
+/// Saved originals in `dir`. `with_program` also reads each `.cmd` file; pruning, which
+/// runs after every save, doesn't need it.
+fn entries(dir: &Path, with_program: bool) -> Vec<RecallEntry> {
     let Ok(read) = fs::read_dir(dir) else {
         return Vec::new();
     };
@@ -252,7 +300,11 @@ fn entries(dir: &Path) -> Vec<RecallEntry> {
                 .strip_suffix(".log")?
                 .to_string();
             let meta = e.metadata().ok()?;
-            let program = fs::read_to_string(dir.join(format!("{id}.cmd"))).unwrap_or_default();
+            let program = if with_program {
+                fs::read_to_string(dir.join(format!("{id}.cmd"))).unwrap_or_default()
+            } else {
+                String::new()
+            };
             Some(RecallEntry {
                 id,
                 program,
@@ -271,7 +323,8 @@ fn remove_entry(dir: &Path, id: &str) {
 /// Drop entries older than `max_age`, then the oldest until both the count and the
 /// total size fit. The newest entry is always kept.
 fn prune_recall(dir: &Path, limits: RecallLimits, now: SystemTime) {
-    let mut all = entries(dir);
+    remove_stale_spills(dir, now);
+    let mut all = entries(dir, false);
     all.sort_by_key(|e| std::cmp::Reverse(e.modified)); // newest first
     let mut kept_bytes = 0u64;
     for (i, e) in all.iter().enumerate() {
@@ -287,12 +340,40 @@ fn prune_recall(dir: &Path, limits: RecallLimits, now: SystemTime) {
     }
 }
 
+/// Remove `.spill-<pid>.tmp` files that a killed `lagom run` left behind. A spill that is
+/// still being written was touched moments ago; one untouched for an hour is abandoned.
+fn remove_stale_spills(dir: &Path, now: SystemTime) {
+    let Ok(read) = fs::read_dir(dir) else {
+        return;
+    };
+    for e in read.flatten() {
+        let name = e.file_name();
+        let name = name.to_string_lossy();
+        let stale = e.metadata().and_then(|m| m.modified()).is_ok_and(|m| {
+            now.duration_since(m)
+                .is_ok_and(|age| age > std::time::Duration::from_secs(3600))
+        });
+        if name.starts_with(".spill-") && name.ends_with(".tmp") && stale {
+            let _ = fs::remove_file(e.path());
+        }
+    }
+}
+
 /// Create `dir` readable only by the user (0700 on Unix), tightening an existing one.
 /// Recall originals hold raw command output, which can contain secrets.
 fn private_dir(dir: &Path) -> std::io::Result<()> {
     fs::create_dir_all(dir)?;
     set_mode(dir, 0o700);
     Ok(())
+}
+
+/// Replace `path` with `text`, readable only by the user (folder 0700, file 0600).
+pub fn write_private(path: &Path, text: &str) -> std::io::Result<()> {
+    if let Some(dir) = path.parent() {
+        private_dir(dir)?;
+    }
+    private_file(fs::OpenOptions::new().write(true).truncate(true), path)?
+        .write_all(text.as_bytes())
 }
 
 /// Open (creating if needed) a file readable only by the user (0600 on Unix).
@@ -388,10 +469,9 @@ pub fn record_for(mut event: serde_json::Value, who: &Attribution) {
         obj.insert("ts".into(), now_secs().into());
         who.apply(obj);
     }
-    let dir = lagom_dir();
-    if private_dir(&dir).is_err() {
+    let Ok(dir) = lagom_home() else {
         return;
-    }
+    };
     if let Ok(mut file) = private_file(
         fs::OpenOptions::new().append(true),
         &dir.join("stats.jsonl"),
@@ -400,16 +480,30 @@ pub fn record_for(mut event: serde_json::Value, who: &Attribution) {
     }
 }
 
-/// Style set injected per session id (from `inject` events), e.g. `terse+lean-code`.
-pub fn session_styles() -> std::collections::HashMap<String, String> {
+/// Style set injected per session id (from `inject` events), e.g. `terse+lean-code`,
+/// and when Lagom first recorded a session id (unix seconds): sessions before that can't
+/// be matched.
+pub fn session_styles() -> (std::collections::HashMap<String, String>, Option<u64>) {
     let mut out = std::collections::HashMap::new();
+    let mut since: Option<u64> = None;
     let Ok(text) = fs::read_to_string(lagom_dir().join("stats.jsonl")) else {
-        return out;
+        return (out, since);
     };
     for line in text.lines() {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
             continue;
         };
+        if v["session"].is_string() {
+            if let Some(ts) = v["ts"].as_u64() {
+                since = Some(since.map_or(ts, |s| s.min(ts)));
+            }
+        }
+        if v["kind"] == "holdout" {
+            if let Some(session) = v["session"].as_str() {
+                out.insert(session.to_string(), crate::gain::HOLDOUT.to_string());
+            }
+            continue;
+        }
         if v["kind"] != "inject" {
             continue;
         }
@@ -421,7 +515,7 @@ pub fn session_styles() -> std::collections::HashMap<String, String> {
             out.insert(session.to_string(), names.join("+"));
         }
     }
-    out
+    (out, since)
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -432,7 +526,8 @@ pub struct Totals {
     pub bytes_out: u64,
     pub injections: u64,
     pub injected_bytes: u64,
-    /// Per agent (`manual` for `lagom run` typed by hand).
+    /// Per agent: `manual` for `lagom run` typed by hand, `unknown` for events an older
+    /// Lagom wrote before it recorded the agent.
     pub by_agent: std::collections::BTreeMap<String, Bucket>,
     /// Injections per style set, such as `terse+lean-code`.
     pub by_style: std::collections::BTreeMap<String, Bucket>,
@@ -463,11 +558,12 @@ pub fn totals() -> Totals {
             continue; // written by a newer Lagom
         }
         let n = |k: &str| v.get(k).and_then(|x| x.as_u64()).unwrap_or(0);
-        let agent = v
-            .get("agent")
-            .and_then(|a| a.as_str())
-            .unwrap_or("manual")
-            .to_string();
+        let agent = match v.get("agent").and_then(|a| a.as_str()) {
+            Some(a) => a,
+            None if v.get("v").is_some() => "manual",
+            None => "unknown",
+        }
+        .to_string();
         match v.get("kind").and_then(|k| k.as_str()) {
             Some("run") => {
                 t.runs += 1;
@@ -512,6 +608,43 @@ mod tests {
     use super::*;
 
     #[test]
+    fn stale_spill_files_are_pruned_and_fresh_ones_kept() {
+        use std::time::Duration;
+        let dir = std::env::temp_dir().join(format!("lagom-spills-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let now = SystemTime::now();
+        for (name, age) in [
+            (".spill-1.tmp", 7200),
+            (".spill-2.tmp", 10),
+            ("note.tmp", 7200),
+        ] {
+            let p = dir.join(name);
+            fs::write(&p, "x").unwrap();
+            fs::File::options()
+                .write(true)
+                .open(&p)
+                .unwrap()
+                .set_modified(now - Duration::from_secs(age))
+                .unwrap();
+        }
+        prune_recall(&dir, RecallLimits::default(), now);
+        assert!(
+            !dir.join(".spill-1.tmp").exists(),
+            "abandoned spill removed"
+        );
+        assert!(
+            dir.join(".spill-2.tmp").exists(),
+            "a spill being written stays"
+        );
+        assert!(
+            dir.join("note.tmp").exists(),
+            "only spill files are touched"
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn recall_pruning_limits_count_size_and_age() {
         use std::time::Duration;
         let dir = std::env::temp_dir().join(format!("lagom-cmp04-{}", std::process::id()));
@@ -526,7 +659,7 @@ mod tests {
             f.set_modified(now - Duration::from_secs(age_s)).unwrap();
         };
         let ids = |d: &Path| {
-            let mut v: Vec<String> = entries(d).into_iter().map(|e| e.id).collect();
+            let mut v: Vec<String> = entries(d, false).into_iter().map(|e| e.id).collect();
             v.sort();
             v
         };
@@ -567,20 +700,22 @@ mod tests {
 
     #[test]
     fn recall_selection() {
-        let text = "a\nb error\nc\nd error\ne\n";
+        let text = "a\nb error\nc\nd ERROR\ne\n";
         assert_eq!(sel(&[]).apply(text), text);
         assert_eq!(sel(&["--lines", "2-3"]).apply(text), "b error\nc\n");
-        assert_eq!(sel(&["--lines", "4-"]).apply(text), "d error\ne\n");
+        assert_eq!(sel(&["--lines", "4-"]).apply(text), "d ERROR\ne\n");
         assert_eq!(sel(&["--lines", "2"]).apply(text), "b error\n");
         assert_eq!(
             sel(&["--grep", "error"]).apply(text),
-            "2: b error\n4: d error\n"
+            "2: b error\n4: d ERROR\n",
+            "lowercase text matches any case"
         );
+        assert_eq!(sel(&["--grep", "ERROR"]).apply(text), "4: d ERROR\n");
         assert_eq!(sel(&["--head", "2"]).apply(text), "a\nb error\n");
         assert_eq!(sel(&["--tail", "1"]).apply(text), "e\n");
         assert_eq!(
             sel(&["--lines", "3-", "--grep", "error"]).apply(text),
-            "4: d error\n"
+            "4: d ERROR\n"
         );
         for bad in [
             &["--lines", "0-2"][..],

@@ -4,8 +4,9 @@
 #   curl -fsSL https://raw.githubusercontent.com/yuraware/lagom/main/install.sh | sh
 #   curl -fsSL https://raw.githubusercontent.com/yuraware/lagom/main/install.sh | sh -s -- --version 0.1.0
 #
-# On macOS with Homebrew it runs `brew install yuraware/tap/lagom` (or
-# `brew upgrade`). Everywhere else, and when Homebrew fails, it picks the
+# On macOS with Homebrew, when the yuraware/tap/lagom formula is at the latest
+# release, it runs `brew install yuraware/tap/lagom` (or `brew upgrade`).
+# Everywhere else, and when the tap is missing, behind or fails, it picks the
 # release archive for this OS and CPU, downloads it with SHA256SUMS, stops if
 # the hash does not match, and copies `lagom` into
 # ${LAGOM_INSTALL_DIR:-$HOME/.local/bin} with an `lgm` alias next to it. It
@@ -181,6 +182,14 @@ resolve_install_dir() {
     esac
     install_dir=${install_dir%/}
     [ -n "$install_dir" ] || install_dir=/
+}
+
+# Prints the version Homebrew would install from yuraware/tap/lagom, or nothing
+# when the tap or formula doesn't exist. Reads `"versions": {"stable": "X"}`
+# from `brew info --json=v2`.
+brew_formula_version() {
+    brew info --json=v2 yuraware/tap/lagom 2>/dev/null | tr -d ' \n\t' |
+        sed -n 's/.*"versions":{"stable":"\([^"]*\)".*/\1/p'
 }
 
 # Installs or upgrades lagom with Homebrew and sets `dest`. Returns 1 when
@@ -384,6 +393,22 @@ main() {
             fi
             ;;
     esac
+
+    # Homebrew only when its formula installs the latest release: a missing tap, or
+    # one that lags behind (an older or yanked version), means the archive.
+    if [ -n "$use_brew" ]; then
+        pick_downloader
+        version=$(latest_version)
+        brew_version=$(brew_formula_version || true)
+        if [ "$brew_version" != "$version" ]; then
+            if [ -n "$brew_version" ]; then
+                say "Homebrew's yuraware/tap/lagom is $brew_version, not the latest release $version; using the release archive"
+            else
+                say "Homebrew has no yuraware/tap/lagom formula; using the release archive"
+            fi
+            use_brew=
+        fi
+    fi
 
     via_archive=1
     if [ -n "$use_brew" ]; then

@@ -696,10 +696,11 @@ fn another_lgm_on_path_means_no_alias() {
     assert!(out.contains("another lgm command"), "{out}");
 }
 
-/// Adds a fake `brew` to the sandbox. `brew install|upgrade` copies a fake
-/// lagom into `$HOME/brew/bin` (or fails when `$HOME/brew-fails` exists),
-/// `brew list` succeeds once it is there, and every call is logged to
-/// `$HOME/brew-calls`.
+/// Adds a fake `brew` to the sandbox. `brew info --json=v2` reports the
+/// formula at `version` (or fails when `$HOME/brew-no-tap` exists),
+/// `brew install|upgrade` copies a fake lagom into `$HOME/brew/bin` (or fails
+/// when `$HOME/brew-fails` exists), `brew list` succeeds once it is there, and
+/// every call is logged to `$HOME/brew-calls`.
 fn fake_brew(sb: &Sandbox, version: &str) {
     let src = sb.path("brew-src");
     fs::create_dir_all(&src).unwrap();
@@ -711,6 +712,9 @@ fn fake_brew(sb: &Sandbox, version: &str) {
          case \"$1\" in\n\
          --prefix) echo \"$prefix\" ;;\n\
          list) [ -x \"$prefix/bin/lagom\" ] ;;\n\
+         info)\n\
+           if [ -e \"$HOME/brew-no-tap\" ]; then echo 'Error: No available formula' >&2; exit 1; fi\n\
+           printf '{{\\n  \"formulae\": [{{\\n    \"name\": \"lagom\",\\n    \"versions\": {{\\n      \"stable\": \"{version}\",\\n      \"head\": null\\n    }}\\n  }}]\\n}}\\n' ;;\n\
          install|upgrade)\n\
            if [ -e \"$HOME/brew-fails\" ]; then echo 'Error: no tap' >&2; exit 1; fi\n\
            mkdir -p \"$prefix/bin\" && cp '{}' \"$prefix/bin/lagom\" ;;\n\
@@ -730,8 +734,8 @@ fn macos_with_homebrew_installs_and_then_upgrades_through_the_tap() {
     let sb = Sandbox::new("brew");
     sb.tools(&["curl", hash_tool()], "Darwin", "arm64", false);
     fake_brew(&sb, "1.0.0");
-    // No release is served: Homebrew must not need one.
-    let url = serve(&sb.root, None);
+    // The tap is at the latest release, so Homebrew installs it (no archive is served).
+    let url = serve(&sb.root, Some("1.0.0"));
     let o = sb.run(&url, &[], &[]);
     assert_ok(&o);
     assert!(brew_calls(&sb).contains("install yuraware/tap/lagom"));
@@ -747,6 +751,46 @@ fn macos_with_homebrew_installs_and_then_upgrades_through_the_tap() {
     assert_ok(&o);
     assert!(brew_calls(&sb).contains("upgrade yuraware/tap/lagom"));
     assert!(!sb.path("home/.local/bin").exists());
+}
+
+#[test]
+fn homebrew_behind_the_latest_release_or_without_the_tap_is_skipped() {
+    for (name, brew_version, no_tap, says) in [
+        (
+            "brew-behind",
+            "0.9.0",
+            false,
+            "is 0.9.0, not the latest release 1.0.0",
+        ),
+        (
+            "brew-no-tap",
+            "1.0.0",
+            true,
+            "has no yuraware/tap/lagom formula",
+        ),
+    ] {
+        let sb = Sandbox::new(name);
+        sb.tools(&["curl", hash_tool()], "Darwin", "arm64", false);
+        fake_brew(&sb, brew_version);
+        if no_tap {
+            fs::write(sb.path("home/brew-no-tap"), "").unwrap();
+        }
+        sb.release("1.0.0", &["aarch64-apple-darwin"]);
+        let url = serve(&sb.root, Some("1.0.0"));
+        let o = sb.run(&url, &[], &[]);
+        assert_ok(&o);
+        assert!(stdout(&o).contains(says), "{name}: {}", stdout(&o));
+        let calls = brew_calls(&sb);
+        assert!(
+            !calls.contains("install") && !calls.contains("upgrade"),
+            "{name}: {calls}"
+        );
+        assert_eq!(
+            installed_version(&sb.path("home/.local/bin/lagom")),
+            "lagom 1.0.0",
+            "{name}"
+        );
+    }
 }
 
 #[test]

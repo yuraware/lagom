@@ -126,6 +126,44 @@ fn install_keeps_settings_file_permissions() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn install_keeps_a_symlinked_settings_file_a_symlink() {
+    let home = sandbox("symlink");
+    let dotfiles = home.join("dotfiles");
+    fs::create_dir_all(&dotfiles).unwrap();
+    fs::create_dir_all(home.join(".claude")).unwrap();
+    fs::write(dotfiles.join("settings.json"), "{\"model\": \"x\"}").unwrap();
+    let link = home.join(".claude/settings.json");
+    std::os::unix::fs::symlink(dotfiles.join("settings.json"), &link).unwrap();
+    assert!(lagom(&home, &["install", "claude"], None).status.success());
+    assert!(
+        fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    let target = fs::read_to_string(dotfiles.join("settings.json")).unwrap();
+    assert!(
+        target.contains("hook claude") && target.contains("\"model\""),
+        "{target}"
+    );
+    assert!(!dotfiles.join("settings.json.lagom.tmp").exists());
+    assert!(
+        lagom(&home, &["uninstall", "claude"], None)
+            .status
+            .success()
+    );
+    assert!(
+        fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    let target = fs::read_to_string(dotfiles.join("settings.json")).unwrap();
+    assert!(!target.contains("hook claude"), "{target}");
+}
+
 #[test]
 fn install_refuses_invalid_json() {
     let home = sandbox("badjson");
@@ -386,15 +424,20 @@ fn hook_ignores_oversized_input_quickly() {
     let mut stdin = child.stdin.take().unwrap();
     let writer = std::thread::spawn(move || {
         let chunk = vec![b' '; 1024 * 1024];
+        let mut written = 0;
         for _ in 0..50 {
             if stdin.write_all(&chunk).is_err() {
                 break; // the hook stopped reading: expected
             }
+            written += 1;
         }
+        written
     });
     let out = child.wait_with_output().unwrap();
-    let _ = writer.join();
+    let written = writer.join().unwrap();
     assert!(out.status.success());
+    // It read about 8 MB and stopped, instead of reading all 50 MB.
+    assert!(written < 50, "the hook read all {written} MB");
     assert_eq!(text(&out).trim(), "{}");
     assert!(
         start.elapsed() < std::time::Duration::from_secs(2),

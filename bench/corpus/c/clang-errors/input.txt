@@ -1,0 +1,14 @@
+/work/bad.c:3:9: error: incompatible pointer to integer conversion initializing 'int' with an expression of type 'char[5]' [-Wint-conversion]
+    3 |     int x = "text";
+      |         ^   ~~~~~~
+/work/bad.c:4:5: error: call to undeclared function 'undeclared_call'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+    4 |     undeclared_call();
+      |     ^
+/work/bad.c:5:20: error: use of undeclared identifier 'y'
+    5 |     printf("%d\n", y);
+      |                    ^
+/work/bad.c:6:13: error: expected ';' after return statement
+    6 |     return 0
+      |             ^
+      |             ;
+4 errors generated.

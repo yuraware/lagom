@@ -1,0 +1,11 @@
+/work/bad.swift:1:14: error: cannot convert value of type 'String' to specified type 'Int'
+1 | let x: Int = "s"
+  |              `- error: cannot convert value of type 'String' to specified type 'Int'
+2 | print(y)
+3 | 
+
+/work/bad.swift:2:7: error: cannot find 'y' in scope
+1 | let x: Int = "s"
+2 | print(y)
+  |       `- error: cannot find 'y' in scope
+3 | 

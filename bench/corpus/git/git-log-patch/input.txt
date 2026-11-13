@@ -1,0 +1,74 @@
+commit 9ee6867f57540110438786647b0e706a0a34278c
+Author: Dev <dev@example.com>
+Date:   Fri Jan 2 00:20:00 2026 +0100
+
+    tune item 80
+
+diff --git a/pkg0/f80.toml b/pkg0/f80.toml
+index 2edb71a..1d48e68 100644
+--- a/pkg0/f80.toml
++++ b/pkg0/f80.toml
+@@ -1,2 +1,3 @@
+ value = 80
+ name = "item-80"
++changed = 80
+
+commit 188714875bc43d1a20f999f0f5d26add9c8d7ea3
+Author: Dev <dev@example.com>
+Date:   Fri Jan 2 00:19:00 2026 +0100
+
+    tune item 79
+
+diff --git a/pkg9/f79.toml b/pkg9/f79.toml
+index c713e91..bd57d29 100644
+--- a/pkg9/f79.toml
++++ b/pkg9/f79.toml
+@@ -1,2 +1,3 @@
+ value = 79
+ name = "item-79"
++changed = 79
+
+commit d5534929fcbc65a1476c3feb299f6a17fd422891
+Author: Dev <dev@example.com>
+Date:   Fri Jan 2 00:18:00 2026 +0100
+
+    tune item 78
+
+diff --git a/pkg8/f78.toml b/pkg8/f78.toml
+index 5d281f2..8635c08 100644
+--- a/pkg8/f78.toml
++++ b/pkg8/f78.toml
+@@ -1,2 +1,3 @@
+ value = 78
+ name = "item-78"
++changed = 78
+
+commit e864ce22c9e17e05ff7e115b40e977b9973aaeed
+Author: Dev <dev@example.com>
+Date:   Fri Jan 2 00:17:00 2026 +0100
+
+    tune item 77
+
+diff --git a/pkg7/f77.toml b/pkg7/f77.toml
+index fcaf389..f53caac 100644
+--- a/pkg7/f77.toml
++++ b/pkg7/f77.toml
+@@ -1,2 +1,3 @@
+ value = 77
+ name = "item-77"
++changed = 77
+
+commit 484e7bcb74b044ecdc459a83cbf8d4ec1d66bd45
+Author: Dev <dev@example.com>
+Date:   Fri Jan 2 00:16:00 2026 +0100
+
+    tune item 76
+
+diff --git a/pkg6/f76.toml b/pkg6/f76.toml
+index 8ba2e6c..7bdce85 100644
+--- a/pkg6/f76.toml
++++ b/pkg6/f76.toml
+@@ -1,2 +1,3 @@
+ value = 76
+ name = "item-76"
++changed = 76

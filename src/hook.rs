@@ -54,23 +54,80 @@ pub fn run(agent: &str, event: &str) {
     }
 }
 
-/// Path written into hooks. When run as the `lgm` alias, prefer the `lagom`
-/// binary next to it, so hooks look the same whichever name installed them.
+/// Path written into hooks: [`choose_bin`] for the running process.
 pub fn lagom_bin() -> String {
-    let Some(exe) = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.canonicalize().ok())
-    else {
-        return "lagom".into();
+    let exe = std::env::current_exe().ok();
+    let argv0 = std::env::args_os().next().map(PathBuf::from);
+    let path_var = std::env::var_os("PATH");
+    choose_bin(argv0.as_deref(), exe.as_deref(), path_var.as_deref())
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// Pick a binary path for hooks that survives package-manager upgrades.
+///
+/// Hooks must not point into versioned folders (Homebrew's `Cellar/lagom/0.1.0/…`,
+/// a Python `site-packages`, the Nix store): they vanish on upgrade, and Codex ties
+/// hook trust to the exact command string. Order:
+/// 1. The path the user invoked (or found on `PATH`), if it resolves to this binary.
+/// 2. The executable path, unresolved.
+/// 3. If that is versioned, `lagom` from `PATH` when it resolves here, else bare `lagom`.
+///
+/// When run as the `lgm` alias, the `lagom` binary next to it is preferred.
+pub fn choose_bin(
+    argv0: Option<&Path>,
+    exe: Option<&Path>,
+    path_var: Option<&std::ffi::OsStr>,
+) -> PathBuf {
+    let Some(exe) = exe else {
+        return PathBuf::from("lagom");
     };
-    let main = exe.with_file_name(format!("lagom{}", std::env::consts::EXE_SUFFIX));
-    let is_alias = exe.file_stem().and_then(|s| s.to_str()) == Some("lgm");
-    let path = if is_alias && main.is_file() {
-        main
-    } else {
-        exe
+    let target = exe.canonicalize().unwrap_or_else(|_| exe.to_path_buf());
+    let is_this = |p: &Path| p.canonicalize().is_ok_and(|c| c == target);
+
+    let invoked = argv0
+        .and_then(|a| {
+            if a.components().count() > 1 {
+                std::path::absolute(a).ok()
+            } else {
+                find_on_path(a.as_os_str(), path_var)
+            }
+        })
+        .filter(|p| is_this(p));
+    let mut chosen = invoked.unwrap_or_else(|| exe.to_path_buf());
+    if is_versioned(&chosen) {
+        chosen = find_on_path("lagom".as_ref(), path_var)
+            .filter(|p| is_this(p) && !is_versioned(p))
+            .unwrap_or_else(|| PathBuf::from("lagom"));
+    }
+    if chosen.file_stem().and_then(|s| s.to_str()) == Some("lgm") {
+        let main = chosen.with_file_name(format!("lagom{}", std::env::consts::EXE_SUFFIX));
+        if main.is_file() {
+            chosen = main;
+        }
+    }
+    chosen
+}
+
+/// Paths that change on upgrade.
+fn is_versioned(path: &Path) -> bool {
+    path.components().any(|c| {
+        matches!(
+            c.as_os_str().to_str(),
+            Some("Cellar" | "site-packages" | "_npx")
+        )
+    }) || path.starts_with("/nix/store")
+}
+
+fn find_on_path(name: &std::ffi::OsStr, path_var: Option<&std::ffi::OsStr>) -> Option<PathBuf> {
+    let suffixed = {
+        let mut s = name.to_os_string();
+        s.push(std::env::consts::EXE_SUFFIX);
+        s
     };
-    path.to_string_lossy().into_owned()
+    std::env::split_paths(path_var?)
+        .flat_map(|dir| [dir.join(name), dir.join(&suffixed)])
+        .find(|p| p.is_file())
 }
 
 /// Pure decision function (testable): payload in, response JSON out.
@@ -274,6 +331,48 @@ pub fn pattern_matches(pattern: &str, cmd: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    fn brew_layout(name: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("lagom-hk01-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let cellar = root.join("Cellar/lagom/0.1.0/bin");
+        fs::create_dir_all(&cellar).unwrap();
+        fs::create_dir_all(root.join("bin")).unwrap();
+        fs::write(cellar.join("lagom"), "").unwrap();
+        std::os::unix::fs::symlink(cellar.join("lagom"), root.join("bin/lagom")).unwrap();
+        std::os::unix::fs::symlink(cellar.join("lagom"), root.join("bin/lgm")).unwrap();
+        root
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hook_path_avoids_homebrew_cellar() {
+        let root = brew_layout("brew");
+        let exe = root.join("Cellar/lagom/0.1.0/bin/lagom");
+        let path = root.join("bin");
+        // Invoked as `lagom` from PATH: the stable symlink wins.
+        let got = choose_bin(Some(Path::new("lagom")), Some(&exe), Some(path.as_os_str()));
+        assert_eq!(got, root.join("bin/lagom"));
+        // Invoked by its Cellar path: still the PATH symlink, never the versioned path.
+        let got = choose_bin(Some(&exe), Some(&exe), Some(path.as_os_str()));
+        assert_eq!(got, root.join("bin/lagom"));
+        // Through the `lgm` alias symlink: the `lagom` next to it.
+        let got = choose_bin(Some(Path::new("lgm")), Some(&exe), Some(path.as_os_str()));
+        assert_eq!(got, root.join("bin/lagom"));
+        // Versioned and not on PATH: bare `lagom`.
+        let got = choose_bin(Some(&exe), Some(&exe), None);
+        assert_eq!(got, PathBuf::from("lagom"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn hook_path_keeps_plain_install_location() {
+        let exe = std::env::current_exe().unwrap();
+        let got = choose_bin(Some(&exe), Some(&exe), None);
+        assert_eq!(got, std::path::absolute(&exe).unwrap());
+        assert_eq!(choose_bin(None, None, None), PathBuf::from("lagom"));
+    }
 
     #[test]
     fn rule_patterns() {

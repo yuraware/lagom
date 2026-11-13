@@ -14,4 +14,4 @@ Allowed headings ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/) order
 At release time `python3 -I scripts/release_notes.py <version>` merges every fragment into a new
 `CHANGELOG.md` section and deletes them. CI fails a pull request that changes `src/`, `styles/` or
 `skills/` without adding a new fragment (editing or deleting an existing one doesn't count), unless
-it has the `no-changelog` label.
+it has the `no-changelog` label. Adding or removing the label re-runs the check.

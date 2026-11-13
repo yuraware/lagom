@@ -3,12 +3,15 @@ on:
   push:
     branches: [main]
   pull_request:
+    # labeled/unlabeled: the override labels (size-increase-ok, no-changelog) take effect when changed.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
 
 jobs:
   test:
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -37,6 +40,7 @@ jobs:
 
   latency:
     # Measures only; the regression gate comes with QA-08.
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -55,3 +59,35 @@ jobs:
         with:
           name: latency-${{ matrix.os }}
           path: target/bench/latency-${{ matrix.os }}.json
+
+  fidelity:
+    # BEN-04: no must_keep string may be lost, and total output may not grow >5% vs the base.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-15
+        with:
+          toolchain: stable
+      - run: cargo build --release
+      - name: No must_keep string lost
+        run: ./target/release/lagom bench compress --json target/bench-current.json
+      - name: Output size against the base branch
+        if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'size-increase-ok')
+        run: |
+          git worktree add ../base "origin/${{ github.base_ref }}"
+          cargo build --release --manifest-path ../base/Cargo.toml
+          set +e
+          ../base/target/release/lagom bench compress bench/corpus tests/fixtures/compress \
+            --json target/bench-base.json > /dev/null
+          code=$?
+          set -e
+          if [ "$code" -le 1 ] && [ -f target/bench-base.json ]; then
+            ./target/release/lagom bench compress --compare target/bench-base.json --max-growth 5
+          else
+            echo "The base branch has no 'lagom bench compress' yet; skipping the size check."
+          fi
+      - name: Size check skipped by the size-increase-ok label
+        if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'size-increase-ok')
+        run: echo "size-increase-ok is set; total output may grow."

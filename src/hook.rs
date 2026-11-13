@@ -45,6 +45,9 @@ impl Agent {
 const MAX_PAYLOAD: u64 = 8 * 1024 * 1024;
 /// Longest shell command we consider rewriting.
 const MAX_COMMAND: usize = 64 * 1024;
+/// Longest `cwd` we accept. Real paths are far shorter; a huge one would make the
+/// settings lookup walk millions of parent folders.
+const MAX_PATH: usize = 4096;
 
 /// Entry point used by `main`. Always exits successfully.
 pub fn run(agent: &str, event: &str) {
@@ -60,7 +63,6 @@ pub fn run(agent: &str, event: &str) {
     }
 }
 
-/// Path written into hooks: [`choose_bin`] for the running process.
 /// Parse a hook payload: a JSON object of at most [`MAX_PAYLOAD`] bytes, else `None`.
 fn read_payload(input: impl Read) -> Option<Value> {
     let mut bytes = Vec::new();
@@ -73,6 +75,7 @@ fn read_payload(input: impl Read) -> Option<Value> {
         .filter(Value::is_object)
 }
 
+/// Path written into hooks: [`choose_bin`] for the running process.
 pub fn lagom_bin() -> String {
     let exe = std::env::current_exe().ok();
     let argv0 = std::env::args_os().next().map(PathBuf::from);
@@ -154,14 +157,15 @@ pub fn respond(agent: Agent, event: &str, payload: &Value, bin: &str) -> Option<
         return None;
     }
     // Claude Code and Codex send `cwd`; Cursor sends `workspace_roots`.
-    let cwd = payload
-        .get("cwd")
-        .and_then(Value::as_str)
-        .or_else(|| {
-            payload
-                .pointer("/workspace_roots/0")
-                .and_then(Value::as_str)
-        })
+    let cwd = payload.get("cwd").and_then(Value::as_str).or_else(|| {
+        payload
+            .pointer("/workspace_roots/0")
+            .and_then(Value::as_str)
+    });
+    if cwd.is_some_and(|c| c.len() > MAX_PATH) {
+        return None;
+    }
+    let cwd = cwd
         .map(PathBuf::from)
         .or_else(|| std::env::current_dir().ok())
         .unwrap_or_else(|| PathBuf::from("."));
@@ -368,6 +372,14 @@ mod tests {
         assert!(read_payload(&[0xff, 0xfe][..]).is_none());
         let big = format!("{{\"a\":\"{}\"}}", "x".repeat(MAX_PAYLOAD as usize));
         assert!(read_payload(big.as_bytes()).is_none());
+    }
+
+    #[test]
+    fn huge_cwd_is_ignored() {
+        let cwd = "/a".repeat(MAX_PATH);
+        let p = json!({"cwd": cwd, "tool_input": {"command": "git status"}, "permission_mode": "bypassPermissions"});
+        assert!(respond(Agent::Claude, "pre-tool", &p, "/bin/lagom").is_none());
+        assert!(respond(Agent::Claude, "session-start", &p, "/bin/lagom").is_none());
     }
 
     #[test]

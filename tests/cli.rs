@@ -704,6 +704,24 @@ fn rewrite_can_be_turned_off_per_project_or_by_env() {
         hook(Some(("LAGOM_REWRITE", "on"))).contains("run -- git log"),
         "env wins"
     );
+
+    // The user turns it off everywhere; a project file can't turn it back on.
+    fs::write(repo.join(".lagom/config.json"), r#"{"rewrite": true}"#).unwrap();
+    assert!(
+        hook(None).contains("run -- git log"),
+        "project on, user unset"
+    );
+    fs::create_dir_all(home.join(".config/lagom")).unwrap();
+    fs::write(
+        home.join(".config/lagom/config.json"),
+        r#"{"rewrite": false}"#,
+    )
+    .unwrap();
+    assert_eq!(hook(None), "", "user off wins over project on");
+    assert!(
+        hook(Some(("LAGOM_REWRITE", "on"))).contains("run -- git log"),
+        "env still wins"
+    );
 }
 
 #[test]

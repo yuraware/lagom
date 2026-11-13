@@ -129,9 +129,10 @@ fn read_config_bool(path: &Path, key: &str) -> Option<bool> {
 }
 
 /// Whether the pre-tool hook may rewrite commands to `lagom run`. Off with
-/// `LAGOM_REWRITE=off` (or `0`/`false`), or `"rewrite": false` in the project's
-/// `.lagom/config.json` or the user's `config.json`. Turning it off is always safe,
-/// so a project file needs no trust for this key.
+/// `LAGOM_REWRITE=off` (or `0`/`false`), or `"rewrite": false` in the user's
+/// `config.json` or the project's `.lagom/config.json`. A project file can only turn
+/// rewriting off: turning it off is always safe, so it needs no trust, but a cloned
+/// repository must not turn back on what the user turned off.
 pub fn rewrite_enabled(cwd: &Path) -> bool {
     if let Ok(v) = std::env::var("LAGOM_REWRITE") {
         return !matches!(
@@ -139,10 +140,11 @@ pub fn rewrite_enabled(cwd: &Path) -> bool {
             "0" | "off" | "false" | "no"
         );
     }
-    find_project_file(cwd, "config.json")
-        .and_then(|p| read_config_bool(&p, "rewrite"))
-        .or_else(|| read_config_bool(&config_dir().join("config.json"), "rewrite"))
-        .unwrap_or(true)
+    let off = |v: Option<bool>| v == Some(false);
+    let user = read_config_bool(&config_dir().join("config.json"), "rewrite");
+    let project =
+        find_project_file(cwd, "config.json").and_then(|p| read_config_bool(&p, "rewrite"));
+    !(off(user) || off(project))
 }
 
 /// Active style names. An empty list means "off".

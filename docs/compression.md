@@ -30,7 +30,7 @@ A pre-tool hook turns a simple command such as `git log --stat` into `lagom run 
 | You, everywhere | `{"rewrite": false}` in `~/.config/lagom/config.json`, or `LAGOM_REWRITE=off` in your shell |
 | All hooks, including styles | `LAGOM_DISABLE=1` |
 
-`LAGOM_REWRITE=on` overrides a config file that turned rewriting off. Commands you run by hand with `lagom run` are always compressed.
+A project file can only turn rewriting off: `{"rewrite": true}` in a repository doesn't undo your own `false`. `LAGOM_REWRITE=on` overrides any config file that turned rewriting off. Commands you run by hand with `lagom run` are always compressed.
 
 ## By hand
 

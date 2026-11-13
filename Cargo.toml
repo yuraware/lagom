@@ -21,3 +21,7 @@ serde_json = { version = "1", features = ["preserve_order"] }
 lto = true
 codegen-units = 1
 strip = true
+
+# Tests include speed checks; light optimization keeps them fast and stable on slow CI.
+[profile.test]
+opt-level = 1

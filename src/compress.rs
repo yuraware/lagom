@@ -42,6 +42,9 @@ pub struct Compressed {
     pub text: String,
     /// True when content was dropped (not just reformatted); the original should be kept for recall.
     pub lossy: bool,
+    /// The command reported success but its output has error lines, so it got the
+    /// larger failure budget.
+    pub errors_despite_success: bool,
 }
 
 /// Compress raw command output. `failed` means a non-zero exit code.
@@ -51,12 +54,20 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
         return Compressed {
             text: raw.to_string(),
             lossy: false,
+            errors_despite_success: false,
         };
     }
-    let limits = if failed { limits.for_failure() } else { limits };
+    // Colors first: `\x1b[31merror\x1b[0m: boom` is an error line once they're gone.
+    let cleaned = strip_ansi(raw);
+    // Some tools exit 0 and still print errors: treat those like failures.
+    let errors_despite_success = !failed && cleaned.lines().any(is_error_line);
+    let limits = if failed || errors_despite_success {
+        limits.for_failure()
+    } else {
+        limits
+    };
     let mut lossy = false;
 
-    let cleaned = strip_ansi(raw);
     let lines = normalize_lines(&cleaned);
     let lines = collapse_repeats(lines, &mut lossy);
     let lines: Vec<String> = lines
@@ -69,7 +80,34 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
     if raw.ends_with('\n') && !text.is_empty() {
         text.push('\n');
     }
-    Compressed { text, lossy }
+    Compressed {
+        text,
+        lossy,
+        errors_despite_success,
+    }
+}
+
+/// A line that reports a failure, as opposed to merely mentioning one: `error:`,
+/// `error[E…]`, `fatal:`, `panicked at`, a Python traceback, `FAILED`, `npm ERR!`,
+/// `Exception in thread`, `segmentation fault`. Summaries like "0 failed" don't count.
+pub fn is_error_line(line: &str) -> bool {
+    const MARKERS: [&str; 8] = [
+        "error:",
+        "error[",
+        "fatal:",
+        "panicked at",
+        "traceback (most recent call last)",
+        "err!",
+        "exception in thread",
+        "segmentation fault",
+    ];
+    let bytes = line.as_bytes();
+    MARKERS.iter().any(|m| {
+        let m = m.as_bytes();
+        bytes.windows(m.len()).any(|w| w.eq_ignore_ascii_case(m))
+    }) || line
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .any(|w| w == "FAILED" || w == "FAIL")
 }
 
 /// True if `text` is already Lagom's output: its last line is the recall footer that
@@ -313,6 +351,67 @@ mod tests {
     use super::*;
 
     #[test]
+    fn error_lines_are_reported_not_merely_mentioned() {
+        for yes in [
+            "src/a.rs:3: error: boom",
+            "error[E0308]: mismatched types",
+            "fatal: not a git repository",
+            "thread 'main' panicked at src/x.rs:1:1",
+            "Traceback (most recent call last):",
+            "npm ERR! code ERESOLVE",
+            "--- FAIL: TestX (0.00s)",
+            "FAILED tests/test_a.py::test_b",
+        ] {
+            assert!(is_error_line(yes), "{yes}");
+        }
+        for no in [
+            "test result: ok. 60 passed; 0 failed",
+            "src/errors.rs:12:fn handle()",
+            "warning: unused variable",
+            "Failed attempts: 0",
+            "error_count = 0",
+            "FAILURES_ALLOWED=3",
+        ] {
+            assert!(!is_error_line(no), "{no}");
+        }
+    }
+
+    #[test]
+    fn errors_with_exit_zero_get_the_failure_budget() {
+        let mut raw: String = (0..400).map(|i| format!("step {i} done\n")).collect();
+        let hidden: Vec<String> = (0..60)
+            .map(|i| format!("module_{i}.py:{i}: error: bad import"))
+            .collect();
+        raw.push_str(&hidden.join("\n"));
+        raw.push('\n');
+        raw.push_str(&(0..400).map(|i| format!("tail {i}\n")).collect::<String>());
+        let ok = compress(&raw, false, Limits::default());
+        assert!(ok.errors_despite_success);
+        let kept = hidden
+            .iter()
+            .filter(|l| ok.text.contains(l.as_str()))
+            .count();
+        assert!(
+            kept > Limits::default().max_important,
+            "kept {kept} error lines"
+        );
+        assert!(!compress("all good\n", false, Limits::default()).errors_despite_success);
+        // Colored error lines count too (cargo and many tools color `error`).
+        assert!(
+            compress(
+                "\x1b[1m\x1b[31merror\x1b[0m\x1b[1m: could not compile\x1b[0m\n",
+                false,
+                Limits::default()
+            )
+            .errors_despite_success
+        );
+        assert!(
+            !compress(&raw, true, Limits::default()).errors_despite_success,
+            "already a failure"
+        );
+    }
+
+    #[test]
     fn compressing_twice_changes_nothing() {
         let raw: String = (0..500)
             .map(|i| format!("row {i} value {}\n", i * 7 % 13))
@@ -446,7 +545,9 @@ mod tests {
         assert!(c.text.contains("line 0 is fine"));
         assert!(c.text.contains("line 499 is fine"));
         assert!(c.text.contains("lines omitted"));
-        assert!(c.text.lines().count() < 130);
+        // Exit code 0 with an error line: the failure budget (240 lines) applies.
+        assert!(c.errors_despite_success);
+        assert!(c.text.lines().count() < 250);
     }
 
     #[test]

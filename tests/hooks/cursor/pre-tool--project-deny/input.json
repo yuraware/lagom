@@ -1,0 +1,12 @@
+{
+  "conversation_id": "c-1",
+  "generation_id": "g-1",
+  "workspace_roots": [
+    "<HOME>/repo"
+  ],
+  "hook_event_name": "preToolUse",
+  "tool_name": "Shell",
+  "tool_input": {
+    "command": "git log -5"
+  }
+}

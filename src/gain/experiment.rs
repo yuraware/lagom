@@ -48,10 +48,14 @@ impl Experiment {
             started,
             ends: started + days * 86_400,
         };
-        fs::create_dir_all(store::lagom_dir())?;
-        let v = json!({"v": 1, "holdout": holdout, "started": e.started, "ends": e.ends});
-        fs::write(path(), v.to_string() + "\n")?;
+        e.save()?;
         Ok(e)
+    }
+
+    fn save(&self) -> std::io::Result<()> {
+        let v =
+            json!({"v": 1, "holdout": self.holdout, "started": self.started, "ends": self.ends});
+        store::write_private(&path(), &(v.to_string() + "\n"))
     }
 
     /// The saved experiment, running or finished.
@@ -69,11 +73,15 @@ impl Experiment {
         Experiment::load().filter(|e| now() < e.ends)
     }
 
-    pub fn stop() -> std::io::Result<()> {
-        match fs::remove_file(path()) {
-            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e),
-            _ => Ok(()),
-        }
+    /// End the running experiment now. The record stays, so `lagom stats --experiment`
+    /// still reports it. `None` if none is running.
+    pub fn stop() -> std::io::Result<Option<Experiment>> {
+        let Some(mut e) = Experiment::active() else {
+            return Ok(None);
+        };
+        e.ends = now();
+        e.save()?;
+        Ok(Some(e))
     }
 
     /// Deterministic arm for a session id.

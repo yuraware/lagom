@@ -211,23 +211,28 @@ fn inject(agent: Agent, event: &str, cwd: &Path, payload: &Value) -> Option<Valu
         return None;
     }
     let who = store::Attribution::from_token(session_token(agent, payload).as_deref(), cwd);
-    // Holdout experiment: some sessions run without styles (compression stays on).
+    // Holdout experiment: some sessions run without styles. Compression stays on, so they
+    // still get the line that explains its recall footer. Cursor sessions are never held
+    // out: Lagom can't read their token usage, so they couldn't be measured.
     let arm = who
         .session
         .as_deref()
+        .filter(|_| matches!(agent, Agent::Claude | Agent::Codex))
         .and_then(|s| crate::gain::experiment::Experiment::active().map(|e| e.arm(s)));
-    if arm == Some(crate::gain::experiment::Arm::Holdout) {
+    let text = if arm == Some(crate::gain::experiment::Arm::Holdout) {
         store::record_for(
             json!({"kind": "holdout", "arm": "holdout", "event": event}),
             &who,
         );
-        return None;
-    }
-    store::record_for(
-        json!({"kind": "inject", "agent": agent.name(), "event": event, "bytes": text.len(),
-               "styles": style::active(cwd), "arm": arm.map(|_| "styled")}),
-        &who,
-    );
+        style::render_recall_note()
+    } else {
+        store::record_for(
+            json!({"kind": "inject", "agent": agent.name(), "event": event, "bytes": text.len(),
+                   "styles": style::active(cwd), "arm": arm.map(|_| "styled")}),
+            &who,
+        );
+        text
+    };
     Some(match agent {
         Agent::Cursor => json!({"additional_context": text}),
         Agent::Claude | Agent::Codex => {

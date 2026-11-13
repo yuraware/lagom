@@ -1059,13 +1059,14 @@ fn holdout_experiment_skips_styles_for_some_sessions() {
     let mut injected = 0;
     for i in 0..40 {
         let payload = json!({"session_id": format!("sess-{i}"), "cwd": home}).to_string();
-        if !text(&lagom(
+        let out = text(&lagom(
             &home,
             &["hook", "claude", "session-start"],
             Some(&payload),
-        ))
-        .is_empty()
-        {
+        ));
+        // Holdout sessions lose the styles but keep the note on the recall footer.
+        assert!(out.contains("lagom recall <id>"), "{out}");
+        if out.contains("(lagom: terse)") {
             injected += 1;
         }
     }
@@ -1077,8 +1078,30 @@ fn holdout_experiment_skips_styles_for_some_sessions() {
     assert_eq!(stats.matches("\"arm\":\"holdout\"").count(), 40 - injected);
     assert_eq!(stats.matches("\"arm\":\"styled\"").count(), injected);
     assert!(text(&lagom(&home, &["stats", "--experiment"], None)).contains("styled sessions"));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = fs::metadata(home.join(".lagom/experiment.json"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o600, "experiment.json is private");
+    }
+    // Cursor sessions are never held out: their usage can't be measured.
+    for i in 0..40 {
+        let payload = json!({"conversation_id": format!("sess-{i}"), "cwd": home}).to_string();
+        let out = text(&lagom(
+            &home,
+            &["hook", "cursor", "session-start"],
+            Some(&payload),
+        ));
+        assert!(out.contains("(lagom: terse)"), "cursor session {i}: {out}");
+    }
 
     assert!(lagom(&home, &["experiment", "stop"], None).status.success());
+    // Stopping keeps the record: the results stay readable.
+    assert!(text(&lagom(&home, &["experiment", "status"], None)).contains("Finished"));
+    assert!(text(&lagom(&home, &["stats", "--experiment"], None)).contains("styled sessions"));
     let payload = json!({"session_id": "sess-0", "cwd": home}).to_string();
     assert!(
         !text(&lagom(
@@ -1110,6 +1133,7 @@ fn stats_usage_groups_real_usage_by_style() {
     .unwrap();
     fs::write(proj.join("b.jsonl"), turn("b", t, "b1", 50)).unwrap();
     fs::write(proj.join("c.jsonl"), turn("c", t, "c1", 700)).unwrap();
+    fs::write(proj.join("e.jsonl"), turn("e", t, "e1", 800)).unwrap();
     fs::write(
         proj.join("d.jsonl"),
         turn("d", "2026-11-01T00:00:00Z", "d1", 9),
@@ -1120,7 +1144,8 @@ fn stats_usage_groups_real_usage_by_style() {
     fs::write(
         home.join(".lagom/stats.jsonl"),
         "{\"v\":1,\"ts\":1794124800,\"kind\":\"inject\",\"agent\":\"claude\",\"session\":\"a\",\"styles\":[\"terse\"]}\n\
-         {\"v\":1,\"ts\":1794124900,\"kind\":\"inject\",\"agent\":\"claude\",\"session\":\"b\",\"styles\":[\"terse\",\"lean-code\"]}\n",
+         {\"v\":1,\"ts\":1794124900,\"kind\":\"inject\",\"agent\":\"claude\",\"session\":\"b\",\"styles\":[\"terse\",\"lean-code\"]}\n\
+         {\"v\":1,\"ts\":1794124950,\"kind\":\"holdout\",\"arm\":\"holdout\",\"agent\":\"claude\",\"session\":\"e\"}\n",
     )
     .unwrap();
 
@@ -1145,6 +1170,10 @@ fn stats_usage_groups_real_usage_by_style() {
     assert_eq!(row("terse+lean-code"), ["1", "1", "50", "1000", "100%"]);
     assert_eq!(row("terse "), ["1", "2", "200", "1000", "100%"]);
     assert_eq!(row("no styles injected"), ["1", "1", "700", "1000", "100%"]);
+    assert_eq!(
+        row("holdout (experiment)"),
+        ["1", "1", "800", "1000", "100%"]
+    );
     assert_eq!(
         row("before Lagom tracked sessions"),
         ["1", "1", "9", "1000", "100%"]

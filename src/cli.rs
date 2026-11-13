@@ -569,6 +569,9 @@ fn cmd_experiment(args: &[String]) -> ExitCode {
                         holdout * 100.0
                     );
                     println!("See results any time with `lagom stats --experiment`.");
+                    println!(
+                        "Other tools that add answer rules at session start (Caveman, for example) run in both groups and blur the result: turn them off while it runs."
+                    );
                     ExitCode::SUCCESS
                 }
                 Err(e) => {
@@ -590,8 +593,14 @@ fn cmd_experiment(args: &[String]) -> ExitCode {
             ExitCode::SUCCESS
         }
         Some("stop") => match Experiment::stop() {
-            Ok(()) => {
-                println!("Experiment stopped; every session gets styles again.");
+            Ok(Some(_)) => {
+                println!(
+                    "Experiment stopped; every session gets styles again. `lagom stats --experiment` still shows the results."
+                );
+                ExitCode::SUCCESS
+            }
+            Ok(None) => {
+                println!("No experiment is running.");
                 ExitCode::SUCCESS
             }
             Err(e) => {

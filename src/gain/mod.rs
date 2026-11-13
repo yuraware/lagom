@@ -70,6 +70,8 @@ pub struct StyleUsage {
 
 /// Label for sessions Lagom injected no styles into.
 pub const NO_STYLES: &str = "no styles injected";
+/// Label for sessions a holdout experiment ran without styles (`lagom experiment`).
+pub const HOLDOUT: &str = "holdout (experiment)";
 /// Label for sessions that ended before Lagom recorded session ids: whether they got
 /// styles is unknown, so they must not count as the no-styles baseline.
 pub const BEFORE_TRACKING: &str = "before Lagom tracked sessions";

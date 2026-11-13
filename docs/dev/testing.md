@@ -9,6 +9,7 @@
 | Release-notes script | `python3 -I -m unittest discover -s scripts -p 'test_*.py'` | Standard library only |
 | Lint | `cargo fmt --check && cargo clippy --all-targets -- -D warnings` | CI runs both |
 | Live Claude Code check | `scripts/e2e_claude.sh` | Costs one short Haiku session. See below |
+| Hook and compression speed | `bench/latency.sh` | Needs [hyperfine](https://github.com/sharkdp/hyperfine). Uses a throwaway `HOME`. Prints medians against the budgets (hooks < 10 ms, `lagom run` overhead < 5 ms, 1 MB < 50 ms) and writes `target/bench/latency.json`. CI runs it on Linux for pull requests, and on Linux and macOS for pushes to `main` |
 
 ## Live Claude Code check
 

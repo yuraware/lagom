@@ -1,7 +1,21 @@
 #!/bin/bash
 # Generates compressor fixtures from commands run on scratch projects we create here.
 set -u
+if [ "$#" -ne 2 ]; then
+  echo "usage: $0 <scratch-dir> <fixtures-dir>   e.g. $0 /tmp/lagom-fixtures tests/fixtures/compress" >&2
+  exit 2
+fi
 S="$1"; OUT="$2"; W="$S/work"
+# OUT is deleted and rebuilt: refuse anything that isn't a fixtures folder.
+if [ -d "$OUT" ]; then
+  for entry in "$OUT"/* "$OUT"/.[!.]*; do
+    [ -e "$entry" ] || continue
+    if [ ! -f "$entry/meta.json" ]; then
+      echo "refusing to replace $OUT: $entry is not a fixture case" >&2
+      exit 2
+    fi
+  done
+fi
 rm -rf "$W" "$OUT"; mkdir -p "$W" "$OUT"
 case_() { # name exit_code must_keep_json < input
   mkdir -p "$OUT/$1"

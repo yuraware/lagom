@@ -81,13 +81,14 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
         .flatten()
         .or_else(|| diff::compress(&lines, limits))
     {
+        let lossy = grouped != lines;
         let mut text = grouped.join("\n");
         if raw.ends_with('\n') {
             text.push('\n');
         }
         return Compressed {
             text,
-            lossy: true,
+            lossy,
             errors_despite_success,
         };
     }

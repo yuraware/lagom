@@ -67,12 +67,78 @@ fn recall_dir() -> PathBuf {
 
 /// Short stable id (FNV-1a) so the same output maps to the same recall entry.
 pub fn content_id(content: &str) -> String {
-    let mut hash: u64 = 0xcbf29ce484222325;
-    for b in content.as_bytes() {
+    format_id(fnv(FNV_OFFSET, content.as_bytes()))
+}
+
+const FNV_OFFSET: u64 = 0xcbf29ce484222325;
+
+fn fnv(mut hash: u64, bytes: &[u8]) -> u64 {
+    for b in bytes {
         hash ^= *b as u64;
         hash = hash.wrapping_mul(0x100000001b3);
     }
+    hash
+}
+
+fn format_id(hash: u64) -> String {
     format!("{:010x}", hash & 0xff_ffff_ffff)
+}
+
+/// Streams an original too large to keep in memory straight into the recall store.
+/// Its id is the same FNV hash `content_id` would give the whole text.
+pub struct Spill {
+    dir: PathBuf,
+    tmp: PathBuf,
+    file: fs::File,
+    hash: u64,
+}
+
+impl Spill {
+    pub fn create() -> std::io::Result<Spill> {
+        private_dir(&lagom_dir())?;
+        Spill::create_in(&recall_dir())
+    }
+
+    pub fn create_in(dir: &Path) -> std::io::Result<Spill> {
+        private_dir(dir)?;
+        let tmp = dir.join(format!(".spill-{}.tmp", std::process::id()));
+        let file = private_file(fs::OpenOptions::new().write(true).truncate(true), &tmp)?;
+        Ok(Spill {
+            dir: dir.to_path_buf(),
+            tmp,
+            file,
+            hash: FNV_OFFSET,
+        })
+    }
+
+    /// A spill whose writes fail, as on a full disk.
+    #[cfg(test)]
+    pub fn failing_in(dir: &Path) -> std::io::Result<Spill> {
+        let s = Spill::create_in(dir)?;
+        Ok(Spill {
+            file: fs::File::open(&s.tmp)?, // read-only: every write fails
+            ..s
+        })
+    }
+
+    pub fn write(&mut self, data: &[u8]) -> std::io::Result<()> {
+        self.hash = fnv(self.hash, data);
+        self.file.write_all(data)
+    }
+
+    /// Move the file into place as `<id>.log` and return the id.
+    pub fn finish(mut self, program: &str) -> std::io::Result<String> {
+        self.file.flush()?;
+        let id = format_id(self.hash);
+        fs::rename(&self.tmp, self.dir.join(format!("{id}.log")))?;
+        let _ = private_file(
+            fs::OpenOptions::new().write(true).truncate(true),
+            &self.dir.join(format!("{id}.cmd")),
+        )
+        .and_then(|mut f| f.write_all(program.as_bytes()));
+        prune_recall(&self.dir, RecallLimits::default(), SystemTime::now());
+        Ok(id)
+    }
 }
 
 /// Save the full original output of `program` and return its id.
@@ -103,7 +169,9 @@ pub fn load_original(id: &str) -> Option<String> {
     if !is_recall_id(id) {
         return None;
     }
-    fs::read_to_string(recall_dir().join(format!("{id}.log"))).ok()
+    // Spilled originals are raw bytes: show them even if they aren't valid UTF-8.
+    let bytes = fs::read(recall_dir().join(format!("{id}.log"))).ok()?;
+    Some(String::from_utf8_lossy(&bytes).into_owned())
 }
 
 /// Which part of a recalled output to print. Applied in order: `lines`, `grep`, `head`, `tail`.
@@ -209,6 +277,7 @@ pub fn list_recall() -> Vec<RecallEntry> {
 /// Delete every saved original. Returns how many were removed.
 pub fn clear_recall() -> usize {
     let dir = recall_dir();
+    remove_stale_spills(&dir, SystemTime::now());
     let all = entries(&dir, false);
     for e in &all {
         remove_entry(&dir, &e.id);
@@ -254,6 +323,7 @@ fn remove_entry(dir: &Path, id: &str) {
 /// Drop entries older than `max_age`, then the oldest until both the count and the
 /// total size fit. The newest entry is always kept.
 fn prune_recall(dir: &Path, limits: RecallLimits, now: SystemTime) {
+    remove_stale_spills(dir, now);
     let mut all = entries(dir, false);
     all.sort_by_key(|e| std::cmp::Reverse(e.modified)); // newest first
     let mut kept_bytes = 0u64;
@@ -266,6 +336,25 @@ fn prune_recall(dir: &Path, limits: RecallLimits, now: SystemTime) {
             remove_entry(dir, &e.id);
         } else {
             kept_bytes += e.bytes;
+        }
+    }
+}
+
+/// Remove `.spill-<pid>.tmp` files that a killed `lagom run` left behind. A spill that is
+/// still being written was touched moments ago; one untouched for an hour is abandoned.
+fn remove_stale_spills(dir: &Path, now: SystemTime) {
+    let Ok(read) = fs::read_dir(dir) else {
+        return;
+    };
+    for e in read.flatten() {
+        let name = e.file_name();
+        let name = name.to_string_lossy();
+        let stale = e.metadata().and_then(|m| m.modified()).is_ok_and(|m| {
+            now.duration_since(m)
+                .is_ok_and(|age| age > std::time::Duration::from_secs(3600))
+        });
+        if name.starts_with(".spill-") && name.ends_with(".tmp") && stale {
+            let _ = fs::remove_file(e.path());
         }
     }
 }
@@ -362,6 +451,43 @@ pub fn totals() -> Totals {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stale_spill_files_are_pruned_and_fresh_ones_kept() {
+        use std::time::Duration;
+        let dir = std::env::temp_dir().join(format!("lagom-spills-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let now = SystemTime::now();
+        for (name, age) in [
+            (".spill-1.tmp", 7200),
+            (".spill-2.tmp", 10),
+            ("note.tmp", 7200),
+        ] {
+            let p = dir.join(name);
+            fs::write(&p, "x").unwrap();
+            fs::File::options()
+                .write(true)
+                .open(&p)
+                .unwrap()
+                .set_modified(now - Duration::from_secs(age))
+                .unwrap();
+        }
+        prune_recall(&dir, RecallLimits::default(), now);
+        assert!(
+            !dir.join(".spill-1.tmp").exists(),
+            "abandoned spill removed"
+        );
+        assert!(
+            dir.join(".spill-2.tmp").exists(),
+            "a spill being written stays"
+        );
+        assert!(
+            dir.join("note.tmp").exists(),
+            "only spill files are touched"
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn recall_pruning_limits_count_size_and_age() {

@@ -699,3 +699,68 @@ fn stuck_hook_gives_up_at_the_deadline() {
     assert_eq!(stdout.trim(), "{}");
     assert!(took >= std::time::Duration::from_millis(1500), "{took:?}");
 }
+
+#[cfg(unix)]
+#[test]
+#[ignore = "slow in debug builds (~60 s): cargo test --release -- --ignored"]
+fn run_with_200_mb_of_output_stays_under_100_mb_of_memory() {
+    // CMP-05's Done-when: past 64 MB the output streams to the recall store.
+    let home = sandbox("bigrun");
+    let script = "yes 'a long line of build output that repeats over and over, padded to about a hundred bytes ok' \
+                  | head -c 200000000; echo; echo 'src/main.rs:7: error: the one failure'";
+    let time = Path::new("/usr/bin/time");
+    let mut cmd = if time.exists() {
+        let mut c = Command::new(time);
+        c.arg(if cfg!(target_os = "macos") {
+            "-l"
+        } else {
+            "-v"
+        })
+        .arg(env!("CARGO_BIN_EXE_lagom"));
+        c
+    } else {
+        Command::new(env!("CARGO_BIN_EXE_lagom"))
+    };
+    let out = cmd
+        .args(["run", "--", "sh", "-c", script])
+        .env("HOME", &home)
+        .env_remove("LAGOM_HOME")
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let shown = text(&out);
+    assert!(shown.len() < 3_000_000, "{} bytes shown", shown.len());
+    assert!(
+        shown.contains("src/main.rs:7: error: the one failure"),
+        "{shown}"
+    );
+    let id = shown
+        .rsplit("lagom recall ")
+        .next()
+        .and_then(|r| r.split(|c: char| c.is_whitespace() || c == ']').next())
+        .unwrap()
+        .to_string();
+    let last = text(&lagom(&home, &["recall", &id, "--tail", "1"], None));
+    assert_eq!(last.trim(), "src/main.rs:7: error: the one failure");
+
+    // Peak memory, when /usr/bin/time reports it (bytes on macOS, KB on Linux).
+    let report = String::from_utf8_lossy(&out.stderr);
+    let peak = report.lines().find_map(|l| {
+        let l = l.trim();
+        if let Some(v) = l.strip_suffix("maximum resident set size") {
+            v.trim().parse::<u64>().ok()
+        } else {
+            l.strip_prefix("Maximum resident set size (kbytes):")
+                .and_then(|v| v.trim().parse::<u64>().ok())
+                .map(|kb| kb * 1024)
+        }
+    });
+    if let Some(peak) = peak {
+        eprintln!("peak memory: {} MB", peak / (1024 * 1024));
+        assert!(
+            peak < 100 * 1024 * 1024,
+            "peak memory {} MB",
+            peak / (1024 * 1024)
+        );
+    }
+}

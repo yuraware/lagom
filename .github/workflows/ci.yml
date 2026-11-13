@@ -8,8 +8,10 @@ permissions:
   contents: read
 
 # A new push to a PR cancels the run it replaces; runs on main always finish.
+# Runs started by a label change (BEN-18) skip the tests, so they get their own group:
+# adding a label must not cancel the test run of the current commit.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') && '-label' || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:

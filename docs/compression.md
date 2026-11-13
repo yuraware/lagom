@@ -4,7 +4,7 @@ Long command output (tests, builds, `git log`, searches) is shortened before the
 
 - ANSI colors removed, progress bars resolved to their final state, blank-line runs collapsed.
 - Exact repeats become one line with a count (`[×37]`); runs of lines that differ only in numbers keep their first and last line.
-- The start and end are kept, and **every error, warning and `file:line` line is kept**. Failed commands get double the budget.
+- Over 120 lines, the output keeps its first 30 and last 50 lines, plus up to 40 error, warning and `file:line` lines from the middle, in the order they appear. Failed commands get double these limits. Anything past them is left out, so check the footer below when a long log has many errors.
 - Exit codes are unchanged.
 - Anything dropped stays available: the output ends with `[lagom: N → M lines; full output: lagom recall <id>]`.
 
@@ -18,7 +18,7 @@ A pre-tool hook turns a simple command such as `git log --stat` into `lagom run 
   - **Claude Code and Cursor:** a command is rewritten (and allowed) only if your own allow rule already matches it, for example `Bash(git log:*)` or `Shell(git)`. Deny and ask rules always win. In Claude's `bypassPermissions` mode, commands are rewritten without granting anything.
     - Lagom reads rules the way Claude Code applies them: managed (organization) settings, your user settings, and a project's `.claude/settings.local.json` when it is your own file (not committed to git). Allow rules in a project's shared `.claude/settings.json` are **not** used, because Claude Code applies them only after you trust the folder, which Lagom can't see. Deny and ask rules from every file always count.
     - Claude Code checks deny rules against the rewritten command, so Lagom must see every deny rule itself. It doesn't rewrite when an organization policy it can't read may apply (a macOS MDM profile, or Windows). Server-managed settings from the claude.ai admin console can't be detected locally: if your organization uses them, set `LAGOM_DISABLE=1` or keep rewriting off.
-  - **Codex:** Codex re-checks approval and its sandbox on the rewritten command. Commands you approved earlier by prefix may be asked about once more.
+  - **Codex:** Lagom hands Codex the rewritten command, and Codex applies its own approval policy and sandbox to it. Commands you approved earlier by prefix may be asked about once more, because they now start with `lagom run`. This has not been checked in a live Codex session yet.
 
 To keep one command uncompressed, put an environment assignment in front: `LAGOM_RAW=1 git log`.
 

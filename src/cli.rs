@@ -129,12 +129,13 @@ fn confirm(question: &str, input: &mut impl std::io::BufRead, out: &mut impl Wri
 }
 
 fn cmd_install(args: &[String], installing: bool) -> ExitCode {
-    let (mut dry_run, mut yes, mut purge, mut names) = (false, false, false, Vec::new());
+    let (mut dry_run, mut yes, mut purge, mut all, mut names) =
+        (false, false, false, false, Vec::new());
     for a in args {
         match a.as_str() {
             "--dry-run" | "-n" => dry_run = true,
             "--yes" | "-y" => yes = true,
-            "--all" => {} // the default when no agent is named
+            "--all" => all = true, // the default when no agent is named
             "--purge" if !installing => purge = true,
             s if s.starts_with('-') => {
                 eprintln!("lagom: unknown option `{s}`");
@@ -142,6 +143,21 @@ fn cmd_install(args: &[String], installing: bool) -> ExitCode {
             }
             _ => names.push(a.clone()),
         }
+    }
+    if all && !names.is_empty() {
+        eprintln!("lagom: use either --all or agent names, not both");
+        return ExitCode::from(2);
+    }
+    if purge && !names.is_empty() {
+        eprintln!(
+            "lagom: --purge deletes data every agent shares; run `lagom uninstall --all --purge`"
+        );
+        return ExitCode::from(2);
+    }
+    // Decide before changing anything: without a terminal there is no one to ask.
+    if purge && !dry_run && !yes && !std::io::stdin().is_terminal() {
+        eprintln!("lagom: --purge deletes Lagom's data and config; rerun with --yes to confirm");
+        return ExitCode::from(2);
     }
     let agents = match parse_agents(&names, installing) {
         Ok(a) if a.is_empty() => {
@@ -252,13 +268,6 @@ fn cmd_purge(dry_run: bool, yes: bool) -> bool {
     }
     if !dry_run && !yes {
         let list: Vec<String> = dirs.iter().map(|d| d.display().to_string()).collect();
-        if !std::io::stdin().is_terminal() {
-            eprintln!(
-                "lagom: --purge would delete {}; rerun with --yes to confirm",
-                list.join(" and ")
-            );
-            return false;
-        }
         print!(
             "Delete {} (stats, saved outputs, styles, config)? [y/N] ",
             list.join(" and ")

@@ -16,7 +16,7 @@ Long command output (tests, builds, `git log`, searches) is shortened before the
 A pre-tool hook turns a simple command such as `git log --stat` into `lagom run --session claude:<id> -- git log --stat`. The session id only tags the command's line in `~/.lagom/stats.jsonl`.
 
 - **Rewritten:** only one known program (git, cargo, npm, pytest, go, rg, docker, …) with no pipes, `&&`, `;`, redirects or subshells, and no environment assignment in front.
-- **Also rewritten:** one leading `cd <dir> &&` before such a command (`cd crates/core && cargo test` becomes `cd crates/core && lagom run -- cargo test`). The directory must be a plain or single-quoted path with no variables or globs. In Claude Code and Cursor the rewrite is allowed only when your rules allow the command and the `cd` stays inside the project.
+- **Also rewritten:** one leading `cd <dir> &&` before such a command (`cd crates/core && cargo test` becomes `cd crates/core && lagom run --session claude:<id> -- cargo test`). The directory must be a plain or single-quoted path with no variables or globs, and not an option: `cd -` and `cd --` are left alone. In Claude Code and Cursor the rewrite is allowed only when your rules allow the command and the `cd` stays inside the project.
 - **Left alone:** dev servers, watch modes, `-f`/`--follow`, background commands.
 - **Permissions never widen:**
   - **Claude Code and Cursor:** a command is rewritten (and allowed) only if your own allow rule already matches it, for example `Bash(git log:*)` or `Shell(git)`. Deny and ask rules always win. In Claude's `bypassPermissions` mode, commands are rewritten without granting anything.

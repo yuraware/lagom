@@ -73,7 +73,10 @@ pub fn split_cd(command: &str) -> Option<(&str, &str)> {
         .and_then(|d| d.strip_suffix('\''))
         .unwrap_or(dir);
     let quoted = bare.len() != dir.len();
+    // `cd -` goes to the previous folder, `cd --` and `cd -P` to the home folder: none of
+    // them is the path they look like, so options are never accepted.
     let ok = !bare.is_empty()
+        && !bare.starts_with('-')
         && !bare.contains(['\'', '"', '$', '`', '\\', '*', '?', '[', '~', '{'])
         && !bare.contains(SHELL_OPERATORS)
         && (quoted || !bare.contains(char::is_whitespace));
@@ -160,6 +163,19 @@ mod tests {
     use super::*;
 
     const BIN: &str = "/usr/local/bin/lagom";
+
+    #[test]
+    fn cd_options_are_never_split() {
+        for c in [
+            "cd - && git log",
+            "cd -- && git log",
+            "cd -P && git log",
+            "cd '-' && git log",
+        ] {
+            assert_eq!(split_cd(c), None, "{c}");
+            assert_eq!(rewrite(c, BIN, None), None, "{c}");
+        }
+    }
 
     #[test]
     fn cd_prefix_is_kept_and_the_command_compressed() {

@@ -190,6 +190,9 @@ pub fn save_active(names: &[String], project_dir: Option<&Path>) -> std::io::Res
     };
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
+        if project_dir.is_none() {
+            crate::store::mark_dir(parent);
+        }
     }
     let mut v: serde_json::Value = fs::read_to_string(&path)
         .ok()

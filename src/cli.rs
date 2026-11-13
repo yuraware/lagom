@@ -67,7 +67,13 @@ pub fn main() -> ExitCode {
         Some("style") => cmd_style(&rest(1)),
         Some("stats") => match args.get(1).map(String::as_str) {
             Some("--usage") => cmd_usage(&rest(2)),
-            _ => cmd_stats(),
+            None => cmd_stats(),
+            Some(other) => {
+                eprintln!(
+                    "lagom: unknown option `{other}`\nusage: lagom stats [--usage [--days N]]"
+                );
+                ExitCode::from(2)
+            }
         },
         Some("bench") => crate::bench::run(&rest(1)),
         Some("--version" | "-V" | "version") => {
@@ -491,15 +497,16 @@ fn cmd_usage(args: &[String]) -> ExitCode {
         println!("No Claude Code sessions in the last {days} days.");
         return ExitCode::SUCCESS;
     }
-    let groups = crate::gain::by_style(&sessions, &store::session_styles());
+    let (styles, tracked_since) = store::session_styles();
+    let groups = crate::gain::by_style(&sessions, &styles, tracked_since);
     println!("Claude Code token usage, last {days} days (from its transcripts):");
     println!(
-        "{:<22} {:>8} {:>7} {:>14} {:>15} {:>11}",
+        "{:<30} {:>8} {:>7} {:>14} {:>15} {:>11}",
         "style", "sessions", "turns", "output/turn", "input/turn", "cache read"
     );
     for g in &groups {
         println!(
-            "{:<22} {:>8} {:>7} {:>14} {:>15} {:>10.0}%",
+            "{:<30} {:>8} {:>7} {:>14} {:>15} {:>10.0}%",
             g.style,
             g.sessions,
             g.turns,

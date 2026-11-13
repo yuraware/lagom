@@ -471,16 +471,24 @@ pub fn record_for(mut event: serde_json::Value, who: &Attribution) {
     }
 }
 
-/// Style set injected per session id (from `inject` events), e.g. `terse+lean-code`.
-pub fn session_styles() -> std::collections::HashMap<String, String> {
+/// Style set injected per session id (from `inject` events), e.g. `terse+lean-code`,
+/// and when Lagom first recorded a session id (unix seconds): sessions before that can't
+/// be matched.
+pub fn session_styles() -> (std::collections::HashMap<String, String>, Option<u64>) {
     let mut out = std::collections::HashMap::new();
+    let mut since: Option<u64> = None;
     let Ok(text) = fs::read_to_string(lagom_dir().join("stats.jsonl")) else {
-        return out;
+        return (out, since);
     };
     for line in text.lines() {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
             continue;
         };
+        if v["session"].is_string() {
+            if let Some(ts) = v["ts"].as_u64() {
+                since = Some(since.map_or(ts, |s| s.min(ts)));
+            }
+        }
         if v["kind"] != "inject" {
             continue;
         }
@@ -492,7 +500,7 @@ pub fn session_styles() -> std::collections::HashMap<String, String> {
             out.insert(session.to_string(), names.join("+"));
         }
     }
-    out
+    (out, since)
 }
 
 #[derive(Debug, Default, PartialEq)]

@@ -1034,3 +1034,74 @@ fn stats_are_attributed_to_agent_session_style_and_project() {
         "{stats}"
     );
 }
+
+#[test]
+fn stats_usage_groups_real_usage_by_style() {
+    let home = sandbox("usage");
+    let proj = home.join(".claude/projects/p");
+    fs::create_dir_all(&proj).unwrap();
+    // One assistant turn per (session, time, output); input is all cache reads.
+    let turn = |s: &str, ts: &str, id: &str, out: u64| {
+        format!(
+            "{{\"type\":\"assistant\",\"sessionId\":\"{s}\",\"timestamp\":\"{ts}\",\"message\":{{\"id\":\"{id}\",\"model\":\"claude-opus-5-5\",\"usage\":{{\"input_tokens\":0,\"output_tokens\":{out},\"cache_read_input_tokens\":1000}}}}}}\n"
+        )
+    };
+    let t = "2026-11-08T10:00:00Z";
+    fs::write(
+        proj.join("a.jsonl"),
+        turn("a", t, "a1", 100) + &turn("a", t, "a2", 300),
+    )
+    .unwrap();
+    fs::write(proj.join("b.jsonl"), turn("b", t, "b1", 50)).unwrap();
+    fs::write(proj.join("c.jsonl"), turn("c", t, "c1", 700)).unwrap();
+    fs::write(
+        proj.join("d.jsonl"),
+        turn("d", "2026-11-01T00:00:00Z", "d1", 9),
+    )
+    .unwrap();
+    // Lagom started tracking sessions on 2026-11-08 08:00 UTC (1794124800).
+    fs::create_dir_all(home.join(".lagom")).unwrap();
+    fs::write(
+        home.join(".lagom/stats.jsonl"),
+        "{\"v\":1,\"ts\":1794124800,\"kind\":\"inject\",\"agent\":\"claude\",\"session\":\"a\",\"styles\":[\"terse\"]}\n\
+         {\"v\":1,\"ts\":1794124900,\"kind\":\"inject\",\"agent\":\"claude\",\"session\":\"b\",\"styles\":[\"terse\",\"lean-code\"]}\n",
+    )
+    .unwrap();
+
+    let out = lagom(&home, &["stats", "--usage", "--days", "36500"], None);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let s = text(&out);
+    let row = |style: &str| -> Vec<String> {
+        let line = s
+            .lines()
+            .find(|l| l.starts_with(style))
+            .unwrap_or_else(|| panic!("{style}: {s}"));
+        line[style.len()..]
+            .split_whitespace()
+            .map(String::from)
+            .collect()
+    };
+    // sessions, turns, median output/turn, median input/turn, cache read share
+    assert_eq!(row("terse+lean-code"), ["1", "1", "50", "1000", "100%"]);
+    assert_eq!(row("terse "), ["1", "2", "200", "1000", "100%"]);
+    assert_eq!(row("no styles injected"), ["1", "1", "700", "1000", "100%"]);
+    assert_eq!(
+        row("before Lagom tracked sessions"),
+        ["1", "1", "9", "1000", "100%"]
+    );
+
+    assert_eq!(
+        lagom(&home, &["stats", "--bogus"], None).status.code(),
+        Some(2)
+    );
+    assert_eq!(
+        lagom(&home, &["stats", "--usage", "--days", "x"], None)
+            .status
+            .code(),
+        Some(2)
+    );
+}

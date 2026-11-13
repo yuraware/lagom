@@ -46,6 +46,13 @@ pub struct Compressed {
 
 /// Compress raw command output. `failed` means a non-zero exit code.
 pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
+    if is_compressed(raw) {
+        // Compressing twice must change nothing (and must not drop more lines).
+        return Compressed {
+            text: raw.to_string(),
+            lossy: false,
+        };
+    }
     let limits = if failed { limits.for_failure() } else { limits };
     let mut lossy = false;
 
@@ -63,6 +70,22 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
         text.push('\n');
     }
     Compressed { text, lossy }
+}
+
+/// True if `text` is already Lagom's output: its last line is the recall footer that
+/// `lagom run` writes whenever it drops lines (`[lagom: N → M lines; full output: lagom
+/// recall <id>]`). Only that footer counts. A marker-shaped line inside ordinary output
+/// (`… [12 lines omitted]` in a log, a fixture, or an earlier session pasted into a file)
+/// must not switch compression off for everything else. Output that dropped nothing has
+/// no footer, and compressing it again changes nothing anyway.
+pub fn is_compressed(text: &str) -> bool {
+    text.lines()
+        .rev()
+        .find(|l| !l.trim().is_empty())
+        .is_some_and(|l| {
+            let l = l.trim_end();
+            l.starts_with("[lagom: ") && l.contains("lagom recall ") && l.ends_with(']')
+        })
 }
 
 /// Remove ANSI escape sequences (colors, cursor moves, OSC titles/links).
@@ -282,6 +305,62 @@ fn keep_head_tail_important(lines: Vec<String>, limits: Limits, lossy: &mut bool
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn compressing_twice_changes_nothing() {
+        let raw: String = (0..500)
+            .map(|i| format!("row {i} value {}\n", i * 7 % 13))
+            .chain(["src/app.rs:9: error: boom\n".to_string()])
+            .collect();
+        let once = compress(&raw, true, Limits::default());
+        assert!(once.lossy);
+        // What `lagom run` hands the agent: the output plus its recall footer.
+        let footed = format!(
+            "{}[lagom: 501 → 90 lines; full output: lagom recall 3fa9c01d2e]\n",
+            once.text
+        );
+        assert!(is_compressed(&footed));
+        let twice = compress(&footed, true, Limits::default());
+        assert_eq!(twice.text, footed);
+        assert!(!twice.lossy);
+
+        // Output that dropped nothing (only exact repeats folded) is a fixed point.
+        let raw = "a\na\na\nb\nc\n";
+        let once = compress(raw, false, Limits::default());
+        assert!(!once.lossy);
+        assert_eq!(
+            compress(&once.text, false, Limits::default()).text,
+            once.text
+        );
+    }
+
+    #[test]
+    fn plain_output_is_not_mistaken_for_compressed() {
+        for text in [
+            "… [many lines omitted]",
+            "see lagom recall docs",
+            "[lagom: notes]",
+            "ok  [×3]",
+            "x …[+12 chars]",
+            "… [12 lines omitted]",
+            "[lagom: 9 → 3 lines; full output: lagom recall 3fa9c01d2e]\nmore output after it",
+        ] {
+            assert!(!is_compressed(text), "{text}");
+        }
+    }
+
+    #[test]
+    fn a_marker_line_inside_long_output_does_not_stop_compression() {
+        // For example `cat` of a log that holds an earlier Lagom result.
+        let raw: String = (0..400)
+            .map(|i| format!("line {i} of a long file with text {}\n", i * 31 % 17))
+            .chain(["… [88 similar lines]\n".to_string()])
+            .chain((0..400).map(|i| format!("more {i} text {}\n", i * 13 % 7)))
+            .collect();
+        let c = compress(&raw, false, Limits::default());
+        assert!(c.lossy, "the output must still be compressed");
+        assert!(c.text.lines().count() < raw.lines().count() / 2);
+    }
 
     #[test]
     fn many_similar_important_lines_stay_linear() {

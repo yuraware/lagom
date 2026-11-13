@@ -3,20 +3,24 @@ on:
   push:
     branches: [main]
   pull_request:
+    # labeled/unlabeled: the override labels (size-increase-ok, no-changelog) take effect when changed.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
 
 jobs:
   test:
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-15
         with:
+          toolchain: stable
           components: clippy, rustfmt
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
@@ -26,7 +30,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - run: python3 -I -m unittest discover -s scripts -p 'test_*.py'
@@ -36,19 +40,22 @@ jobs:
 
   latency:
     # Measures only; the regression gate comes with QA-08.
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-15
+        with:
+          toolchain: stable
       - run: sudo apt-get install -y hyperfine
         if: runner.os == 'Linux'
       - run: brew install hyperfine
         if: runner.os == 'macOS'
       - run: bench/latency.sh target/bench/latency-${{ matrix.os }}.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: latency-${{ matrix.os }}
           path: target/bench/latency-${{ matrix.os }}.json
@@ -57,15 +64,16 @@ jobs:
     # BEN-04: no must_keep string may be lost, and total output may not grow >5% vs the base.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-15
+        with:
+          toolchain: stable
       - run: cargo build --release
       - name: No must_keep string lost
         run: ./target/release/lagom bench compress --json target/bench-current.json
       - name: Output size against the base branch
-        # A deliberate trade (keeping more for fidelity) can be labelled `size-increase-ok`.
         if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'size-increase-ok')
         run: |
           git worktree add ../base "origin/${{ github.base_ref }}"
@@ -80,3 +88,6 @@ jobs:
           else
             echo "The base branch has no 'lagom bench compress' yet; skipping the size check."
           fi
+      - name: Size check skipped by the size-increase-ok label
+        if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'size-increase-ok')
+        run: echo "size-increase-ok is set; total output may grow."

@@ -115,14 +115,22 @@ pub fn sessions(since: Option<SystemTime>) -> Vec<SessionUsage> {
             .file_name()
             .and_then(|n| n.to_str())
             .is_some_and(|n| n.starts_with("rollout-"));
+        // Lossy: a log still being written may end in the middle of a character.
         let Some(s) = is_rollout
-            .then(|| fs::read_to_string(&path).ok())
+            .then(|| fs::read(&path).ok())
             .flatten()
-            .and_then(|t| read_rollout(&t))
+            .and_then(|b| read_rollout(&String::from_utf8_lossy(&b)))
         else {
             continue;
         };
-        by_id.entry(s.session_id.clone()).or_insert(s); // a resumed session may appear twice
+        // If one session id shows up in two files, keep the fuller one, not whichever
+        // sorts first.
+        match by_id.get(&s.session_id) {
+            Some(old) if old.main.messages >= s.main.messages => {}
+            _ => {
+                by_id.insert(s.session_id.clone(), s);
+            }
+        }
     }
     let mut out: Vec<SessionUsage> = by_id.into_values().collect();
     out.sort_by(|a, b| a.first_ts.cmp(&b.first_ts));
@@ -155,6 +163,36 @@ mod tests {
         );
         assert_eq!(s.turns, vec![(25677, 201), (30000, 50)]);
         assert_eq!(s.first_ts.as_deref(), Some("2026-10-07T18:13:59Z"));
+    }
+
+    /// The shape of a real Codex log (event types, fields and token counts kept; text,
+    /// ids and paths dropped). Its 6 records add up to Codex's own final total.
+    #[test]
+    fn real_shape_log_totals_and_both_paths_agree() {
+        let text = include_str!("../../tests/fixtures/transcripts/codex-rollout-real-shape.jsonl");
+        let s = read_rollout(text).unwrap();
+        assert_eq!(s.session_id, "019a-real-shape");
+        assert_eq!(s.model.as_deref(), Some("gpt-6.1-sol"));
+        assert_eq!(
+            s.main,
+            Usage {
+                input: 132_297 - 107_904,
+                output: 1029,
+                cache_write: 0,
+                cache_read: 107_904,
+                messages: 6
+            }
+        );
+        let r = crate::gain::by_style(std::slice::from_ref(&s), &HashMap::new(), None);
+        assert_eq!(r[0].median_output_per_turn, (76 + 159) / 2);
+        assert_eq!(r[0].median_input_per_turn, (21_763 + 22_665) / 2);
+        // Without the records, the `token_count` events give the same numbers.
+        let counts_only: String = text
+            .lines()
+            .filter(|l| !l.contains("\"token_usage_record\""))
+            .map(|l| format!("{l}\n"))
+            .collect();
+        assert_eq!(read_rollout(&counts_only).unwrap().main, s.main);
     }
 
     #[test]

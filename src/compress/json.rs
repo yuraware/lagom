@@ -1,8 +1,10 @@
 //! JSON output (`gh api`, `kubectl -o json`, `jq`, `cargo metadata`, JSON Lines logs).
 //!
 //! Arrays longer than [`MAX_ITEMS`] keep their first and last items plus every item that
-//! reports a problem (`status: "failed"`, `status >= 400`, `success: false`, a non-null
-//! `error`, `level: "error"` …). Dropped runs become one marker string. Output is compact.
+//! reports a problem, at any depth: a known key (`status >= 400`, `success: false`, a
+//! non-null `error`, `level: "error"` …) or text the general compressor treats as
+//! important (`"Action":"fail"`, `"reason":"CrashLoopBackOff"`, `"rendered":"error[E0308]…"`).
+//! Dropped runs become one marker string. Output is compact.
 
 use serde_json::Value;
 
@@ -12,39 +14,43 @@ const MAX_ITEMS: usize = 20;
 const KEEP_HEAD: usize = 3;
 const KEEP_TAIL: usize = 2;
 
-/// True if an item reports a failure or error.
+/// True if an item reports a failure or error anywhere inside it.
 fn is_interesting(v: &Value) -> bool {
-    let Some(obj) = v.as_object() else {
-        return false;
-    };
+    match v {
+        Value::String(s) => s.lines().any(super::is_important),
+        Value::Array(items) => items.iter().any(is_interesting),
+        Value::Object(obj) => obj
+            .iter()
+            .any(|(k, v)| reports_problem(k, v) || is_interesting(v)),
+        _ => false,
+    }
+}
+
+/// A key whose value says something failed (`status: 500`, `success: false`, `error: {…}`).
+fn reports_problem(k: &str, v: &Value) -> bool {
     let truthy = |v: &Value| {
         !matches!(v, Value::Null | Value::Bool(false)) && v != "" && v != &Value::Array(vec![])
     };
-    obj.iter().any(|(k, v)| {
-        let k = k.to_ascii_lowercase();
-        let word = |w: &str| {
-            v.as_str()
-                .is_some_and(|s| s.to_ascii_lowercase().contains(w))
-        };
-        match k.as_str() {
-            "error" | "errors" | "err" | "exception" | "failure" | "failures" => truthy(v),
-            "status" | "state" | "result" | "conclusion" | "outcome" => {
-                v.as_u64().is_some_and(|n| n >= 400)
-                    || word("fail")
-                    || word("error")
-                    || word("crash")
-            }
-            "code" | "status_code" | "statuscode" | "http_status" => {
-                v.as_u64().is_some_and(|n| n >= 400)
-            }
-            "success" | "ok" | "passed" => v == &Value::Bool(false),
-            "failed" => v == &Value::Bool(true),
-            "level" | "severity" | "lvl" => {
-                word("err") || word("fatal") || word("crit") || word("warn")
-            }
-            _ => false,
+    let k = k.to_ascii_lowercase();
+    let word = |w: &str| {
+        v.as_str()
+            .is_some_and(|s| s.to_ascii_lowercase().contains(w))
+    };
+    match k.as_str() {
+        "error" | "errors" | "err" | "exception" | "failure" | "failures" => truthy(v),
+        "status" | "state" | "result" | "conclusion" | "outcome" => {
+            v.as_u64().is_some_and(|n| n >= 400) || word("fail") || word("error") || word("crash")
         }
-    })
+        "code" | "status_code" | "statuscode" | "http_status" => {
+            v.as_u64().is_some_and(|n| n >= 400)
+        }
+        "success" | "ok" | "passed" => v == &Value::Bool(false),
+        "failed" => v == &Value::Bool(true),
+        "level" | "severity" | "lvl" => {
+            word("err") || word("fatal") || word("crit") || word("warn")
+        }
+        _ => false,
+    }
 }
 
 fn keys_of(items: &[Value]) -> String {
@@ -73,7 +79,9 @@ fn keep_indexes(items: &[Value]) -> Vec<usize> {
 fn shorten(v: &mut Value) -> usize {
     match v {
         Value::Array(items) => {
-            let mut dropped: usize = items.iter_mut().map(shorten).sum();
+            // Choose items before shortening inside them, so our own markers (whose key
+            // list may say "error") never decide what is kept.
+            let mut dropped = 0;
             if items.len() > MAX_ITEMS {
                 let keep = keep_indexes(items);
                 let keys = keys_of(items);
@@ -91,7 +99,7 @@ fn shorten(v: &mut Value) -> usize {
                     last = Some(i);
                 }
             }
-            dropped
+            dropped + items.iter_mut().map(shorten).sum::<usize>()
         }
         Value::Object(map) => map.values_mut().map(shorten).sum(),
         _ => 0,
@@ -177,12 +185,6 @@ fn json_lines(text: &str) -> Option<(String, bool)> {
     Some((out, dropped > 0))
 }
 
-/// Used by `is_compressed`: our own markers.
-pub fn is_marker_line(line: &str) -> bool {
-    (line.contains("\"… ") && line.contains(" more items"))
-        || (line.starts_with("… ") && line.contains(" JSON lines"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,8 +217,10 @@ mod tests {
         }
         assert!(out.contains("more items (keys: id, status, error)"));
         assert!(kept.len() < 40 && out.contains("\"total\":400"));
-        let again = super::super::compress(&out, false, Limits::default());
-        assert_eq!(again.text, out, "compressing twice changes nothing");
+        // What the agent sees carries `lagom run`'s recall footer; that is left alone.
+        let seen = format!("{out}[lagom: 1 → 1 lines; full output: lagom recall 0123456789]\n");
+        let again = super::super::compress(&seen, false, Limits::default());
+        assert_eq!(again.text, seen, "compressing twice changes nothing");
     }
 
     #[test]
@@ -238,6 +242,11 @@ mod tests {
             json!({"level": "ERROR"}),
             json!({"error": {"code": 1}}),
             json!({"conclusion": "failure"}),
+            // At any depth, and in any text the general compressor treats as important.
+            json!({"Action": "fail", "Test": "TestBroken"}),
+            json!({"reason": "compiler-message", "message": {"level": "error"}}),
+            json!({"status": {"containerStatuses": [{"state": {"waiting": {"reason": "CrashLoopBackOff"}}}]}}),
+            json!("error: disk full"),
         ] {
             assert!(is_interesting(&v), "{v}");
         }
@@ -247,6 +256,7 @@ mod tests {
             json!({"status": 200}),
             json!({"errors": []}),
             json!({"success": true}),
+            json!({"status": {"phase": "Running", "image": "nginx:1.27"}}),
             json!(3),
         ] {
             assert!(!is_interesting(&v), "{v}");

@@ -47,3 +47,7 @@ Active styles come from the first of these that is set:
 `lagom style use off` (or `--project` for one repo). `LAGOM_STYLES=off` for one session.
 
 With the defaults the rules cost about 400 tokens per session; `lagom stats` shows the total.
+
+## Real usage per style
+
+`lagom stats --usage [--days N]` (default 30 days) reads Claude Code's own transcripts and shows, per style set: sessions, turns, the median output and input tokens per turn, and the share of input read from the prompt cache. Sessions without styles are the baseline. Sessions that ended before Lagom recorded session ids are listed apart, because whether they got styles is unknown. The numbers are observational: sessions differ in their work, so a difference is not proof of a style's effect.

@@ -38,6 +38,29 @@ pub fn lagom_dir() -> PathBuf {
         .unwrap_or_else(|| home_dir().join(".lagom"))
 }
 
+/// File that marks a folder as Lagom's own, so `lagom uninstall --purge` may delete it.
+pub const DIR_MARKER: &str = ".lagom-dir";
+
+/// Create Lagom's data folder (private) and mark it as Lagom's.
+fn lagom_home() -> std::io::Result<PathBuf> {
+    let dir = lagom_dir();
+    private_dir(&dir)?;
+    mark_dir(&dir);
+    Ok(dir)
+}
+
+/// Write [`DIR_MARKER`] into a folder Lagom created. Best effort: a missing marker only
+/// makes `--purge` refuse the folder.
+pub fn mark_dir(dir: &Path) {
+    let marker = dir.join(DIR_MARKER);
+    if !marker.exists() {
+        let _ = fs::write(
+            marker,
+            "Created by Lagom. `lagom uninstall --purge` deletes this folder.\n",
+        );
+    }
+}
+
 fn recall_dir() -> PathBuf {
     lagom_dir().join("recall")
 }
@@ -110,7 +133,7 @@ impl Spill {
 
 /// Save the full original output of `program` and return its id.
 pub fn save_original(content: &str, program: &str) -> std::io::Result<String> {
-    private_dir(&lagom_dir())?;
+    lagom_home()?;
     let dir = recall_dir();
     private_dir(&dir)?;
     let id = content_id(content);
@@ -127,8 +150,13 @@ pub fn save_original(content: &str, program: &str) -> std::io::Result<String> {
     Ok(id)
 }
 
+/// The shape of an id that [`content_id`] makes: 10 hex digits.
+pub fn is_recall_id(id: &str) -> bool {
+    id.len() == 10 && id.chars().all(|c| c.is_ascii_hexdigit())
+}
+
 pub fn load_original(id: &str) -> Option<String> {
-    if id.is_empty() || !id.chars().all(|c| c.is_ascii_hexdigit()) {
+    if !is_recall_id(id) {
         return None;
     }
     fs::read_to_string(recall_dir().join(format!("{id}.log"))).ok()
@@ -139,7 +167,8 @@ pub fn load_original(id: &str) -> Option<String> {
 pub struct Selection {
     /// 1-based inclusive range; `None` end means "to the last line".
     pub lines: Option<(usize, Option<usize>)>,
-    /// Keep lines containing this text (case-sensitive); printed as `N: line`.
+    /// Keep lines containing this text; printed as `N: line`. Smart case, as in `rg`:
+    /// all-lowercase text matches any case (`error` finds `ERROR`), otherwise exact.
     pub grep: Option<String>,
     pub head: Option<usize>,
     pub tail: Option<usize>,
@@ -192,7 +221,11 @@ impl Selection {
             lines.retain(|(n, _)| *n >= start && end.is_none_or(|e| *n <= e));
         }
         if let Some(pat) = &self.grep {
-            lines.retain(|(_, l)| l.contains(pat.as_str()));
+            if pat.chars().any(char::is_uppercase) {
+                lines.retain(|(_, l)| l.contains(pat.as_str()));
+            } else {
+                lines.retain(|(_, l)| l.to_lowercase().contains(pat.as_str()));
+            }
         }
         if let Some(h) = self.head {
             lines.truncate(h);
@@ -224,7 +257,7 @@ pub struct RecallEntry {
 
 /// Saved originals, newest first.
 pub fn list_recall() -> Vec<RecallEntry> {
-    let mut out = entries(&recall_dir());
+    let mut out = entries(&recall_dir(), true);
     out.sort_by_key(|e| std::cmp::Reverse(e.modified));
     out
 }
@@ -232,14 +265,16 @@ pub fn list_recall() -> Vec<RecallEntry> {
 /// Delete every saved original. Returns how many were removed.
 pub fn clear_recall() -> usize {
     let dir = recall_dir();
-    let all = entries(&dir);
+    let all = entries(&dir, false);
     for e in &all {
         remove_entry(&dir, &e.id);
     }
     all.len()
 }
 
-fn entries(dir: &Path) -> Vec<RecallEntry> {
+/// Saved originals in `dir`. `with_program` also reads each `.cmd` file; pruning, which
+/// runs after every save, doesn't need it.
+fn entries(dir: &Path, with_program: bool) -> Vec<RecallEntry> {
     let Ok(read) = fs::read_dir(dir) else {
         return Vec::new();
     };
@@ -252,7 +287,11 @@ fn entries(dir: &Path) -> Vec<RecallEntry> {
                 .strip_suffix(".log")?
                 .to_string();
             let meta = e.metadata().ok()?;
-            let program = fs::read_to_string(dir.join(format!("{id}.cmd"))).unwrap_or_default();
+            let program = if with_program {
+                fs::read_to_string(dir.join(format!("{id}.cmd"))).unwrap_or_default()
+            } else {
+                String::new()
+            };
             Some(RecallEntry {
                 id,
                 program,
@@ -271,7 +310,7 @@ fn remove_entry(dir: &Path, id: &str) {
 /// Drop entries older than `max_age`, then the oldest until both the count and the
 /// total size fit. The newest entry is always kept.
 fn prune_recall(dir: &Path, limits: RecallLimits, now: SystemTime) {
-    let mut all = entries(dir);
+    let mut all = entries(dir, false);
     all.sort_by_key(|e| std::cmp::Reverse(e.modified)); // newest first
     let mut kept_bytes = 0u64;
     for (i, e) in all.iter().enumerate() {
@@ -326,10 +365,9 @@ pub fn record(mut event: serde_json::Value) {
     if let Some(obj) = event.as_object_mut() {
         obj.insert("ts".into(), now_secs().into());
     }
-    let dir = lagom_dir();
-    if private_dir(&dir).is_err() {
+    let Ok(dir) = lagom_home() else {
         return;
-    }
+    };
     if let Ok(mut file) = private_file(
         fs::OpenOptions::new().append(true),
         &dir.join("stats.jsonl"),
@@ -396,7 +434,7 @@ mod tests {
             f.set_modified(now - Duration::from_secs(age_s)).unwrap();
         };
         let ids = |d: &Path| {
-            let mut v: Vec<String> = entries(d).into_iter().map(|e| e.id).collect();
+            let mut v: Vec<String> = entries(d, false).into_iter().map(|e| e.id).collect();
             v.sort();
             v
         };
@@ -437,20 +475,22 @@ mod tests {
 
     #[test]
     fn recall_selection() {
-        let text = "a\nb error\nc\nd error\ne\n";
+        let text = "a\nb error\nc\nd ERROR\ne\n";
         assert_eq!(sel(&[]).apply(text), text);
         assert_eq!(sel(&["--lines", "2-3"]).apply(text), "b error\nc\n");
-        assert_eq!(sel(&["--lines", "4-"]).apply(text), "d error\ne\n");
+        assert_eq!(sel(&["--lines", "4-"]).apply(text), "d ERROR\ne\n");
         assert_eq!(sel(&["--lines", "2"]).apply(text), "b error\n");
         assert_eq!(
             sel(&["--grep", "error"]).apply(text),
-            "2: b error\n4: d error\n"
+            "2: b error\n4: d ERROR\n",
+            "lowercase text matches any case"
         );
+        assert_eq!(sel(&["--grep", "ERROR"]).apply(text), "4: d ERROR\n");
         assert_eq!(sel(&["--head", "2"]).apply(text), "a\nb error\n");
         assert_eq!(sel(&["--tail", "1"]).apply(text), "e\n");
         assert_eq!(
             sel(&["--lines", "3-", "--grep", "error"]).apply(text),
-            "4: d error\n"
+            "4: d ERROR\n"
         );
         for bad in [
             &["--lines", "0-2"][..],

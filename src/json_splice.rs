@@ -395,6 +395,10 @@ impl<'a> Scanner<'a> {
             return Ok(());
         }
         let mut child = Vec::new();
+        // Paths that already went through a key of this object. A second key for the
+        // same path makes it ambiguous even if only one copy holds the value: parsers
+        // that keep the last copy would read a different value than the one edited.
+        let mut taken: Vec<usize> = Vec::new();
         loop {
             if self.peek() != Some(b'"') {
                 return Err(self.invalid("expected a string key"));
@@ -408,6 +412,10 @@ impl<'a> Scanner<'a> {
                 child.extend(active.iter().copied().filter(|&i| {
                     matches!(paths[i].get(depth), Some(Seg::Key(k)) if decoded.as_deref() == Some(k.as_bytes()))
                 }));
+                if let Some(&i) = child.iter().find(|i| taken.contains(i)) {
+                    return Err(SpliceError::Ambiguous { index: i });
+                }
+                taken.extend_from_slice(&child);
             }
             self.ws();
             self.expect(b':', "expected : after key")?;
@@ -743,6 +751,26 @@ mod tests {
         );
         // Duplicates that no path asks for are fine.
         assert!(locate(body, &[path("b")]).is_ok());
+        // A duplicated key on the way to the value is ambiguous too, even when only one
+        // copy holds it: serde_json and the providers keep the last copy.
+        for body in [
+            br#"{"a":{"b":"x"},"a":{"c":1}}"#.as_slice(),
+            br#"{"a":{"c":1},"a":{"b":"x"}}"#.as_slice(),
+            br#"{"m":[{"a":{"b":"x"}}],"m":[]}"#.as_slice(),
+        ] {
+            let p = if body.starts_with(b"{\"m\"") {
+                "m[0].a.b"
+            } else {
+                "a.b"
+            };
+            assert_eq!(
+                locate(body, &[path(p)]),
+                Err(SpliceError::Ambiguous { index: 0 }),
+                "{}",
+                String::from_utf8_lossy(body)
+            );
+        }
+        assert!(locate(br#"{"a":{"b":"x"},"z":1,"z":2}"#, &[path("a.b")]).is_ok());
     }
 
     #[test]

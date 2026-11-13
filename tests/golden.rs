@@ -52,16 +52,64 @@ fn compressor_golden_fixtures() {
         }
         let expected = fs::read_to_string(&expected_path).unwrap_or_default();
         if out != expected {
-            let line = out
-                .lines()
-                .zip(expected.lines())
-                .position(|(a, b)| a != b)
-                .unwrap_or(out.lines().count().min(expected.lines().count()));
             failures.push(format!(
-                "{name}: output differs from expected.txt at line {} (run with LAGOM_BLESS=1 if intended)",
-                line + 1
+                "{name}: output differs from expected.txt (run with LAGOM_BLESS=1 if intended)\n{}",
+                diff(&expected, &out)
             ));
         }
     }
     assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+}
+
+/// The changed region between `expected` and `actual`, with two lines of context:
+/// `-` lines are expected, `+` lines are what the compressor produced now.
+fn diff(expected: &str, actual: &str) -> String {
+    let (e, a): (Vec<&str>, Vec<&str>) = (expected.lines().collect(), actual.lines().collect());
+    let start = e.iter().zip(&a).take_while(|(x, y)| x == y).count();
+    let common_end = e[start..]
+        .iter()
+        .rev()
+        .zip(a[start..].iter().rev())
+        .take_while(|(x, y)| x == y)
+        .count();
+    let (e_end, a_end) = (e.len() - common_end, a.len() - common_end);
+    let from = start.saturating_sub(2);
+    let mut out = format!(
+        "@@ line {}: expected {} lines, got {} @@\n",
+        start + 1,
+        e.len(),
+        a.len()
+    );
+    for line in &e[from..start] {
+        out += &format!("  {line}\n");
+    }
+    const MAX: usize = 20;
+    for line in e[start..e_end].iter().take(MAX) {
+        out += &format!("- {line}\n");
+    }
+    for line in a[start..a_end].iter().take(MAX) {
+        out += &format!("+ {line}\n");
+    }
+    if e_end - start > MAX || a_end - start > MAX {
+        out += "  … (more changed lines)\n";
+    }
+    for line in e[e_end..].iter().take(2) {
+        out += &format!("  {line}\n");
+    }
+    if expected.ends_with('\n') != actual.ends_with('\n') {
+        out += "  (the final newline differs)\n";
+    }
+    out
+}
+
+#[test]
+fn diff_shows_the_changed_lines_with_context() {
+    let d = diff("a\nb\nc\nd\ne\n", "a\nb\nX\nd\ne\n");
+    assert_eq!(
+        d,
+        "@@ line 3: expected 5 lines, got 5 @@\n  a\n  b\n- c\n+ X\n  d\n  e\n"
+    );
+    let d = diff("a\nb\n", "a\nb\nc\n");
+    assert!(d.contains("+ c") && !d.contains("- "), "{d}");
+    assert!(diff("a", "a\n").contains("final newline"));
 }

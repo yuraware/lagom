@@ -61,8 +61,6 @@ const STREAMING_ARGS: [&str; 12] = [
 /// Characters that make a command more than "one program with arguments".
 const SHELL_OPERATORS: [char; 9] = ['|', '&', ';', '<', '>', '`', '\n', '(', ')'];
 
-/// Returns the rewritten command, or None to leave it unchanged.
-/// `session` is an `agent:id` token for stats; it is dropped unless it's a plain id.
 /// A leading `cd <dir> && <command>`, the most common compound command agents write:
 /// `(dir, command)`. The directory must be a plain word or a single-quoted string with
 /// no shell metacharacters, variables or globs.
@@ -115,6 +113,13 @@ fn single_command_skip_reason(command: &str) -> Option<&'static str> {
     None
 }
 
+/// True for programs Lagom rewrites (`git`, `cargo`, …).
+pub fn is_known_program(name: &str) -> bool {
+    PROGRAMS.contains(&name)
+}
+
+/// Returns the rewritten command, or None to leave it unchanged.
+/// `session` is an `agent:id` token for stats; it is dropped unless it's a plain id.
 pub fn rewrite(command: &str, lagom_bin: &str, session: Option<&str>) -> Option<String> {
     if skip_reason(command).is_some() {
         return None;

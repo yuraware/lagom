@@ -25,11 +25,34 @@ fn is_lockfile(path: &str) -> bool {
     LOCKFILES.contains(&name)
 }
 
-/// Path from `diff --git a/x b/y` (the `b/` side).
+/// Path from `diff --git a/x b/y` (the `b/` side), or the last word without prefixes
+/// (`--no-prefix`, `diff.mnemonicPrefix`).
 fn diff_path(line: &str) -> Option<&str> {
     let rest = line.strip_prefix("diff --git ")?;
-    let b = rest.rfind(" b/")?;
-    Some(&rest[b + 3..])
+    Some(match rest.rfind(" b/") {
+        Some(b) => &rest[b + 3..],
+        None => rest.rsplit(' ').next().unwrap_or(rest),
+    })
+}
+
+/// Old and new line counts from a hunk header `@@ -a,b +c,d @@` (a missing count is 1).
+fn hunk_len(header: &str) -> Option<(usize, usize)> {
+    let mut ranges = header.strip_prefix("@@ -")?.split(' ');
+    let count = |r: &str| r.split_once(',').map_or(Some(1), |(_, n)| n.parse().ok());
+    let old = count(ranges.next()?)?;
+    let new = count(ranges.next()?.strip_prefix('+')?)?;
+    Some((old, new))
+}
+
+/// A line of a `GIT binary patch` body: `literal N`, `delta N`, blank, or base85 data.
+fn is_binary_patch_line(l: &str) -> bool {
+    const B85: &str = "!#$%&()*+-;<=>?@^_`{|}~";
+    l.is_empty()
+        || l.starts_with("literal ")
+        || l.starts_with("delta ")
+        || l.starts_with(|c: char| c.is_ascii_alphabetic())
+            && l.chars()
+                .all(|c| c.is_ascii_alphanumeric() || B85.contains(c))
 }
 
 fn looks_like_diff(lines: &[String]) -> bool {
@@ -43,9 +66,12 @@ struct File<'a> {
     path: Option<&'a str>,
     header: Vec<&'a str>,
     hunks: Vec<Vec<&'a str>>,
+    /// Lines of a `GIT binary patch` body, which are counted, not kept.
+    binary: Option<usize>,
 }
 
-/// `Some(lines)` for a unified diff longer than the budget; `None` otherwise.
+/// `Some(lines)` for a `git diff` longer than the budget; `None` otherwise, including
+/// diffs without `diff --git` headers (`diff -u`), which the general path shortens.
 pub fn compress(lines: &[String], limits: Limits) -> Option<Vec<String>> {
     if lines.len() <= limits.max_lines || !looks_like_diff(lines) {
         return None;
@@ -55,6 +81,11 @@ pub fn compress(lines: &[String], limits: Limits) -> Option<Vec<String>> {
     let mut out = Vec::new();
     let mut file: Option<File> = None;
     let mut kept_changes = 0usize;
+    let mut saw_file = false;
+    // Old and new lines still due in the current hunk, from its `@@` header. A blank
+    // context line arrives as "" (trailing spaces are trimmed), so the counts, not the
+    // first character, say where a hunk ends.
+    let mut left: Option<(usize, usize)> = None;
     let flush = |f: File, out: &mut Vec<String>, kept: &mut usize| {
         let (adds, dels) = f.hunks.iter().flatten().fold((0, 0), |(a, d), l| {
             (
@@ -63,6 +94,9 @@ pub fn compress(lines: &[String], limits: Limits) -> Option<Vec<String>> {
             )
         });
         out.extend(f.header.iter().map(|s| s.to_string()));
+        if let Some(n) = f.binary {
+            out.push(format!("[binary patch: {n} lines, not shown]"));
+        }
         if f.path.is_some_and(is_lockfile) && !f.hunks.is_empty() {
             out.push(format!(
                 "[lockfile {}: {} lines changed (+{adds} -{dels}), not shown]",
@@ -105,26 +139,55 @@ pub fn compress(lines: &[String], limits: Limits) -> Option<Vec<String>> {
             if let Some(f) = file.take() {
                 flush(f, &mut out, &mut kept_changes);
             }
+            saw_file = true;
+            left = None;
             file = Some(File {
                 path: Some(path),
                 header: vec![l],
                 hunks: Vec::new(),
+                binary: None,
             });
             continue;
         }
+        // Inside a hunk: a change, a context line (blank ones included), or `\ No newline`.
+        let in_hunk = match left {
+            Some((old, new)) => {
+                (old > 0 || new > 0) && (l.is_empty() || l.starts_with([' ', '+', '-']))
+                    || l.starts_with('\\')
+            }
+            // A header without counts: fall back to the first character.
+            None => l.starts_with([' ', '+', '-', '\\']),
+        };
         match file.as_mut() {
-            Some(f) if l.starts_with("@@ ") => f.hunks.push(vec![l]),
-            Some(f) if !f.hunks.is_empty() && l.starts_with([' ', '+', '-', '\\']) => {
+            Some(f) if l.starts_with("@@ ") => {
+                f.hunks.push(vec![l]);
+                left = hunk_len(l);
+            }
+            Some(f) if !f.hunks.is_empty() && in_hunk => {
+                if let Some((old, new)) = left.as_mut() {
+                    match l.as_bytes().first() {
+                        Some(b'+') => *new = new.saturating_sub(1),
+                        Some(b'-') => *old = old.saturating_sub(1),
+                        Some(b'\\') => {}
+                        _ => (*old, *new) = (old.saturating_sub(1), new.saturating_sub(1)),
+                    }
+                }
                 if let Some(h) = f.hunks.last_mut() {
                     h.push(l);
                 }
             }
+            Some(f) if f.hunks.is_empty() && f.binary.is_none() && l == "GIT binary patch" => {
+                f.binary = Some(1);
+            }
+            Some(File {
+                binary: Some(n), ..
+            }) if is_binary_patch_line(l) => *n += 1,
             Some(f) if f.hunks.is_empty() && !l.starts_with("commit ") => {
                 // `index …` and `--- a/x` / `+++ b/x` repeat the `diff --git` line; keep
                 // them only when they say more (new or deleted file, rename).
                 let redundant = l.starts_with("index ")
                     || f.path.is_some_and(|p| {
-                        l.strip_prefix("+++ b/") == Some(p) || l.strip_prefix("--- a/") == Some(p)
+                        (l.starts_with("+++ ") || l.starts_with("--- ")) && l.ends_with(p)
                     });
                 if !redundant {
                     f.header.push(l);
@@ -143,7 +206,7 @@ pub fn compress(lines: &[String], limits: Limits) -> Option<Vec<String>> {
     if let Some(f) = file.take() {
         flush(f, &mut out, &mut kept_changes);
     }
-    Some(out)
+    saw_file.then_some(out)
 }
 
 #[cfg(test)]
@@ -236,6 +299,81 @@ mod tests {
         }
         assert!(out.contains("[+30 -30 lines in this file, not shown]"));
         assert!(out.lines().count() < 700);
+    }
+
+    /// A real `git diff` (lagom's own history plus a `cargo update` of `Cargo.lock`)
+    /// with blank context lines, which arrive as "" and used to end the file's section.
+    #[test]
+    fn real_diff_with_blank_context_keeps_every_change() {
+        let input = include_str!("../../tests/fixtures/compress/git-diff-real/input.txt");
+        // As `normalize_lines` hands them over: trailing spaces trimmed.
+        let input: Vec<String> = input.lines().map(|l| l.trim_end().to_string()).collect();
+        assert!(
+            input.iter().any(|l| l.is_empty()),
+            "fixture has blank context"
+        );
+        let out = compress(&input, Limits::default()).unwrap();
+        let mut lockfile = false;
+        for l in &input {
+            if let Some(p) = diff_path(l) {
+                lockfile = is_lockfile(p);
+            } else if !lockfile
+                && l.starts_with(['+', '-'])
+                && !l.starts_with("+++ ")
+                && !l.starts_with("--- ")
+            {
+                assert!(out.contains(l), "change line lost: {l}");
+            }
+        }
+        let out = out.join("\n");
+        assert!(out.contains("[lockfile Cargo.lock: 26 lines changed (+9 -17), not shown]"));
+        assert!(!out.contains("serde_json 1.0.140"), "lockfile body hidden");
+        assert!(out.lines().count() < input.len() - 100, "context trimmed");
+    }
+
+    #[test]
+    fn hunk_counts_end_a_hunk_and_no_prefix_headers_count() {
+        // The header promises 5 lines, but a collapsed blank line left 4: the commit line
+        // after them is not context.
+        let mut s = String::from("diff --git Cargo.lock Cargo.lock\n@@ -1,300 +1,300 @@\n");
+        for i in 0..300 {
+            s.push_str(&format!("-v{i}\n+w{i}\n"));
+        }
+        s.push_str("diff --git src/a.rs src/a.rs\n--- src/a.rs\n+++ src/a.rs\n@@ -1,4 +1,5 @@\n a\n\n-b\n+c\n+d\n\\ No newline at end of file\ncommit def456\n");
+        let out = compress(&lines(&s), Limits::default()).unwrap().join("\n");
+        assert!(
+            out.contains("[lockfile Cargo.lock: 600 lines changed"),
+            "{out}"
+        );
+        assert!(
+            out.contains("\\ No newline at end of file\ncommit def456"),
+            "{out}"
+        );
+        assert!(!out.contains("+++ src/a.rs"), "redundant header dropped");
+    }
+
+    #[test]
+    fn binary_patches_collapse_and_plain_diff_u_is_left_to_the_general_path() {
+        let mut s = String::from(
+            "diff --git a/logo.png b/logo.png\nindex 1..2 100644\nGIT binary patch\nliteral 4096\n",
+        );
+        for _ in 0..200 {
+            s.push_str("zcmV-Z1JbRFQ&!+hd;o|R`n2=>XtYP4mRGN|a$0iw*mTz@Q>sm#\n");
+        }
+        s.push_str("\nliteral 0\nHcmV?d00001\n\ndiff --git a/a.rs b/a.rs\n@@ -1 +1 @@\n-x\n+y\n");
+        let out = compress(&lines(&s), Limits::default()).unwrap().join("\n");
+        assert!(
+            out.contains("[binary patch: 206 lines, not shown]"),
+            "{out}"
+        );
+        assert!(!out.contains("zcmV") && out.contains("-x\n+y"), "{out}");
+
+        let mut plain =
+            String::from("--- old.txt\t2026-01-01\n+++ new.txt\t2026-01-02\n@@ -1,200 +1,200 @@\n");
+        for i in 0..200 {
+            plain.push_str(&format!("-a{i}\n+b{i}\n"));
+        }
+        assert!(compress(&lines(&plain), Limits::default()).is_none());
     }
 
     #[test]

@@ -129,9 +129,10 @@ fn read_config_bool(path: &Path, key: &str) -> Option<bool> {
 }
 
 /// Whether the pre-tool hook may rewrite commands to `lagom run`. Off with
-/// `LAGOM_REWRITE=off` (or `0`/`false`), or `"rewrite": false` in the project's
-/// `.lagom/config.json` or the user's `config.json`. Turning it off is always safe,
-/// so a project file needs no trust for this key.
+/// `LAGOM_REWRITE=off` (or `0`/`false`), or `"rewrite": false` in the user's
+/// `config.json` or the project's `.lagom/config.json`. A project file can only turn
+/// rewriting off: turning it off is always safe, so it needs no trust, but a cloned
+/// repository must not turn back on what the user turned off.
 pub fn rewrite_enabled(cwd: &Path) -> bool {
     if let Ok(v) = std::env::var("LAGOM_REWRITE") {
         return !matches!(
@@ -139,10 +140,11 @@ pub fn rewrite_enabled(cwd: &Path) -> bool {
             "0" | "off" | "false" | "no"
         );
     }
-    find_project_file(cwd, "config.json")
-        .and_then(|p| read_config_bool(&p, "rewrite"))
-        .or_else(|| read_config_bool(&config_dir().join("config.json"), "rewrite"))
-        .unwrap_or(true)
+    let off = |v: Option<bool>| v == Some(false);
+    let user = read_config_bool(&config_dir().join("config.json"), "rewrite");
+    let project =
+        find_project_file(cwd, "config.json").and_then(|p| read_config_bool(&p, "rewrite"));
+    !(off(user) || off(project))
 }
 
 /// Active style names. An empty list means "off".
@@ -165,27 +167,21 @@ pub fn parse_list(s: &str) -> Vec<String> {
 }
 
 /// Style files are user (or repository) text. Keep them inside the single `<lagom>`
-/// block: a `<lagom>` or `</lagom>` tag in a style can't open or close it.
+/// block: any tag the model could read as opening or closing it (`<lagom>`, `</LAGOM >`,
+/// `< /lagom>`, `<lagom x="1">`) has its `<` and `>` turned into `[` and `]`.
 fn neutralize_tags(body: &str) -> String {
     let mut out = String::with_capacity(body.len());
     let mut rest = body;
     while let Some(i) = rest.find('<') {
         out.push_str(&rest[..i]);
         let tail = &rest[i..];
-        let tag = ["<lagom>", "</lagom>"].into_iter().find(|t| {
-            // Compare bytes: slicing the str could split a multi-byte character.
-            tail.as_bytes()
-                .get(..t.len())
-                .is_some_and(|b| b.eq_ignore_ascii_case(t.as_bytes()))
-        });
-        match tag {
-            Some(t) => {
-                out.push_str(if t.starts_with("</") {
-                    "[/lagom]"
-                } else {
-                    "[lagom]"
-                });
-                rest = &tail[t.len()..];
+        match lagom_tag_len(tail) {
+            Some(len) => {
+                // `len` covers `<` … `>`; both ends are single-byte ASCII.
+                out.push('[');
+                out.push_str(&tail[1..len - 1]);
+                out.push(']');
+                rest = &tail[len..];
             }
             None => {
                 out.push('<');
@@ -195,6 +191,35 @@ fn neutralize_tags(body: &str) -> String {
     }
     out.push_str(rest);
     out
+}
+
+/// Length of a tag named `lagom` at the start of `s` (which starts with `<`), allowing
+/// whitespace and a `/` before the name and anything up to a `>` within 64 bytes after.
+fn lagom_tag_len(s: &str) -> Option<usize> {
+    let b = s.as_bytes();
+    let mut i = 1;
+    let skip_space = |i: &mut usize| {
+        while b.get(*i).is_some_and(u8::is_ascii_whitespace) {
+            *i += 1;
+        }
+    };
+    skip_space(&mut i);
+    if b.get(i) == Some(&b'/') {
+        i += 1;
+        skip_space(&mut i);
+    }
+    let name = b.get(i..i + 5)?;
+    if !name.eq_ignore_ascii_case(b"lagom") {
+        return None;
+    }
+    i += 5;
+    if b.get(i)
+        .is_some_and(|c| c.is_ascii_alphanumeric() || *c == b'_' || *c == b'-')
+    {
+        return None; // another name, such as `<lagomish>`
+    }
+    let close = b[i..].iter().take(64).position(|c| *c == b'>')?;
+    Some(i + close + 1)
 }
 
 /// Text injected at session start. Empty when styles are off.
@@ -209,10 +234,17 @@ pub fn render(cwd: &Path) -> String {
         out.push_str(&neutralize_tags(&s.body()));
         out.push_str("\n\n");
     }
-    out.push_str(
-        "Lagom compresses long command output. A line like `[lagom: … lagom recall <id>]` means lines were omitted; run `lagom recall <id>` if you need them.\n</lagom>",
-    );
+    out.push_str(RECALL_NOTE);
+    out.push_str("\n</lagom>");
     out
+}
+
+/// Explains the recall footer. Holdout sessions of an experiment get only this: they
+/// lose the styles, but compression stays on.
+const RECALL_NOTE: &str = "Lagom compresses long command output. A line like `[lagom: … lagom recall <id>]` means lines were omitted; run `lagom recall <id>` if you need them.";
+
+pub fn render_recall_note() -> String {
+    format!("<lagom>\n{RECALL_NOTE}\n</lagom>")
 }
 
 /// Save the active style list to the user config, or to `.lagom/config.json` in `dir` when given.
@@ -223,6 +255,9 @@ pub fn save_active(names: &[String], project_dir: Option<&Path>) -> std::io::Res
     };
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
+        if project_dir.is_none() {
+            crate::store::mark_dir(parent);
+        }
     }
     let mut v: serde_json::Value = fs::read_to_string(&path)
         .ok()
@@ -281,6 +316,22 @@ mod tests {
             "<lagé> é<",
             "multi-byte text right after <"
         );
+        for variant in [
+            "</lagom >",
+            "< /lagom>",
+            "</ LAGOM>",
+            "<lagom\n>",
+            "<lagom role=\"system\">",
+            "x</Lagom\t>y",
+        ] {
+            let safe = neutralize_tags(variant).to_ascii_lowercase();
+            let squashed: String = safe.chars().filter(|c| !c.is_whitespace()).collect();
+            assert!(
+                !squashed.contains("<lagom") && !squashed.contains("</lagom"),
+                "{variant:?} -> {safe:?}"
+            );
+        }
+        assert_eq!(neutralize_tags("<lagomish> <b>"), "<lagomish> <b>");
     }
 
     #[test]

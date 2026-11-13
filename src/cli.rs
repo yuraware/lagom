@@ -139,6 +139,12 @@ fn cmd_recall(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    if !store::is_recall_id(id) {
+        eprintln!(
+            "lagom: `{id}` is not a recall id (10 hex characters, from a `[lagom: … lagom recall <id> …]` line)\n{USAGE}"
+        );
+        return ExitCode::from(2);
+    }
     match store::load_original(id) {
         Some(text) => {
             print!("{}", selection.apply(&text));
@@ -176,13 +182,25 @@ fn parse_agents(names: &[String], only_present: bool) -> Result<Vec<Agent>, Stri
         .collect()
 }
 
+/// Ask a yes/no question. Enter or "y" means yes; "n", end of input or a read error means no.
+fn confirm(question: &str, input: &mut impl std::io::BufRead, out: &mut impl Write) -> bool {
+    let _ = write!(out, "{question} [Y/n] ");
+    let _ = out.flush();
+    let mut answer = String::new();
+    match input.read_line(&mut answer) {
+        Ok(0) | Err(_) => false,
+        Ok(_) => !answer.trim().to_lowercase().starts_with('n'),
+    }
+}
+
 fn cmd_install(args: &[String], installing: bool) -> ExitCode {
-    let (mut dry_run, mut yes, mut purge, mut names) = (false, false, false, Vec::new());
+    let (mut dry_run, mut yes, mut purge, mut all, mut names) =
+        (false, false, false, false, Vec::new());
     for a in args {
         match a.as_str() {
             "--dry-run" | "-n" => dry_run = true,
             "--yes" | "-y" => yes = true,
-            "--all" => {} // the default when no agent is named
+            "--all" => all = true, // the default when no agent is named
             "--purge" if !installing => purge = true,
             s if s.starts_with('-') => {
                 eprintln!("lagom: unknown option `{s}`");
@@ -190,6 +208,21 @@ fn cmd_install(args: &[String], installing: bool) -> ExitCode {
             }
             _ => names.push(a.clone()),
         }
+    }
+    if all && !names.is_empty() {
+        eprintln!("lagom: use either --all or agent names, not both");
+        return ExitCode::from(2);
+    }
+    if purge && !names.is_empty() {
+        eprintln!(
+            "lagom: --purge deletes data every agent shares; run `lagom uninstall --all --purge`"
+        );
+        return ExitCode::from(2);
+    }
+    // Decide before changing anything: without a terminal there is no one to ask.
+    if purge && !dry_run && !yes && !std::io::stdin().is_terminal() {
+        eprintln!("lagom: --purge deletes Lagom's data and config; rerun with --yes to confirm");
+        return ExitCode::from(2);
     }
     let agents = match parse_agents(&names, installing) {
         Ok(a) if a.is_empty() => {
@@ -204,17 +237,21 @@ fn cmd_install(args: &[String], installing: bool) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    if installing && cfg!(windows) {
+        eprintln!(
+            "lagom: `lagom install` doesn't support Windows yet: the hooks it writes need a POSIX shell. `lagom uninstall` still works."
+        );
+        return ExitCode::from(2);
+    }
     if installing && !dry_run && !yes && std::io::stdin().is_terminal() {
         let list: Vec<&str> = agents.iter().map(|a| a.name()).collect();
-        print!(
-            "Install Lagom hooks and skills into {}? [Y/n] ",
-            list.join(", ")
-        );
-        let _ = std::io::stdout().flush();
-        let mut answer = String::new();
-        let _ = std::io::stdin().read_line(&mut answer);
-        if answer.trim().to_lowercase().starts_with('n') {
-            println!("Cancelled. Nothing was changed.");
+        let question = format!("Install Lagom hooks and skills into {}?", list.join(", "));
+        if !confirm(
+            &question,
+            &mut std::io::stdin().lock(),
+            &mut std::io::stdout(),
+        ) {
+            println!("\nCancelled. Nothing was changed.");
             return ExitCode::from(1);
         }
     }
@@ -296,13 +333,6 @@ fn cmd_purge(dry_run: bool, yes: bool) -> bool {
     }
     if !dry_run && !yes {
         let list: Vec<String> = dirs.iter().map(|d| d.display().to_string()).collect();
-        if !std::io::stdin().is_terminal() {
-            eprintln!(
-                "lagom: --purge would delete {}; rerun with --yes to confirm",
-                list.join(" and ")
-            );
-            return false;
-        }
         print!(
             "Delete {} (stats, saved outputs, styles, config)? [y/N] ",
             list.join(" and ")
@@ -448,4 +478,26 @@ fn cmd_stats() -> ExitCode {
         "net: ~{net} tokens (estimate: 4 bytes ≈ 1 token; style effects on answer length are not measured)"
     );
     ExitCode::SUCCESS
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn answer(input: &str) -> bool {
+        let mut out = Vec::new();
+        let yes = confirm("Install?", &mut input.as_bytes(), &mut out);
+        assert_eq!(String::from_utf8(out).unwrap(), "Install? [Y/n] ");
+        yes
+    }
+
+    #[test]
+    fn confirm_defaults_to_yes_and_cancels_on_no_or_end_of_input() {
+        assert!(answer("\n"));
+        assert!(answer("y\n"));
+        assert!(answer("Yes\n"));
+        assert!(!answer("n\n"));
+        assert!(!answer("No\n"));
+        assert!(!answer(""), "Ctrl-D at the prompt must not install");
+    }
 }

@@ -19,5 +19,7 @@ claude -p --setting-sources project,local --model haiku "…git show --stat HEAD
 ```
 
 `--setting-sources project,local` means your user settings, and any hooks other tools installed there,
-are not loaded. Lagom writes its stats to a temporary `LAGOM_HOME`. The check passes when the
-session-start injection fired and `git show` ran through `lagom run` with smaller output.
+are not loaded. Lagom writes its stats to a temporary `LAGOM_HOME`, and the default styles are set
+with `LAGOM_STYLES`, so your own Lagom config doesn't change the result. The check passes when the
+session-start injection fired, `git show` ran through `lagom run` with smaller output, and the
+agent's answer is still right (300 files changed).

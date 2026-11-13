@@ -201,7 +201,7 @@ pub struct RecallEntry {
 
 /// Saved originals, newest first.
 pub fn list_recall() -> Vec<RecallEntry> {
-    let mut out = entries(&recall_dir());
+    let mut out = entries(&recall_dir(), true);
     out.sort_by_key(|e| std::cmp::Reverse(e.modified));
     out
 }
@@ -209,14 +209,16 @@ pub fn list_recall() -> Vec<RecallEntry> {
 /// Delete every saved original. Returns how many were removed.
 pub fn clear_recall() -> usize {
     let dir = recall_dir();
-    let all = entries(&dir);
+    let all = entries(&dir, false);
     for e in &all {
         remove_entry(&dir, &e.id);
     }
     all.len()
 }
 
-fn entries(dir: &Path) -> Vec<RecallEntry> {
+/// Saved originals in `dir`. `with_program` also reads each `.cmd` file; pruning, which
+/// runs after every save, doesn't need it.
+fn entries(dir: &Path, with_program: bool) -> Vec<RecallEntry> {
     let Ok(read) = fs::read_dir(dir) else {
         return Vec::new();
     };
@@ -229,7 +231,11 @@ fn entries(dir: &Path) -> Vec<RecallEntry> {
                 .strip_suffix(".log")?
                 .to_string();
             let meta = e.metadata().ok()?;
-            let program = fs::read_to_string(dir.join(format!("{id}.cmd"))).unwrap_or_default();
+            let program = if with_program {
+                fs::read_to_string(dir.join(format!("{id}.cmd"))).unwrap_or_default()
+            } else {
+                String::new()
+            };
             Some(RecallEntry {
                 id,
                 program,
@@ -248,7 +254,7 @@ fn remove_entry(dir: &Path, id: &str) {
 /// Drop entries older than `max_age`, then the oldest until both the count and the
 /// total size fit. The newest entry is always kept.
 fn prune_recall(dir: &Path, limits: RecallLimits, now: SystemTime) {
-    let mut all = entries(dir);
+    let mut all = entries(dir, false);
     all.sort_by_key(|e| std::cmp::Reverse(e.modified)); // newest first
     let mut kept_bytes = 0u64;
     for (i, e) in all.iter().enumerate() {
@@ -372,7 +378,7 @@ mod tests {
             f.set_modified(now - Duration::from_secs(age_s)).unwrap();
         };
         let ids = |d: &Path| {
-            let mut v: Vec<String> = entries(d).into_iter().map(|e| e.id).collect();
+            let mut v: Vec<String> = entries(d, false).into_iter().map(|e| e.id).collect();
             v.sort();
             v
         };

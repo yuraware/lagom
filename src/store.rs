@@ -22,6 +22,29 @@ pub fn lagom_dir() -> PathBuf {
         .unwrap_or_else(|| home_dir().join(".lagom"))
 }
 
+/// File that marks a folder as Lagom's own, so `lagom uninstall --purge` may delete it.
+pub const DIR_MARKER: &str = ".lagom-dir";
+
+/// Create Lagom's data folder (private) and mark it as Lagom's.
+fn lagom_home() -> std::io::Result<PathBuf> {
+    let dir = lagom_dir();
+    private_dir(&dir)?;
+    mark_dir(&dir);
+    Ok(dir)
+}
+
+/// Write [`DIR_MARKER`] into a folder Lagom created. Best effort: a missing marker only
+/// makes `--purge` refuse the folder.
+pub fn mark_dir(dir: &Path) {
+    let marker = dir.join(DIR_MARKER);
+    if !marker.exists() {
+        let _ = fs::write(
+            marker,
+            "Created by Lagom. `lagom uninstall --purge` deletes this folder.\n",
+        );
+    }
+}
+
 fn recall_dir() -> PathBuf {
     lagom_dir().join("recall")
 }
@@ -38,7 +61,7 @@ pub fn content_id(content: &str) -> String {
 
 /// Save the full original output and return its id.
 pub fn save_original(content: &str) -> std::io::Result<String> {
-    private_dir(&lagom_dir())?;
+    lagom_home()?;
     let dir = recall_dir();
     private_dir(&dir)?;
     let id = content_id(content);
@@ -112,10 +135,9 @@ pub fn record(mut event: serde_json::Value) {
     if let Some(obj) = event.as_object_mut() {
         obj.insert("ts".into(), now_secs().into());
     }
-    let dir = lagom_dir();
-    if private_dir(&dir).is_err() {
+    let Ok(dir) = lagom_home() else {
         return;
-    }
+    };
     if let Ok(mut file) = private_file(
         fs::OpenOptions::new().append(true),
         &dir.join("stats.jsonl"),

@@ -436,22 +436,27 @@ pub fn purge_targets() -> Vec<PathBuf> {
     vec![crate::store::lagom_dir(), crate::style::config_dir()]
 }
 
-/// Delete Lagom's data and config folders. Refuses folders that look unsafe to delete
-/// (the home folder, an ancestor of it, or a filesystem root), e.g. a bad `LAGOM_HOME`.
+/// Delete Lagom's data and config folders. Only folders Lagom created are deleted: the
+/// default `~/.lagom` and `~/.config/lagom`, or any folder holding Lagom's marker file.
+/// Anything else (a `LAGOM_HOME` pointing at `~/Documents`, the home folder, a filesystem
+/// root) is refused before anything is deleted.
 pub fn purge(dry_run: bool) -> Result<Vec<String>, String> {
     let home = home_dir();
-    let mut notes = Vec::new();
-    for dir in purge_targets() {
-        if !dir.exists() {
-            continue;
-        }
+    let defaults = [home.join(".lagom"), home.join(".config").join("lagom")];
+    let dirs: Vec<PathBuf> = purge_targets().into_iter().filter(|d| d.exists()).collect();
+    for dir in &dirs {
         let shallow = dir.components().count() < 3;
-        if shallow || home.starts_with(&dir) {
+        let ours = defaults.contains(dir) || dir.join(crate::store::DIR_MARKER).is_file();
+        if shallow || home.starts_with(dir) || !ours {
             return Err(format!(
-                "refusing to delete {}: not a Lagom folder",
-                dir.display()
+                "refusing to delete {}: Lagom didn't create it (no {} file); delete it yourself if you are sure",
+                dir.display(),
+                crate::store::DIR_MARKER
             ));
         }
+    }
+    let mut notes = Vec::new();
+    for dir in dirs {
         if dry_run {
             notes.push(format!("would delete {}", dir.display()));
         } else {
@@ -464,19 +469,23 @@ pub fn purge(dry_run: bool) -> Result<Vec<String>, String> {
 }
 
 /// The command that removes the binary itself, guessed from where it lives.
+/// Links are followed first: Homebrew on Intel Macs and pipx put a link on `PATH`
+/// (`/usr/local/bin/lagom`, `~/.local/bin/lagom`) that points into their own folders.
 pub fn removal_hint(exe: &Path) -> String {
-    let has = |part: &str| exe.components().any(|c| c.as_os_str() == part);
+    let resolved = fs::canonicalize(exe).unwrap_or_else(|_| exe.to_path_buf());
+    let has = |part: &str| resolved.components().any(|c| c.as_os_str() == part);
     let dir = exe.parent().unwrap_or(Path::new("."));
-    if has("Cellar") || exe.starts_with("/opt/homebrew") || exe.starts_with("/home/linuxbrew") {
+    if has("Cellar")
+        || resolved.starts_with("/opt/homebrew")
+        || resolved.starts_with("/home/linuxbrew")
+    {
         "brew uninstall lagom".into()
     } else if has(".cargo") {
         "cargo uninstall lagom".into()
     } else if has("pipx") {
         "pipx uninstall lagom-ai".into()
-    } else if has("site-packages") || exe.to_string_lossy().contains("/.local/share/uv/") {
+    } else if has("site-packages") || resolved.to_string_lossy().contains("/.local/share/uv/") {
         "pip uninstall lagom-ai (or: uv tool uninstall lagom-ai)".into()
-    } else if cfg!(windows) && has("WinGet") {
-        "winget uninstall yuraware.lagom".into()
     } else {
         let ext = std::env::consts::EXE_SUFFIX;
         format!(
@@ -525,6 +534,30 @@ mod tests {
             "pipx uninstall lagom-ai"
         );
         assert!(hint("/home/a/.local/bin/lagom").starts_with("rm /home/a/.local/bin/lagom"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn removal_hint_follows_links_into_package_folders() {
+        let root = std::env::temp_dir().join(format!("lagom-hint-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        for (real, expected) in [
+            (
+                "usr/local/Cellar/lagom/0.1.0/bin/lagom",
+                "brew uninstall lagom",
+            ),
+            ("pipx/venvs/lagom-ai/bin/lagom", "pipx uninstall lagom-ai"),
+        ] {
+            let real = root.join(real);
+            fs::create_dir_all(real.parent().unwrap()).unwrap();
+            fs::write(&real, "").unwrap();
+            let link = root.join("bin/lagom");
+            fs::create_dir_all(link.parent().unwrap()).unwrap();
+            let _ = fs::remove_file(&link);
+            std::os::unix::fs::symlink(&real, &link).unwrap();
+            assert_eq!(removal_hint(&link), expected);
+        }
+        let _ = fs::remove_dir_all(&root);
     }
 
     const BIN: &str = "/opt/lagom/bin/lagom";

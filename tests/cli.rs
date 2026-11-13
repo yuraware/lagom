@@ -488,20 +488,62 @@ fn install_dry_run_changes_nothing_and_summarizes() {
     );
 }
 
+/// Every file under `dir` that still belongs to Lagom: a path naming it (other than a
+/// `.lagom.bak` backup) or a file whose text mentions a Lagom hook.
+fn lagom_leftovers(dir: &Path) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    let Ok(entries) = fs::read_dir(dir) else {
+        return found;
+    };
+    for e in entries.flatten() {
+        let path = e.path();
+        let name = e.file_name().to_string_lossy().to_lowercase();
+        if path.is_dir() {
+            if name.contains("lagom") {
+                found.push(path.clone());
+            }
+            found.extend(lagom_leftovers(&path));
+        } else if !name.ends_with(".lagom.bak") {
+            let text = fs::read_to_string(&path).unwrap_or_default();
+            if name.contains("lagom")
+                || text.contains(" hook claude")
+                || text.contains(" hook codex")
+                || text.contains(" hook cursor")
+            {
+                found.push(path);
+            }
+        }
+    }
+    found
+}
+
 #[test]
 fn uninstall_all_purge_removes_everything_but_backups() {
     let home = sandbox("purge");
-    fs::create_dir_all(home.join(".claude")).unwrap();
+    for agent in [".claude", ".codex", ".cursor"] {
+        fs::create_dir_all(home.join(agent)).unwrap();
+    }
     fs::write(home.join(".claude/settings.json"), r#"{"model":"opus"}"#).unwrap();
     assert!(lagom(&home, &["install", "--yes"], None).status.success());
     lagom(&home, &["style", "use", "terse"], None);
     lagom(&home, &["run", "--", "echo", "hi"], None);
     assert!(home.join(".lagom").exists() && home.join(".config/lagom").exists());
 
-    // Without --yes and without a terminal, purge refuses and deletes nothing.
+    // Without --yes and without a terminal, purge stops before changing anything.
     let out = lagom(&home, &["uninstall", "--all", "--purge"], None);
-    assert_eq!(out.status.code(), Some(1));
+    assert_eq!(out.status.code(), Some(2));
     assert!(home.join(".lagom").exists());
+    let settings = fs::read_to_string(home.join(".claude/settings.json")).unwrap();
+    assert!(
+        settings.contains("hook claude"),
+        "hooks must stay: {settings}"
+    );
+
+    // Purge is for a full uninstall only.
+    let out = lagom(&home, &["uninstall", "claude", "--purge", "--yes"], None);
+    assert_eq!(out.status.code(), Some(2));
+    let out = lagom(&home, &["uninstall", "--all", "claude"], None);
+    assert_eq!(out.status.code(), Some(2));
 
     let s = text(&lagom(
         &home,
@@ -519,12 +561,60 @@ fn uninstall_all_purge_removes_everything_but_backups() {
     );
     let s = text(&out);
     assert!(s.contains("To remove the program itself: rm "), "{s}");
-    assert!(!home.join(".lagom").exists());
-    assert!(!home.join(".config/lagom").exists());
-    assert!(!home.join(".claude/skills/lagom").exists());
+    assert_eq!(lagom_leftovers(&home), Vec::<PathBuf>::new());
     assert!(home.join(".claude/settings.json.lagom.bak").exists());
     let settings = fs::read_to_string(home.join(".claude/settings.json")).unwrap();
-    assert!(!settings.contains("hook claude"), "{settings}");
+    assert!(settings.contains("opus"), "{settings}");
+}
+
+/// Run `lagom` with a custom `LAGOM_HOME`.
+fn lagom_with_home(home: &Path, lagom_home: &Path, args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_lagom"))
+        .args(args)
+        .env("HOME", home)
+        .env("LAGOM_HOME", lagom_home)
+        .env_remove("XDG_CONFIG_HOME")
+        .env_remove("CLAUDE_CONFIG_DIR")
+        .env_remove("CODEX_HOME")
+        .current_dir(home)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn purge_deletes_only_folders_lagom_created() {
+    // LAGOM_HOME pointing at a folder of the user's: refused, nothing deleted.
+    let home = sandbox("purge-foreign");
+    let docs = home.join("Documents");
+    fs::create_dir_all(&docs).unwrap();
+    fs::write(docs.join("thesis.txt"), "years of work").unwrap();
+    fs::create_dir_all(home.join(".config/lagom")).unwrap();
+    let out = lagom_with_home(&home, &docs, &["uninstall", "--all", "--purge", "--yes"]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("refusing to delete"));
+    assert!(docs.join("thesis.txt").exists());
+    assert!(
+        home.join(".config/lagom").exists(),
+        "nothing is deleted after a refusal"
+    );
+
+    // A custom LAGOM_HOME that Lagom created carries its marker and can be purged.
+    let home = sandbox("purge-custom");
+    let state = home.join("state/lagom-data");
+    assert!(
+        lagom_with_home(&home, &state, &["run", "--", "echo", "hi"])
+            .status
+            .success()
+    );
+    assert!(state.join(".lagom-dir").is_file());
+    let out = lagom_with_home(&home, &state, &["uninstall", "--all", "--purge", "--yes"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(!state.exists());
 }
 
 #[test]

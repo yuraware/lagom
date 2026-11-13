@@ -4,6 +4,7 @@
 //! anything dropped so the caller can store the original for `lagom recall`.
 
 mod diff;
+mod json;
 mod search;
 
 /// Output budget. Failed commands get double, so errors are never squeezed out.
@@ -71,6 +72,13 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
     };
     let mut lossy = false;
 
+    if let Some((text, lossy)) = json::compress(&cleaned, limits) {
+        return Compressed {
+            text,
+            lossy,
+            errors_despite_success,
+        };
+    }
     let lines = normalize_lines(&cleaned);
     // Search results come from a command that succeeded (`rg`, `grep`, `git grep` exit 0
     // when they match). A failed command printing `path:line:` lines is usually a linter
@@ -313,10 +321,11 @@ fn shorten_line(line: String, max_chars: usize, lossy: &mut bool) -> String {
 
 /// Lines that must survive compression: errors, failures, warnings, file:line locations.
 pub fn is_important(line: &str) -> bool {
-    const WORDS: [&str; 14] = [
+    const WORDS: [&str; 15] = [
         "error",
         "fail",
         "panic",
+        "crash", // also "CrashLoopBackOff"
         "exception",
         "traceback",
         "fatal",

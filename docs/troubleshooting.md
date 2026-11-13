@@ -54,10 +54,12 @@ To skip compression for one command: `LAGOM_RAW=1 git log`. To turn all hooks of
 
 - **"is not a plain JSON object; not changing it":** the agent's settings file isn't valid JSON (comments, a trailing comma, a half-saved edit). Lagom refuses to touch it. Fix the file, or restore `<file>.lagom.bak` if Lagom made one, then run `lagom install` again.
 - **"skipped skill lagom: … exists and is not Lagom's":** you already have a skill folder with that name. Lagom leaves it alone; rename yours if you want Lagom's.
+- **"`lagom install` doesn't support Windows yet":** the hook commands Lagom writes need a POSIX shell, so install refuses on Windows instead of writing hooks that can't run. `lagom uninstall` still works.
 
 ## Other
 
 - **`cargo install` says binary `lgm` already exists:** that's the unrelated `lgm` crate. Use `cargo install lagom --bin lagom` to install only `lagom`.
 - **The first run of a new build is slow on macOS** (up to a second): macOS scans unsigned binaries once. Later runs take a few milliseconds. Release builds will be signed.
-- **`--purge` says "refusing to delete":** `LAGOM_HOME` or `XDG_CONFIG_HOME` points at your home folder or above it. Unset it, or delete the right folder by hand.
+- **`--purge` says "refusing to delete … Lagom didn't create it":** purge deletes only the default `~/.lagom` and `~/.config/lagom`, or a folder holding Lagom's `.lagom-dir` marker. A `LAGOM_HOME` or `XDG_CONFIG_HOME` pointing at a folder of yours, or one an older Lagom created before the marker existed, is refused. Check what is in it and delete it by hand.
+- **`--purge` says "rerun with --yes to confirm":** outside a terminal there is no one to ask, so nothing was changed. Add `--yes`. `--purge` also refuses agent names (`lagom uninstall --all --purge`), because the data it deletes is shared by every agent.
 - **Undo everything:** `lagom uninstall --all --purge`. See [install](install.md).

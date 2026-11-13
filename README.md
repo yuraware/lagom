@@ -1,5 +1,7 @@
 # lagom
 
+[![crates.io](https://img.shields.io/crates/v/lagom.svg)](https://crates.io/crates/lagom)
+
 Fewer tokens, simpler answers for coding agents. *Lagom* is Swedish for "just the right amount".
 
 One small Rust binary (~0.5 MB, no runtime, no daemon) that plugs into **Claude Code**, **Codex** and **Cursor**:
@@ -12,18 +14,34 @@ Status: **0.1.0, first public preview.** Tested on macOS; Linux should work; Win
 
 ## Install
 
+Get the binary with Homebrew or Cargo:
+
 ```sh
-cargo install --git https://github.com/yuraware/lagom   # or: cargo install --path .
+brew install yuraware/tap/lagom    # Homebrew
+cargo install lagom                # or crates.io (needs Rust 1.87+)
+```
+
+Then connect it to your agents and start a new agent session:
+
+```sh
 lagom install            # every agent found: claude, codex, cursor
 lagom install claude     # or pick agents
 ```
 
-Then start a new agent session.
+| | Homebrew | Cargo |
+|---|---|---|
+| Upgrade | `brew upgrade lagom` | `cargo install lagom --force` |
+| Unreleased `main` | `brew install --HEAD yuraware/tap/lagom` | `cargo install --git https://github.com/yuraware/lagom` |
+| Remove the binary | `brew uninstall lagom` | `cargo uninstall lagom` |
+
+Homebrew builds from source, so the first install also downloads Rust as a build dependency. The formula lives in [yuraware/homebrew-tap](https://github.com/yuraware/homebrew-tap). From a local checkout, use `cargo install --path .`.
+
+To try unreleased changes, install from `main` with `cargo install --git https://github.com/yuraware/lagom`, or from a local checkout with `cargo install --path .`. Upgrade a crates.io install with `cargo install lagom --force`.
 
 `lgm` is a short alias: `lgm <command>` does exactly what `lagom <command>` does. (If you already have the unrelated `lgm` crate installed, use `cargo install lagom --bin lagom`.)
 
 - **Codex:** hooks stay inactive until you trust them. Open Codex, run `/hooks`, and approve the two `lagom hook codex …` entries.
-- **Undo:** `lagom uninstall` removes only Lagom's hooks and skills. Before its first change to a settings file, Lagom saves a copy next to it as `<file>.lagom.bak`.
+- **Undo:** `lagom uninstall` removes only Lagom's hooks and skills. Run it before removing the binary, so no hook is left pointing at a missing file. Before its first change to a settings file, Lagom saves a copy next to it as `<file>.lagom.bak`.
 
 | Agent | Hooks file | Skills | Session start | Subagents | Command rewrite |
 |---|---|---|---|---|---|

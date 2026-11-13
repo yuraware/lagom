@@ -228,10 +228,16 @@ fn render_spilled(
     code: i32,
     program: &str,
 ) -> String {
-    let mut out = compress(kept, code != 0, Limits::default()).text;
+    let compressed = compress(kept, code != 0, Limits::default());
+    let mut out = compressed.text;
     if !out.is_empty() && !out.ends_with('\n') {
         out.push('\n');
     }
+    let note = if compressed.errors_despite_success {
+        " exit code 0 but error lines found, so more were kept;"
+    } else {
+        ""
+    };
     if let Some(e) = cut_short {
         out.push_str(&format!(
             "[lagom: reading the command's output failed after {lines} lines ({e}); the rest is missing]\n"
@@ -239,7 +245,7 @@ fn render_spilled(
     }
     match spill.and_then(|s| s.finish(&program_name(program))) {
         Ok(id) => out.push_str(&format!(
-            "[lagom: {lines} → {} lines; full output: lagom recall {id} (or part: --grep TEXT, --lines A-B)]\n",
+            "[lagom: {lines} → {} lines;{note} full output: lagom recall {id} (or part: --grep TEXT, --lines A-B)]\n",
             out.lines().count()
         )),
         Err(e) => out.push_str(&format!(

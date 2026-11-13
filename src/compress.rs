@@ -57,8 +57,10 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
             errors_despite_success: false,
         };
     }
+    // Colors first: `\x1b[31merror\x1b[0m: boom` is an error line once they're gone.
+    let cleaned = strip_ansi(raw);
     // Some tools exit 0 and still print errors: treat those like failures.
-    let errors_despite_success = !failed && raw.lines().any(is_error_line);
+    let errors_despite_success = !failed && cleaned.lines().any(is_error_line);
     let limits = if failed || errors_despite_success {
         limits.for_failure()
     } else {
@@ -66,7 +68,6 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
     };
     let mut lossy = false;
 
-    let cleaned = strip_ansi(raw);
     let lines = normalize_lines(&cleaned);
     let lines = collapse_repeats(lines, &mut lossy);
     let lines: Vec<String> = lines
@@ -395,6 +396,15 @@ mod tests {
             "kept {kept} error lines"
         );
         assert!(!compress("all good\n", false, Limits::default()).errors_despite_success);
+        // Colored error lines count too (cargo and many tools color `error`).
+        assert!(
+            compress(
+                "\x1b[1m\x1b[31merror\x1b[0m\x1b[1m: could not compile\x1b[0m\n",
+                false,
+                Limits::default()
+            )
+            .errors_despite_success
+        );
         assert!(
             !compress(&raw, true, Limits::default()).errors_despite_success,
             "already a failure"

@@ -764,3 +764,18 @@ fn run_with_200_mb_of_output_stays_under_100_mb_of_memory() {
         );
     }
 }
+
+#[test]
+fn exit_zero_with_error_lines_says_so_in_the_footer() {
+    let home = sandbox("exit0errors");
+    let script = "i=0; while [ $i -lt 400 ]; do echo \"step $i done\"; i=$((i+1)); done; \
+                  echo 'src/a.py:3: error: bad import'; exit 0";
+    let out = lagom(&home, &["run", "--", "sh", "-c", script], None);
+    assert!(out.status.success());
+    let s = text(&out);
+    assert!(s.contains("src/a.py:3: error: bad import"), "{s}");
+    assert!(
+        s.contains("exit code 0 but error lines found, so more were kept;"),
+        "{s}"
+    );
+}

@@ -100,6 +100,28 @@ fn install_and_uninstall_round_trip_for_all_agents() {
 
     let status = text(&lagom(&home, &["status"], None));
     assert!(status.contains("claude  hooks: yes"), "{status}");
+    assert!(
+        !status.contains("project languages"),
+        "no project in the home folder: {status}"
+    );
+    // In a repository with marker files, status names its languages.
+    let repo = home.join("repo");
+    fs::create_dir_all(repo.join(".git")).unwrap();
+    fs::write(repo.join("Cargo.toml"), "").unwrap();
+    fs::write(repo.join("requirements.txt"), "").unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_lagom"))
+        .arg("status")
+        .env("HOME", &home)
+        .env_remove("LAGOM_HOME")
+        .env_remove("XDG_CONFIG_HOME")
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+    assert!(
+        text(&out).contains("project languages: Rust, Python"),
+        "{}",
+        text(&out)
+    );
 
     let out = lagom(&home, &["uninstall"], None);
     assert!(out.status.success());

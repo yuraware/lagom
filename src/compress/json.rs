@@ -177,12 +177,6 @@ fn json_lines(text: &str) -> Option<(String, bool)> {
     Some((out, dropped > 0))
 }
 
-/// Used by `is_compressed`: our own markers.
-pub fn is_marker_line(line: &str) -> bool {
-    (line.contains("\"… ") && line.contains(" more items"))
-        || (line.starts_with("… ") && line.contains(" JSON lines"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,8 +209,10 @@ mod tests {
         }
         assert!(out.contains("more items (keys: id, status, error)"));
         assert!(kept.len() < 40 && out.contains("\"total\":400"));
-        let again = super::super::compress(&out, false, Limits::default());
-        assert_eq!(again.text, out, "compressing twice changes nothing");
+        // What the agent sees carries `lagom run`'s recall footer; that is left alone.
+        let seen = format!("{out}[lagom: 1 → 1 lines; full output: lagom recall 0123456789]\n");
+        let again = super::super::compress(&seen, false, Limits::default());
+        assert_eq!(again.text, seen, "compressing twice changes nothing");
     }
 
     #[test]

@@ -55,27 +55,43 @@ fn parse_line(line: &str) -> Option<(String, Message)> {
     ))
 }
 
-/// Usage per session from transcript text (one or more files' worth).
-pub fn read_transcripts<'a>(texts: impl IntoIterator<Item = &'a str>) -> Vec<SessionUsage> {
-    let mut by_id: HashMap<String, Message> = HashMap::new();
-    let mut order: Vec<String> = Vec::new();
-    for text in texts {
+/// Messages seen so far, one per `message.id`, in the order they first appeared.
+#[derive(Default)]
+struct Messages {
+    by_id: HashMap<String, Message>,
+    order: Vec<String>,
+}
+
+impl Messages {
+    fn add_text(&mut self, text: &str) {
         for line in text.lines() {
             if let Some((id, mut msg)) = parse_line(line) {
-                match by_id.get_mut(&id) {
+                match self.by_id.get_mut(&id) {
                     // Last line per id wins, but the message started at its first line.
                     Some(old) => {
                         msg.first_ts = old.first_ts.take().or(msg.first_ts);
                         *old = msg;
                     }
                     None => {
-                        by_id.insert(id.clone(), msg);
-                        order.push(id);
+                        self.by_id.insert(id.clone(), msg);
+                        self.order.push(id);
                     }
                 }
             }
         }
     }
+}
+
+/// Usage per session from transcript text (one or more files' worth).
+pub fn read_transcripts<'a>(texts: impl IntoIterator<Item = &'a str>) -> Vec<SessionUsage> {
+    let mut msgs = Messages::default();
+    for text in texts {
+        msgs.add_text(text);
+    }
+    per_session(msgs)
+}
+
+fn per_session(Messages { by_id, order }: Messages) -> Vec<SessionUsage> {
     let mut sessions: Vec<SessionUsage> = Vec::new();
     let mut index: HashMap<String, usize> = HashMap::new();
     for id in &order {
@@ -93,7 +109,9 @@ pub fn read_transcripts<'a>(texts: impl IntoIterator<Item = &'a str>) -> Vec<Ses
         } else {
             s.main.add(&m.usage)
         }
-        if m.model.is_some() {
+        // The session's model is the main conversation's, not a subagent's, and not the
+        // `<synthetic>` placeholder Claude Code writes for errors it shows itself.
+        if !m.sidechain && m.model.as_ref().is_some_and(|x| x != "<synthetic>") {
             s.model.clone_from(&m.model);
         }
         if s.first_ts.is_none() {
@@ -122,7 +140,11 @@ pub fn transcript_files(dir: &Path, since: Option<SystemTime>) -> Vec<PathBuf> {
         };
         for e in entries.flatten() {
             let p = e.path();
-            if p.is_dir() {
+            // `file_type` doesn't follow links, so a link loop can't make this walk forever.
+            let Ok(kind) = e.file_type() else {
+                continue;
+            };
+            if kind.is_dir() {
                 stack.push(p);
             } else if p.extension().is_some_and(|x| x == "jsonl") {
                 let recent = since.is_none_or(|t| {
@@ -141,12 +163,17 @@ pub fn transcript_files(dir: &Path, since: Option<SystemTime>) -> Vec<PathBuf> {
 }
 
 /// Usage of every Claude Code session whose transcript changed since `since`.
+///
+/// Files are read one at a time: all transcripts together can be gigabytes. A file still
+/// being written may end mid-character, so text is decoded lossily rather than skipped.
 pub fn sessions(since: Option<SystemTime>) -> Vec<SessionUsage> {
-    let texts: Vec<String> = transcript_files(&projects_dir(), since)
-        .iter()
-        .filter_map(|p| fs::read_to_string(p).ok())
-        .collect();
-    read_transcripts(texts.iter().map(String::as_str))
+    let mut msgs = Messages::default();
+    for p in transcript_files(&projects_dir(), since) {
+        if let Ok(bytes) = fs::read(&p) {
+            msgs.add_text(&String::from_utf8_lossy(&bytes));
+        }
+    }
+    per_session(msgs)
 }
 
 #[cfg(test)]
@@ -187,6 +214,43 @@ mod tests {
         assert_eq!(a.last_ts.as_deref(), Some("2026-11-08T10:00:09Z"));
         assert_eq!(s[1].session_id, "sess-b");
         assert_eq!(s[1].main.output, 100);
+    }
+
+    #[test]
+    fn model_comes_from_the_main_conversation() {
+        let line = |id: &str, model: &str, side: bool| {
+            format!(
+                r#"{{"type":"assistant","sessionId":"s","isSidechain":{side},"message":{{"id":"{id}","model":"{model}","usage":{{"output_tokens":1}}}}}}"#
+            )
+        };
+        let text = [
+            line("a", "claude-opus-5-5", false),
+            line("b", "<synthetic>", false),
+            line("c", "claude-haiku-5-5", true),
+        ]
+        .join("\n");
+        let s = read_transcripts([text.as_str()]);
+        assert_eq!(s[0].model.as_deref(), Some("claude-opus-5-5"));
+        assert_eq!(s[0].main.messages, 2);
+        assert_eq!(s[0].subagents.messages, 1);
+    }
+
+    #[test]
+    fn link_loops_are_skipped_and_a_cut_character_still_counts() {
+        let dir = std::env::temp_dir().join(format!("lagom-gain-{}", std::process::id()));
+        let proj = dir.join("projects/p");
+        fs::create_dir_all(&proj).unwrap();
+        let mut bytes = br#"{"type":"assistant","sessionId":"s","message":{"id":"m","usage":{"output_tokens":7}}}"#.to_vec();
+        bytes.extend_from_slice(b"\n{\"type\":\"user\",\"x\":\"\xc3"); // cut in the middle of "é"
+        fs::write(proj.join("s.jsonl"), bytes).unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&dir, proj.join("loop")).unwrap();
+        let files = transcript_files(&dir.join("projects"), None);
+        assert_eq!(files.len(), 1);
+        let mut msgs = Messages::default();
+        msgs.add_text(&String::from_utf8_lossy(&fs::read(&files[0]).unwrap()));
+        assert_eq!(per_session(msgs)[0].main.output, 7);
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

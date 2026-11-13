@@ -61,8 +61,6 @@ const STREAMING_ARGS: [&str; 12] = [
 /// Characters that make a command more than "one program with arguments".
 const SHELL_OPERATORS: [char; 9] = ['|', '&', ';', '<', '>', '`', '\n', '(', ')'];
 
-/// Returns the rewritten command, or None to leave it unchanged.
-/// `session` is an `agent:id` token for stats; it is dropped unless it's a plain id.
 /// A leading `cd <dir> && <command>`, the most common compound command agents write:
 /// `(dir, command)`. The directory must be a plain word or a single-quoted string with
 /// no shell metacharacters, variables or globs.
@@ -75,7 +73,10 @@ pub fn split_cd(command: &str) -> Option<(&str, &str)> {
         .and_then(|d| d.strip_suffix('\''))
         .unwrap_or(dir);
     let quoted = bare.len() != dir.len();
+    // `cd -` goes to the previous folder, `cd --` and `cd -P` to the home folder: none of
+    // them is the path they look like, so options are never accepted.
     let ok = !bare.is_empty()
+        && !bare.starts_with('-')
         && !bare.contains(['\'', '"', '$', '`', '\\', '*', '?', '[', '~', '{'])
         && !bare.contains(SHELL_OPERATORS)
         && (quoted || !bare.contains(char::is_whitespace));
@@ -115,6 +116,13 @@ fn single_command_skip_reason(command: &str) -> Option<&'static str> {
     None
 }
 
+/// True for programs Lagom rewrites (`git`, `cargo`, …).
+pub fn is_known_program(name: &str) -> bool {
+    PROGRAMS.contains(&name)
+}
+
+/// Returns the rewritten command, or None to leave it unchanged.
+/// `session` is an `agent:id` token for stats; it is dropped unless it's a plain id.
 pub fn rewrite(command: &str, lagom_bin: &str, session: Option<&str>) -> Option<String> {
     if skip_reason(command).is_some() {
         return None;
@@ -155,6 +163,19 @@ mod tests {
     use super::*;
 
     const BIN: &str = "/usr/local/bin/lagom";
+
+    #[test]
+    fn cd_options_are_never_split() {
+        for c in [
+            "cd - && git log",
+            "cd -- && git log",
+            "cd -P && git log",
+            "cd '-' && git log",
+        ] {
+            assert_eq!(split_cd(c), None, "{c}");
+            assert_eq!(rewrite(c, BIN, None), None, "{c}");
+        }
+    }
 
     #[test]
     fn cd_prefix_is_kept_and_the_command_compressed() {

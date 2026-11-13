@@ -36,6 +36,8 @@ lagom install claude     # or pick agents
 
 Homebrew builds from source, so the first install also downloads Rust as a build dependency. The formula lives in [yuraware/homebrew-tap](https://github.com/yuraware/homebrew-tap). From a local checkout, use `cargo install --path .`.
 
+To try unreleased changes, install from `main` with `cargo install --git https://github.com/yuraware/lagom`, or from a local checkout with `cargo install --path .`. Upgrade a crates.io install with `cargo install lagom --force`.
+
 `lgm` is a short alias: `lgm <command>` does exactly what `lagom <command>` does. (If you already have the unrelated `lgm` crate installed, use `cargo install lagom --bin lagom`.)
 
 - **Codex:** hooks stay inactive until you trust them. Open Codex, run `/hooks`, and approve the two `lagom hook codex …` entries.

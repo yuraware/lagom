@@ -23,6 +23,7 @@ Usage:
   lagom compress                            Compress text from stdin
   lagom recall <id> [--grep TEXT]           Print the full output behind a compressed result
                   [--lines A-B] [--head N] [--tail N]  or only part of it
+  lagom recall --list | --clear             List or delete saved outputs
   lagom stats                               Show estimated savings
   lagom hook <agent> <event>                Used by agent hooks (reads JSON on stdin)
   lagom --version
@@ -95,6 +96,42 @@ fn cmd_recall(args: &[String]) -> ExitCode {
         eprintln!("lagom: {USAGE}");
         return ExitCode::from(2);
     };
+    match id.as_str() {
+        "--list" => {
+            let now = std::time::SystemTime::now();
+            let all = store::list_recall();
+            for e in &all {
+                let age = now
+                    .duration_since(e.modified)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                let age = match age {
+                    s if s < 3600 => format!("{}m", s / 60),
+                    s if s < 86_400 => format!("{}h", s / 3600),
+                    s => format!("{}d", s / 86_400),
+                };
+                println!(
+                    "{}  {:>8}  {:>4} ago  {}",
+                    e.id,
+                    human_bytes(e.bytes),
+                    age,
+                    e.program
+                );
+            }
+            let total: u64 = all.iter().map(|e| e.bytes).sum();
+            println!(
+                "{} saved outputs, {} (kept: last 500, 200 MB, 14 days)",
+                all.len(),
+                human_bytes(total)
+            );
+            return ExitCode::SUCCESS;
+        }
+        "--clear" => {
+            println!("removed {} saved outputs", store::clear_recall());
+            return ExitCode::SUCCESS;
+        }
+        _ => {}
+    }
     let selection = match store::Selection::parse(rest) {
         Ok(s) => s,
         Err(e) => {
@@ -114,9 +151,19 @@ fn cmd_recall(args: &[String]) -> ExitCode {
             ExitCode::SUCCESS
         }
         None => {
-            eprintln!("lagom: no stored output for `{id}` (Lagom keeps the last 500)");
+            eprintln!(
+                "lagom: no stored output for `{id}`: it may have been pruned (Lagom keeps up to 500 outputs, 200 MB, for 14 days; see `lagom recall --list`)"
+            );
             ExitCode::from(1)
         }
+    }
+}
+
+fn human_bytes(n: u64) -> String {
+    match n {
+        n if n < 1024 => format!("{n} B"),
+        n if n < 1024 * 1024 => format!("{:.1} KB", n as f64 / 1024.0),
+        n => format!("{:.1} MB", n as f64 / (1024.0 * 1024.0)),
     }
 }
 

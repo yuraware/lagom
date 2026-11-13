@@ -102,6 +102,12 @@ fn cmd_recall(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    if !store::is_recall_id(id) {
+        eprintln!(
+            "lagom: `{id}` is not a recall id (10 hex characters, from a `[lagom: … lagom recall <id> …]` line)\n{USAGE}"
+        );
+        return ExitCode::from(2);
+    }
     match store::load_original(id) {
         Some(text) => {
             print!("{}", selection.apply(&text));

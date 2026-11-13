@@ -6,7 +6,7 @@ Long command output (tests, builds, `git log`, searches) is shortened before the
 - Exact repeats become one line with a count (`[×37]`); runs of lines that differ only in numbers keep their first and last line.
 - Over 120 lines, the output keeps its first 30 and last 50 lines, plus up to 40 error, warning and `file:line` lines from the middle, in the order they appear. Failed commands get double these limits. Anything past them is left out, so check the footer below when a long log has many errors.
 - Exit codes are unchanged.
-- Anything dropped stays available: the output ends with `[lagom: N → M lines; full output: lagom recall <id> (or part: --grep TEXT, --lines A-B)]`. `lagom recall <id> --grep error` prints only matching lines with their line numbers; `--lines 120-160`, `--head N` and `--tail N` print a slice.
+- Anything dropped stays available: the output ends with `[lagom: N → M lines; full output: lagom recall <id> (or part: --grep TEXT, --lines A-B)]`. `lagom recall <id> --grep error` prints only matching lines with their line numbers (lowercase text matches any case, so `error` also finds `ERROR`; text with a capital letter matches exactly); `--lines 120-160`, `--head N` and `--tail N` print a slice.
 
 ## Automatic: command rewrite
 

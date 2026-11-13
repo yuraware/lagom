@@ -368,6 +368,13 @@ fn run_compresses_keeps_exit_code_and_recall_works() {
             .code(),
         Some(2)
     );
+    assert_eq!(
+        lagom(&home, &["recall", "../stats", "--head", "1"], None)
+            .status
+            .code(),
+        Some(2),
+        "not a recall id"
+    );
     assert_eq!(full.lines().count(), 401);
 
     let stats = text(&lagom(&home, &["stats"], None));

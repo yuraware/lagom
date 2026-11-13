@@ -72,8 +72,13 @@ pub fn save_original(content: &str) -> std::io::Result<String> {
     Ok(id)
 }
 
+/// The shape of an id that [`content_id`] makes: 10 hex digits.
+pub fn is_recall_id(id: &str) -> bool {
+    id.len() == 10 && id.chars().all(|c| c.is_ascii_hexdigit())
+}
+
 pub fn load_original(id: &str) -> Option<String> {
-    if id.is_empty() || !id.chars().all(|c| c.is_ascii_hexdigit()) {
+    if !is_recall_id(id) {
         return None;
     }
     fs::read_to_string(recall_dir().join(format!("{id}.log"))).ok()
@@ -84,7 +89,8 @@ pub fn load_original(id: &str) -> Option<String> {
 pub struct Selection {
     /// 1-based inclusive range; `None` end means "to the last line".
     pub lines: Option<(usize, Option<usize>)>,
-    /// Keep lines containing this text (case-sensitive); printed as `N: line`.
+    /// Keep lines containing this text; printed as `N: line`. Smart case, as in `rg`:
+    /// all-lowercase text matches any case (`error` finds `ERROR`), otherwise exact.
     pub grep: Option<String>,
     pub head: Option<usize>,
     pub tail: Option<usize>,
@@ -137,7 +143,11 @@ impl Selection {
             lines.retain(|(n, _)| *n >= start && end.is_none_or(|e| *n <= e));
         }
         if let Some(pat) = &self.grep {
-            lines.retain(|(_, l)| l.contains(pat.as_str()));
+            if pat.chars().any(char::is_uppercase) {
+                lines.retain(|(_, l)| l.contains(pat.as_str()));
+            } else {
+                lines.retain(|(_, l)| l.to_lowercase().contains(pat.as_str()));
+            }
         }
         if let Some(h) = self.head {
             lines.truncate(h);
@@ -274,20 +284,22 @@ mod tests {
 
     #[test]
     fn recall_selection() {
-        let text = "a\nb error\nc\nd error\ne\n";
+        let text = "a\nb error\nc\nd ERROR\ne\n";
         assert_eq!(sel(&[]).apply(text), text);
         assert_eq!(sel(&["--lines", "2-3"]).apply(text), "b error\nc\n");
-        assert_eq!(sel(&["--lines", "4-"]).apply(text), "d error\ne\n");
+        assert_eq!(sel(&["--lines", "4-"]).apply(text), "d ERROR\ne\n");
         assert_eq!(sel(&["--lines", "2"]).apply(text), "b error\n");
         assert_eq!(
             sel(&["--grep", "error"]).apply(text),
-            "2: b error\n4: d error\n"
+            "2: b error\n4: d ERROR\n",
+            "lowercase text matches any case"
         );
+        assert_eq!(sel(&["--grep", "ERROR"]).apply(text), "4: d ERROR\n");
         assert_eq!(sel(&["--head", "2"]).apply(text), "a\nb error\n");
         assert_eq!(sel(&["--tail", "1"]).apply(text), "e\n");
         assert_eq!(
             sel(&["--lines", "3-", "--grep", "error"]).apply(text),
-            "4: d error\n"
+            "4: d ERROR\n"
         );
         for bad in [
             &["--lines", "0-2"][..],

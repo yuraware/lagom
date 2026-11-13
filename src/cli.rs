@@ -497,8 +497,8 @@ fn cmd_usage(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let since =
-        std::time::SystemTime::now().checked_sub(std::time::Duration::from_secs(days * 86_400));
+    let since = std::time::SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(days.saturating_mul(86_400)));
     let (styles, tracked_since) = store::session_styles();
     let agents = [
         ("Claude Code", crate::gain::claude::sessions(since)),
@@ -536,7 +536,7 @@ fn cmd_usage(args: &[String]) -> ExitCode {
 /// `lagom discover [--days N]`: large outputs Lagom didn't compress, and why.
 fn cmd_discover(args: &[String]) -> ExitCode {
     use crate::gain::{claude, codex, discover};
-    let days = match args {
+    let days: u64 = match args {
         [] => 30,
         [flag, n] if flag == "--days" && n.parse::<u64>().is_ok() => n.parse().unwrap_or(30),
         _ => {
@@ -544,16 +544,22 @@ fn cmd_discover(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let since =
-        std::time::SystemTime::now().checked_sub(std::time::Duration::from_secs(days * 86_400));
+    let since = std::time::SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(days.saturating_mul(86_400)));
     let mut calls = Vec::new();
+    // Lossy: a log still being written may end in the middle of a character.
+    let read = |p: &std::path::Path| {
+        std::fs::read(p)
+            .ok()
+            .map(|b| String::from_utf8_lossy(&b).into_owned())
+    };
     for path in claude::transcript_files(&claude::projects_dir(), since) {
-        if let Ok(text) = std::fs::read_to_string(&path) {
+        if let Some(text) = read(&path) {
             calls.extend(discover::claude_calls(&text));
         }
     }
     for path in claude::transcript_files(&codex::sessions_dir(), since) {
-        if let Ok(text) = std::fs::read_to_string(&path) {
+        if let Some(text) = read(&path) {
             calls.extend(discover::codex_calls(&text));
         }
     }
@@ -602,10 +608,24 @@ fn cmd_discover(args: &[String]) -> ExitCode {
             );
         }
     }
+    let large: usize = r.by_tool.values().map(|g| g.bytes).sum();
+    if large > 0 {
+        let mut tools: Vec<_> = r.by_tool.iter().collect();
+        tools.sort_by_key(|(_, g)| std::cmp::Reverse(g.bytes));
+        let shares: Vec<String> = tools
+            .iter()
+            .map(|(tool, g)| format!("{tool} {:.0}%", g.bytes as f64 * 100.0 / large as f64))
+            .collect();
+        println!(
+            "\nLarge outputs (≥ {}) by tool, share of bytes: {}",
+            kb(discover::LARGE),
+            shares.join(", ")
+        );
+    }
     let mut rereads: Vec<_> = r.rereads.iter().collect();
     rereads.sort_by_key(|(_, g)| std::cmp::Reverse(g.bytes));
     if !rereads.is_empty() {
-        println!("\nLarge files read again in the same session:");
+        println!("\nLarge files (or the same part of one) read again in the same session:");
         for (path, g) in rereads.iter().take(10) {
             println!("  {:>3} × {path} ({} again)", g.count, kb(g.bytes));
         }

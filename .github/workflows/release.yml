@@ -1,12 +1,16 @@
 name: release
 
 # A pushed `v*` tag builds the archives and publishes a GitHub Release.
-# Running it by hand (workflow_dispatch) builds, checks and attests the same
-# archives and keeps them as workflow artifacts, without creating a release.
+# Running it by hand (workflow_dispatch, only once this file is on the default branch)
+# builds, checks and attests the same archives and keeps them as workflow artifacts,
+# without creating a release. A pull request that changes this file runs the same dry
+# run without the attestation, so the workflow is tested before it lands.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+  pull_request:
+    paths: [".github/workflows/release.yml"]
 
 permissions:
   contents: read
@@ -51,6 +55,7 @@ jobs:
           - { target: aarch64-apple-darwin, os: macos-15, native: true }
           - { target: x86_64-apple-darwin, os: macos-15-intel, native: true }
           - { target: x86_64-unknown-linux-musl, os: ubuntu-latest, zig: true, native: true }
+          # Cross-built here; the `check-linux-arm` job runs it on an Arm runner.
           - { target: aarch64-unknown-linux-musl, os: ubuntu-latest, zig: true }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -76,12 +81,15 @@ jobs:
       - name: Build
         run: cargo ${ZIG:+zig}build --release --locked --target "$TARGET" --bin lagom
       - name: Check the binary
-        if: matrix.native
+        env:
+          NATIVE: ${{ matrix.native && '1' || '' }}
         run: |
           bin="target/$TARGET/release/lagom"
           kind=$(file "$bin") && echo "$kind"
-          out=$("$bin" --version) && echo "$out"
-          case "$out" in "lagom "*) ;; *) echo "::error::unexpected --version output"; exit 1 ;; esac
+          if [ -n "$NATIVE" ]; then
+            out=$("$bin" --version) && echo "$out"
+            case "$out" in "lagom "*) ;; *) echo "::error::unexpected --version output"; exit 1 ;; esac
+          fi
           if [ -n "$ZIG" ]; then
             case "$kind" in *"statically linked"* | *"static-pie linked"*) ;; *) echo "::error::not a static binary"; exit 1 ;; esac
           fi
@@ -100,8 +108,25 @@ jobs:
           path: dist/lagom-${{ needs.version.outputs.version }}-${{ matrix.target }}.tar.gz
           if-no-files-found: error
 
-  release:
+  check-linux-arm:
+    # The aarch64 musl archive is cross-built: run it on an Arm runner before releasing.
     needs: [version, build]
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    env:
+      NAME: lagom-${{ needs.version.outputs.version }}-aarch64-unknown-linux-musl
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: archive-aarch64-unknown-linux-musl
+      - run: |
+          tar -xzf "$NAME.tar.gz"
+          file "$NAME/lagom"
+          out=$("$NAME/lagom" --version) && echo "$out"
+          case "$out" in "lagom "*) ;; *) echo "::error::unexpected --version output"; exit 1 ;; esac
+
+  release:
+    needs: [version, build, check-linux-arm]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -126,6 +151,7 @@ jobs:
           cat SHA256SUMS
           [ "$(wc -l < SHA256SUMS)" -eq 4 ] || { echo "::error::expected 4 archives"; exit 1; }
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        if: github.event_name != 'pull_request' # no attestations for builds that aren't released
         with:
           subject-checksums: dist/SHA256SUMS
       - name: Release notes from CHANGELOG.md

@@ -29,7 +29,6 @@ cargo test        # never touches your real agent config
 - New behaviour has a test; a bug fix has a test that failed before the fix.
 - User-visible changes add a fragment in `changelog.d/` (see [changelog.d/README.md](changelog.d/README.md)).
 - No new crate without agreement first (see [Dependencies](#dependencies)).
-- Every commit is signed off (see [Sign your work](#sign-your-work)).
 - One commit message line, in [Conventional Commits](https://www.conventionalcommits.org/) form.
 
 ## Rules that are never relaxed
@@ -44,7 +43,7 @@ Everything Lagom injects or adds to output is read by the model as context. Chec
 
 - [ ] **Injected text stays in one `<lagom> … </lagom>` block.** Style and project text goes through `neutralize_tags`, so no form of the tag (`</lagom >`, `< /LAGOM>`, `<lagom attr>`) can open or close the block.
 - [ ] **Markers are plain status, not instructions.** Write `[lagom: 400 → 90 lines; full output: lagom recall <id>]`, never "you must…", "ignore…", "system:" or anything that imitates the agent's own prompts.
-- [ ] **Nothing is hidden from the user.** Rewritten commands stay visible in the agent's UI, as `lagom run -- <command>`; no silent edits to what the agent or the user sees.
+- [ ] **Nothing is hidden from the user.** Rewritten commands stay visible in the agent's UI, as `lagom run … -- <command>`; no silent edits to what the agent or the user sees.
 - [ ] **No new text sources without trust.** Don't add a way for a repository's files to reach the model or turn a feature on. Turning something *off* is the only thing an untrusted file may do. Known exception until project trust lands: project styles and a project's style list are used as they are.
 - [ ] **Output content is data.** Lagom never interprets text inside command output as configuration or commands.
 - [ ] **Size stays small.** Agents cap how much hook output reaches the model, so keep injected text short and markers to one line. Lagom doesn't enforce a cap on style text yet.
@@ -52,16 +51,6 @@ Everything Lagom injects or adds to output is read by the model as context. Chec
 ## Dependencies
 
 Lagom has one runtime dependency, `serde_json`, and keeps it that way unless there is a strong reason. Open an issue before adding a crate. Async runtimes, argument-parser frameworks, error-helper crates, date-time crates and logging frameworks are out: the binary has a hand-written argument parser, uses `std::error::Error` and Unix seconds, and prints debug output to stderr.
-
-## Sign your work
-
-Lagom uses the [Developer Certificate of Origin](https://developercertificate.org/) (DCO) instead of a contributor license agreement. By adding a `Signed-off-by` line to a commit you certify that you wrote the change or otherwise have the right to submit it under the project's license:
-
-```sh
-git commit -s -m "fix: keep warning lines in go test output"
-```
-
-The line uses the name and email from your git config. To sign off commits you already made, run `git rebase --signoff main` and force-push your branch.
 
 ## License
 

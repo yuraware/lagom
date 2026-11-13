@@ -10,6 +10,8 @@ homepage = "https://github.com/yuraware/lagom"
 keywords = ["llm", "claude", "codex", "tokens", "cli"]
 categories = ["command-line-utilities", "development-tools"]
 rust-version = "1.87"
+# Two binaries (`lagom` and the `lgm` alias): `cargo run` runs `lagom`.
+default-run = "lagom"
 # Ship only what the build needs (styles and skills are embedded with include_str!).
 include = ["src/**", "styles/**", "skills/**", "README.md", "CHANGELOG.md", "LICENSE", "Cargo.toml", "Cargo.lock"]
 

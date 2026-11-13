@@ -44,9 +44,18 @@ fn hook_contract_fixtures() {
     let all = cases(&root);
     assert!(all.len() >= 15, "found {} cases", all.len());
 
+    let host_policy = host_claude_policy();
+    if let Some(found) = &host_policy {
+        eprintln!(
+            "hooks: skipping Claude Code pre-tool cases: this machine has a Claude Code policy ({found}), which the hook reads and a sandboxed HOME can't hide"
+        );
+    }
     for (agent, case) in &all {
         let name = case.file_name().unwrap().to_string_lossy().into_owned();
         let event = name.split("--").next().unwrap();
+        if agent == "claude" && event == "pre-tool" && host_policy.is_some() {
+            continue;
+        }
         let home =
             std::env::temp_dir().join(format!("lagom-hooks-{agent}-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&home);
@@ -63,6 +72,7 @@ fn hook_contract_fixtures() {
             .args(["hook", agent, event])
             .env("HOME", &home)
             .env_remove("CLAUDE_CONFIG_DIR")
+            .env_remove("CLAUDE_PROJECT_DIR")
             .env_remove("CODEX_HOME")
             .env_remove("XDG_CONFIG_HOME")
             .env_remove("LAGOM_HOME")
@@ -106,4 +116,19 @@ fn hook_contract_fixtures() {
         }
     }
     assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+}
+
+/// A Claude Code managed policy on this machine, if any. The pre-tool hook reads it from
+/// fixed system paths, so it would change the results of the Claude Code cases.
+fn host_claude_policy() -> Option<String> {
+    let user = std::env::var("USER").unwrap_or_default();
+    let candidates = [
+        "/Library/Application Support/ClaudeCode/managed-settings.json".to_string(),
+        "/Library/Application Support/ClaudeCode/managed-settings.d".to_string(),
+        "/Library/Managed Preferences/com.anthropic.claudecode.plist".to_string(),
+        format!("/Library/Managed Preferences/{user}/com.anthropic.claudecode.plist"),
+        "/etc/claude-code/managed-settings.json".to_string(),
+        "/etc/claude-code/managed-settings.d".to_string(),
+    ];
+    candidates.into_iter().find(|p| Path::new(p).exists())
 }

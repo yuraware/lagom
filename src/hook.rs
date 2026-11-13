@@ -45,6 +45,9 @@ impl Agent {
 const MAX_PAYLOAD: u64 = 8 * 1024 * 1024;
 /// Longest shell command we consider rewriting.
 const MAX_COMMAND: usize = 64 * 1024;
+/// Longest `cwd` we accept. Real paths are far shorter; a huge one would make the
+/// settings lookup walk millions of parent folders.
+const MAX_PATH: usize = 4096;
 
 /// Longest a hook may take. Agents wait for hooks (we register a 10 s timeout);
 /// Lagom gives up well before that and lets the agent continue unchanged.
@@ -175,14 +178,15 @@ pub fn respond(agent: Agent, event: &str, payload: &Value, bin: &str) -> Option<
         return None;
     }
     // Claude Code and Codex send `cwd`; Cursor sends `workspace_roots`.
-    let cwd = payload
-        .get("cwd")
-        .and_then(Value::as_str)
-        .or_else(|| {
-            payload
-                .pointer("/workspace_roots/0")
-                .and_then(Value::as_str)
-        })
+    let cwd = payload.get("cwd").and_then(Value::as_str).or_else(|| {
+        payload
+            .pointer("/workspace_roots/0")
+            .and_then(Value::as_str)
+    });
+    if cwd.is_some_and(|c| c.len() > MAX_PATH) {
+        return None;
+    }
+    let cwd = cwd
         .map(PathBuf::from)
         .or_else(|| std::env::current_dir().ok())
         .unwrap_or_else(|| PathBuf::from("."));
@@ -245,7 +249,17 @@ fn pre_tool(agent: Agent, payload: &Value, cwd: &Path, bin: &str) -> Option<Valu
             if unreadable_claude_policy() {
                 return None; // an org policy we can't read might deny this command
             }
-            let rules = claude_rules(cwd, &crate::install::claude_dir(), &claude_managed_dir());
+            // Claude Code reads a project's local settings from the folder the session
+            // started in (and its repository root), not from wherever Claude has `cd`-ed to.
+            let project = std::env::var_os("CLAUDE_PROJECT_DIR").map(PathBuf::from);
+            let Some(rules) = claude_rules(
+                cwd,
+                project.as_deref(),
+                &crate::install::claude_dir(),
+                &claude_managed_dir(),
+            ) else {
+                return None; // a managed settings file we can't read might deny this command
+            };
             if rules.denies(command) || rules.asks(command) {
                 return None;
             }
@@ -272,6 +286,11 @@ fn pre_tool(agent: Agent, payload: &Value, cwd: &Path, bin: &str) -> Option<Valu
         Agent::Cursor => {
             let mut rules = Rules::new(Syntax::Cursor);
             rules.add_file(&cursor_cli_config(), "Shell", Source::Trusted);
+            // Project permissions live in `<project>/.cursor/cli.json`. Their deny rules
+            // count; their allow rules don't, because a cloned repo supplies them.
+            for dir in cwd.ancestors() {
+                rules.add_file(&dir.join(".cursor/cli.json"), "Shell", Source::RestrictOnly);
+            }
             if rules.denies(command) || !rules.allows(command) {
                 return None;
             }
@@ -312,28 +331,43 @@ fn unreadable_claude_policy() -> bool {
 
 /// Collect Claude Code's permission rules the way Claude Code applies them:
 /// - managed settings (`managed-settings.json`, then `managed-settings.d/*.json`);
-///   with `allowManagedPermissionRulesOnly`, they are the only source of allow rules;
+///   with `allowManagedPermissionRulesOnly`, they are the only source of allow rules.
+///   A managed file that exists but can't be read or parsed gives `None`: its deny rules
+///   are unknown, so the caller must not rewrite;
 /// - user settings and the config home's `settings.local.json`;
 /// - project `.claude/settings.json`: deny and ask only, because Claude Code applies its
 ///   allow rules only after workspace trust, which Lagom can't see;
-/// - project `.claude/settings.local.json`: allow rules only if the file is the user's own
-///   (not tracked by git, `.claude` not a symlink); deny and ask always.
-fn claude_rules(cwd: &Path, user_dir: &Path, managed_dir: &Path) -> Rules {
+/// - project `.claude/settings.local.json`: its allow rules count only where Claude Code
+///   reads that file (the session's project folder and its repository root) and only if
+///   the file is the user's own. Deny and ask rules from every folder above `cwd` count.
+fn claude_rules(
+    cwd: &Path,
+    project_dir: Option<&Path>,
+    user_dir: &Path,
+    managed_dir: &Path,
+) -> Option<Rules> {
     let mut rules = Rules::new(Syntax::Claude);
     let mut managed = vec![managed_dir.join("managed-settings.json")];
-    if let Ok(entries) = fs::read_dir(managed_dir.join("managed-settings.d")) {
-        let mut drop_ins: Vec<PathBuf> = entries
-            .flatten()
-            .map(|e| e.path())
-            .filter(|p| {
-                p.extension().is_some_and(|e| e == "json")
-                    && !p
-                        .file_name()
-                        .is_some_and(|n| n.to_string_lossy().starts_with('.'))
-            })
-            .collect();
-        drop_ins.sort();
-        managed.extend(drop_ins);
+    match fs::read_dir(managed_dir.join("managed-settings.d")) {
+        Ok(entries) => {
+            let mut drop_ins: Vec<PathBuf> = entries
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| {
+                    p.extension().is_some_and(|e| e == "json")
+                        && !p
+                            .file_name()
+                            .is_some_and(|n| n.to_string_lossy().starts_with('.'))
+                })
+                .collect();
+            drop_ins.sort();
+            managed.extend(drop_ins);
+        }
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return None,
+        Err(_) => {}
+    }
+    if managed.iter().any(|f| f.exists() && read_json(f).is_none()) {
+        return None;
     }
     let managed_only = managed.iter().any(|f| {
         read_json(f).is_some_and(|v| v.get("allowManagedPermissionRulesOnly") == Some(&json!(true)))
@@ -348,20 +382,43 @@ fn claude_rules(cwd: &Path, user_dir: &Path, managed_dir: &Path) -> Rules {
     };
     rules.add_file(&user_dir.join("settings.json"), "Bash", others);
     rules.add_file(&user_dir.join("settings.local.json"), "Bash", others);
+    let base = project_dir.unwrap_or(cwd);
+    let local_dirs = [Some(base), repo_root(base)];
     for dir in cwd.ancestors() {
         let claude = dir.join(".claude");
         if claude == user_dir {
             continue; // the user's own config folder, already read above
         }
         rules.add_file(&claude.join("settings.json"), "Bash", Source::RestrictOnly);
-        let local = if managed_only {
-            Source::RestrictOnly
-        } else {
+        let local = if !managed_only && local_dirs.contains(&Some(dir)) {
             Source::LocalFile
+        } else {
+            Source::RestrictOnly
         };
         rules.add_file(&claude.join("settings.local.json"), "Bash", local);
     }
-    rules
+    if let Some(project) = project_dir.filter(|p| !cwd.starts_with(p)) {
+        // The session's project folder isn't above `cwd` (Claude `cd`-ed elsewhere).
+        rules.add_file(
+            &project.join(".claude/settings.json"),
+            "Bash",
+            Source::RestrictOnly,
+        );
+        for dir in project.ancestors().take(1).chain(repo_root(project)) {
+            let local = if managed_only {
+                Source::RestrictOnly
+            } else {
+                Source::LocalFile
+            };
+            rules.add_file(&dir.join(".claude/settings.local.json"), "Bash", local);
+        }
+    }
+    Some(rules)
+}
+
+/// The nearest folder at or above `dir` that holds a `.git` entry.
+fn repo_root(dir: &Path) -> Option<&Path> {
+    dir.ancestors().find(|d| d.join(".git").exists())
 }
 
 fn cursor_cli_config() -> PathBuf {
@@ -472,6 +529,9 @@ fn is_users_own_local_file(file: &Path) -> bool {
     let Some(project) = claude.parent() else {
         return false;
     };
+    if repo_root(project).is_none() {
+        return true; // no repository: nothing can track it
+    }
     match std::process::Command::new("git")
         .arg("-C")
         .arg(project)
@@ -485,7 +545,8 @@ fn is_users_own_local_file(file: &Path) -> bool {
         .stderr(std::process::Stdio::null())
         .status()
     {
-        Ok(s) => s.code() != Some(0), // 0 = tracked; 1 = untracked; 128 = not a repo
+        // 1 = untracked. 0 = tracked; 128 = an error such as "dubious ownership".
+        Ok(s) => s.code() == Some(1),
         Err(_) => false,
     }
 }
@@ -586,6 +647,14 @@ mod tests {
         assert!(read_payload(&[0xff, 0xfe][..]).is_none());
         let big = format!("{{\"a\":\"{}\"}}", "x".repeat(MAX_PAYLOAD as usize));
         assert!(read_payload(big.as_bytes()).is_none());
+    }
+
+    #[test]
+    fn huge_cwd_is_ignored() {
+        let cwd = "/a".repeat(MAX_PATH);
+        let p = json!({"cwd": cwd, "tool_input": {"command": "git status"}, "permission_mode": "bypassPermissions"});
+        assert!(respond(Agent::Claude, "pre-tool", &p, "/bin/lagom").is_none());
+        assert!(respond(Agent::Claude, "session-start", &p, "/bin/lagom").is_none());
     }
 
     #[test]
@@ -700,14 +769,14 @@ mod tests {
             &managed.join("managed-settings.d/20-sec.json"),
             json!({"permissions": {"deny": ["Bash(git push *)"]}}),
         );
-        let r = claude_rules(&repo, &user, &managed);
+        let r = claude_rules(&repo, None, &user, &managed).unwrap();
         assert!(r.allows("git log") && r.denies("git push --force"));
 
         write(
             &managed.join("managed-settings.json"),
             json!({"allowManagedPermissionRulesOnly": true}),
         );
-        let r = claude_rules(&repo, &user, &managed);
+        let r = claude_rules(&repo, None, &user, &managed).unwrap();
         assert!(
             !r.allows("git log"),
             "user allow rules don't count under managed-only policy"
@@ -728,7 +797,7 @@ mod tests {
             &repo.join(".claude/settings.json"),
             json!({"permissions": {"allow": ["Bash(git *)"], "deny": ["Bash(git push *)"]}}),
         );
-        let r = claude_rules(&repo.join("src"), &user, &managed);
+        let r = claude_rules(&repo.join("src"), None, &user, &managed).unwrap();
         assert!(
             !r.allows("git log"),
             "committed project allow rules wait for workspace trust"
@@ -754,11 +823,85 @@ mod tests {
         if !git(&["init", "-q"]) {
             return; // git not installed: nothing more to check here
         }
-        assert!(claude_rules(&repo, &user, &managed).allows("git log"));
+        assert!(
+            claude_rules(&repo, None, &user, &managed)
+                .unwrap()
+                .allows("git log")
+        );
 
         // Committed to the repo, it is repository-supplied: allow rules ignored.
         git(&["add", ".claude/settings.local.json"]);
-        assert!(!claude_rules(&repo, &user, &managed).allows("git log"));
+        assert!(
+            !claude_rules(&repo, None, &user, &managed)
+                .unwrap()
+                .allows("git log")
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn local_allow_rules_count_only_where_claude_code_reads_them() {
+        let root = scratch("local-where");
+        let (user, managed) = (root.join("home/.claude"), root.join("managed"));
+        let outer = root.join("outer");
+        let repo = outer.join("repo");
+        fs::create_dir_all(repo.join(".git")).unwrap(); // the repository root
+        fs::create_dir_all(repo.join("src")).unwrap();
+        let allow_git = json!({"permissions": {"allow": ["Bash(git *)"]}});
+
+        // A local file in a folder above the repository (say /tmp/.claude) is not read
+        // by Claude Code, so its allow rules don't count. Its deny rules still do.
+        write(
+            &outer.join(".claude/settings.local.json"),
+            json!({"permissions": {"allow": ["Bash(git *)"], "deny": ["Bash(git push *)"]}}),
+        );
+        let r = claude_rules(&repo.join("src"), None, &user, &managed).unwrap();
+        assert!(
+            !r.allows("git log"),
+            "a parent folder's local file must not grant"
+        );
+        assert!(r.denies("git push"));
+
+        // The same rules at the repository root count (the file is untracked there,
+        // but `.git` is empty here, so git can't answer: not trusted).
+        write(&repo.join(".claude/settings.local.json"), allow_git.clone());
+        let r = claude_rules(&repo.join("src"), None, &user, &managed).unwrap();
+        assert!(
+            !r.allows("git log"),
+            "git can't confirm the file is untracked"
+        );
+
+        // The session's project folder counts even after Claude cd-ed elsewhere.
+        let project = root.join("plain-project"); // no repository at all
+        write(&project.join(".claude/settings.local.json"), allow_git);
+        let elsewhere = root.join("elsewhere");
+        fs::create_dir_all(&elsewhere).unwrap();
+        let r = claude_rules(&elsewhere, Some(&project), &user, &managed).unwrap();
+        assert!(r.allows("git log"));
+        let r = claude_rules(&elsewhere, None, &user, &managed).unwrap();
+        assert!(
+            !r.allows("git log"),
+            "without the project folder, nothing is read there"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn unreadable_managed_settings_stop_the_rewrite() {
+        let root = scratch("managed-broken");
+        let (user, managed, repo) = (
+            root.join("home/.claude"),
+            root.join("managed"),
+            root.join("repo"),
+        );
+        fs::create_dir_all(&repo).unwrap();
+        fs::create_dir_all(managed.join("managed-settings.d")).unwrap();
+        fs::write(
+            managed.join("managed-settings.d/10-deny.json"),
+            "{ not json",
+        )
+        .unwrap();
+        assert!(claude_rules(&repo, None, &user, &managed).is_none());
         let _ = fs::remove_dir_all(&root);
     }
 

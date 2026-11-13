@@ -21,7 +21,8 @@ Usage:
   lagom style use [--project] <names…|off>  Set active styles (user or this project)
   lagom run -- <command> [args…]            Run a command and compress its output
   lagom compress                            Compress text from stdin
-  lagom recall <id>                         Print the full output behind a compressed result
+  lagom recall <id> [--grep TEXT]           Print the full output behind a compressed result
+                  [--lines A-B] [--head N] [--tail N]  or only part of it
   lagom stats                               Show estimated savings
   lagom hook <agent> <event>                Used by agent hooks (reads JSON on stdin)
   lagom --version
@@ -44,7 +45,7 @@ pub fn main() -> ExitCode {
             run::run(&cmd)
         }
         Some("compress") => cmd_compress(),
-        Some("recall") => cmd_recall(args.get(1)),
+        Some("recall") => cmd_recall(&rest(1)),
         Some("hook") => {
             hook::run(
                 args.get(1).map(String::as_str).unwrap_or(""),
@@ -87,14 +88,33 @@ fn cmd_compress() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-fn cmd_recall(id: Option<&String>) -> ExitCode {
-    match id.and_then(|id| store::load_original(id)) {
+fn cmd_recall(args: &[String]) -> ExitCode {
+    const USAGE: &str =
+        "usage: lagom recall <id> [--lines A-B] [--grep TEXT] [--head N] [--tail N]";
+    let Some((id, rest)) = args.split_first() else {
+        eprintln!("lagom: {USAGE}");
+        return ExitCode::from(2);
+    };
+    let selection = match store::Selection::parse(rest) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("lagom: {e}\n{USAGE}");
+            return ExitCode::from(2);
+        }
+    };
+    if !store::is_recall_id(id) {
+        eprintln!(
+            "lagom: `{id}` is not a recall id (10 hex characters, from a `[lagom: … lagom recall <id> …]` line)\n{USAGE}"
+        );
+        return ExitCode::from(2);
+    }
+    match store::load_original(id) {
         Some(text) => {
-            print!("{text}");
+            print!("{}", selection.apply(&text));
             ExitCode::SUCCESS
         }
         None => {
-            eprintln!("lagom: no stored output for that id (usage: lagom recall <id>)");
+            eprintln!("lagom: no stored output for `{id}` (Lagom keeps the last 500)");
             ExitCode::from(1)
         }
     }

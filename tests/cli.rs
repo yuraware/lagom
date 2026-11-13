@@ -347,10 +347,34 @@ fn run_compresses_keeps_exit_code_and_recall_works() {
         .rsplit("lagom recall ")
         .next()
         .unwrap()
-        .trim()
-        .trim_end_matches(']')
+        .split(|c: char| c.is_whitespace() || c == ']')
+        .next()
+        .unwrap()
         .to_string();
     let full = text(&lagom(&home, &["recall", &id], None));
+    assert_eq!(
+        text(&lagom(&home, &["recall", &id, "--grep", "error"], None)),
+        "401: src/app.rs:9: error: boom\n"
+    );
+    assert_eq!(
+        text(&lagom(&home, &["recall", &id, "--lines", "2-3"], None))
+            .lines()
+            .count(),
+        2
+    );
+    assert_eq!(
+        lagom(&home, &["recall", &id, "--lines", "x"], None)
+            .status
+            .code(),
+        Some(2)
+    );
+    assert_eq!(
+        lagom(&home, &["recall", "../stats", "--head", "1"], None)
+            .status
+            .code(),
+        Some(2),
+        "not a recall id"
+    );
     assert_eq!(full.lines().count(), 401);
 
     let stats = text(&lagom(&home, &["stats"], None));

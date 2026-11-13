@@ -479,7 +479,8 @@ pub struct Totals {
     pub bytes_out: u64,
     pub injections: u64,
     pub injected_bytes: u64,
-    /// Per agent (`manual` for `lagom run` typed by hand).
+    /// Per agent: `manual` for `lagom run` typed by hand, `unknown` for events an older
+    /// Lagom wrote before it recorded the agent.
     pub by_agent: std::collections::BTreeMap<String, Bucket>,
     /// Injections per style set, such as `terse+lean-code`.
     pub by_style: std::collections::BTreeMap<String, Bucket>,
@@ -510,11 +511,12 @@ pub fn totals() -> Totals {
             continue; // written by a newer Lagom
         }
         let n = |k: &str| v.get(k).and_then(|x| x.as_u64()).unwrap_or(0);
-        let agent = v
-            .get("agent")
-            .and_then(|a| a.as_str())
-            .unwrap_or("manual")
-            .to_string();
+        let agent = match v.get("agent").and_then(|a| a.as_str()) {
+            Some(a) => a,
+            None if v.get("v").is_some() => "manual",
+            None => "unknown",
+        }
+        .to_string();
         match v.get("kind").and_then(|k| k.as_str()) {
             Some("run") => {
                 t.runs += 1;

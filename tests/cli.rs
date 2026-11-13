@@ -1010,9 +1010,23 @@ fn stats_are_attributed_to_agent_session_style_and_project() {
         "a hash, not a path"
     );
 
+    // A run an older Lagom recorded (no version, no agent) is not "manual".
+    let mut log = fs::read_to_string(home.join(".lagom/stats.jsonl")).unwrap();
+    log.push_str("{\"kind\":\"run\",\"cmd\":\"git\",\"in\":100,\"out\":10,\"exit\":0,\"ts\":1}\n");
+    fs::write(home.join(".lagom/stats.jsonl"), log).unwrap();
+
     let stats = text(&lagom(&home, &["stats"], None));
     assert!(
         stats.contains("by agent:") && stats.contains("claude") && stats.contains("manual"),
+        "{stats}"
+    );
+    let line = |name: &str| stats.lines().find(|l| l.trim_start().starts_with(name));
+    assert!(
+        line("manual").is_some_and(|l| l.contains(" 1 runs")),
+        "{stats}"
+    );
+    assert!(
+        line("unknown").is_some_and(|l| l.contains(" 1 runs")),
         "{stats}"
     );
     assert!(

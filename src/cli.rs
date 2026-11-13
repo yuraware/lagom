@@ -20,6 +20,7 @@ Usage:
   lagom style show <name>                   Print a style
   lagom style use [--project] <names…|off>  Set active styles (user or this project)
   lagom run -- <command> [args…]            Run a command and compress its output
+            [--session AGENT:ID]            (set by the agent hook, for stats)
   lagom compress                            Compress text from stdin
   lagom recall <id> [--grep TEXT]           Print the full output behind a compressed result
                   [--lines A-B] [--head N] [--tail N]  or only part of it

@@ -46,15 +46,20 @@ pub fn run(args: &[String]) -> ExitCode {
             spill,
             lines,
             bytes,
+            cut_short,
         }) => render_spilled(
             &String::from_utf8_lossy(&kept),
             spill,
-            lines,
-            bytes,
+            (lines, bytes),
+            cut_short,
             code,
             program,
         ),
-        Err((partial, _)) => String::from_utf8_lossy(&partial).into_owned(),
+        // Never shown as if complete: say that reading stopped.
+        Err((partial, e)) => format!(
+            "{}\n[lagom: reading the command's output failed ({e}); what came before is shown, the rest is missing]\n",
+            String::from_utf8_lossy(&partial).trim_end_matches('\n')
+        ),
     };
 
     let mut stdout = std::io::stdout().lock();
@@ -73,12 +78,16 @@ const MAX_MIDDLE_LINES: usize = 400;
 pub enum Captured {
     Full(Vec<u8>),
     /// The full output went to `spill`; `kept` holds the start, important middle
-    /// lines and the end.
+    /// lines and the end. `spill` is an error when the spill file stopped accepting
+    /// writes: reading went on (the command still runs to its end and keeps its exit
+    /// code), but the full output couldn't be stored. `cut_short` is set when reading
+    /// the command's output failed before its end.
     Spilled {
         kept: Vec<u8>,
-        spill: store::Spill,
+        spill: std::io::Result<store::Spill>,
         lines: usize,
         bytes: u64,
+        cut_short: Option<std::io::Error>,
     },
 }
 
@@ -105,17 +114,22 @@ pub fn capture<R: Read, S: FnOnce() -> std::io::Result<store::Spill>>(
             break;
         }
     }
-    let Ok(mut spill) = make_spill() else {
+    let Ok(spill) = make_spill() else {
         // Can't store the original: don't drop anything.
         return match reader.read_to_end(&mut buf) {
             Ok(_) => Ok(Captured::Full(buf)),
             Err(e) => Err((buf, e)),
         };
     };
-    let fail = |e: std::io::Error, kept: &[u8]| Err((kept.to_vec(), e));
-    if let Err(e) = spill.write(&buf) {
-        return fail(e, &buf);
-    }
+    let mut spill = Ok(spill);
+    let write = |spill: &mut std::io::Result<store::Spill>, data: &[u8]| {
+        if let Ok(s) = spill {
+            if let Err(e) = s.write(data) {
+                *spill = Err(e); // keep reading: stopping would kill the command
+            }
+        }
+    };
+    write(&mut spill, &buf);
     let mut bytes = buf.len() as u64;
     let mut lines = count_lines(&buf);
 
@@ -128,16 +142,18 @@ pub fn capture<R: Read, S: FnOnce() -> std::io::Result<store::Spill>>(
     let mut tail = buf[tail_start..].to_vec();
     drop(buf);
 
+    let mut cut_short = None;
     loop {
         let n = match reader.read(&mut chunk) {
             Ok(0) => break,
             Ok(n) => n,
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
-            Err(e) => return fail(e, &[head.as_slice(), &tail].concat()),
+            Err(e) => {
+                cut_short = Some(e);
+                break;
+            }
         };
-        if let Err(e) = spill.write(&chunk[..n]) {
-            return fail(e, &[head.as_slice(), &tail].concat());
-        }
+        write(&mut spill, &chunk[..n]);
         bytes += n as u64;
         lines += count_lines(&chunk[..n]);
         tail.extend_from_slice(&chunk[..n]);
@@ -147,8 +163,10 @@ pub fn capture<R: Read, S: FnOnce() -> std::io::Result<store::Spill>>(
             tail.drain(..evict);
         }
     }
-    // Start the tail on a whole line.
+    // Start the tail on a whole line. The cut-off piece finishes the line in `carry`,
+    // which straddles the middle and the tail: check it like any middle line.
     if let Some(nl) = tail.iter().position(|b| *b == b'\n') {
+        scan_important(&tail[..=nl], &mut carry, &mut middle);
         tail.drain(..=nl);
     }
     let mut kept = head;
@@ -165,6 +183,7 @@ pub fn capture<R: Read, S: FnOnce() -> std::io::Result<store::Spill>>(
         spill,
         lines,
         bytes,
+        cut_short,
     })
 }
 
@@ -203,9 +222,9 @@ fn scan_important(data: &[u8], carry: &mut Vec<u8>, keep: &mut Vec<Vec<u8>>) {
 /// Like `render`, for output that was too big to keep: the original is already stored.
 fn render_spilled(
     kept: &str,
-    spill: store::Spill,
-    lines: usize,
-    bytes: u64,
+    spill: std::io::Result<store::Spill>,
+    (lines, bytes): (usize, u64),
+    cut_short: Option<std::io::Error>,
     code: i32,
     program: &str,
 ) -> String {
@@ -213,7 +232,12 @@ fn render_spilled(
     if !out.is_empty() && !out.ends_with('\n') {
         out.push('\n');
     }
-    match spill.finish(&program_name(program)) {
+    if let Some(e) = cut_short {
+        out.push_str(&format!(
+            "[lagom: reading the command's output failed after {lines} lines ({e}); the rest is missing]\n"
+        ));
+    }
+    match spill.and_then(|s| s.finish(&program_name(program))) {
         Ok(id) => out.push_str(&format!(
             "[lagom: {lines} → {} lines; full output: lagom recall {id} (or part: --grep TEXT, --lines A-B)]\n",
             out.lines().count()
@@ -297,9 +321,10 @@ mod tests {
         });
         let Ok(Captured::Spilled {
             kept,
-            spill,
+            spill: Ok(spill),
             lines,
             bytes,
+            cut_short: None,
         }) = got
         else {
             panic!("expected a spill");
@@ -323,17 +348,82 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Big output whose important lines sit near the end, around where the tail starts.
+    fn errors_near_the_end() -> String {
+        let mut input = String::new();
+        for i in 0..20_000 {
+            input.push_str(&format!("row {i} ok with some padding text\n"));
+        }
+        for i in 0..150 {
+            input.push_str(&format!(
+                "src/x.rs:{i}: error: failure number {i} of many\n"
+            ));
+        }
+        input
+    }
+
     #[test]
-    fn small_output_stays_in_memory_and_spill_failure_keeps_everything() {
-        let never = || -> std::io::Result<store::Spill> { panic!("no spill expected") };
-        assert!(
-            matches!(capture(&b"a\nb\n"[..], 1_000, 100, never), Ok(Captured::Full(b)) if b == b"a\nb\n")
-        );
-        let input = "x\n".repeat(10_000);
-        let failing = || Err(std::io::Error::other("disk full"));
-        let Ok(Captured::Full(all)) = capture(input.as_bytes(), 100, 10, failing) else {
-            panic!("expected everything in memory");
+    fn a_failing_spill_keeps_reading_and_keeps_every_error_line() {
+        let dir = std::env::temp_dir().join(format!("lagom-spillfail-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let input = errors_near_the_end();
+        let spill_dir = dir.clone();
+        let got = capture(input.as_bytes(), 50_000, 5_000, move || {
+            store::Spill::failing_in(&spill_dir)
+        });
+        let Ok(Captured::Spilled {
+            kept,
+            spill: Err(_),
+            bytes,
+            cut_short: None,
+            ..
+        }) = got
+        else {
+            panic!("expected a spill that failed");
         };
-        assert_eq!(all, input.as_bytes());
+        assert_eq!(
+            bytes as usize,
+            input.len(),
+            "read to the end despite the failure"
+        );
+        let kept = String::from_utf8(kept).unwrap();
+        for i in 0..150 {
+            let line = format!("src/x.rs:{i}: error: failure number {i} of many");
+            assert!(kept.contains(&line), "lost {line}");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_read_error_after_spilling_is_reported() {
+        struct Breaks(Vec<u8>, usize);
+        impl Read for Breaks {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                if self.1 >= self.0.len() {
+                    return Err(std::io::Error::other("device gone"));
+                }
+                let n = buf.len().min(self.0.len() - self.1).min(4096);
+                buf[..n].copy_from_slice(&self.0[self.1..self.1 + n]);
+                self.1 += n;
+                Ok(n)
+            }
+        }
+        let dir = std::env::temp_dir().join(format!("lagom-readerr-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let spill_dir = dir.clone();
+        let got = capture(
+            Breaks(errors_near_the_end().into_bytes(), 0),
+            50_000,
+            5_000,
+            move || store::Spill::create_in(&spill_dir),
+        );
+        assert!(matches!(
+            got,
+            Ok(Captured::Spilled {
+                cut_short: Some(_),
+                ..
+            })
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

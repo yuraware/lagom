@@ -13,6 +13,16 @@ rust-version = "1.87"
 # Ship only what the build needs (styles and skills are embedded with include_str!).
 include = ["src/**", "styles/**", "skills/**", "README.md", "CHANGELOG.md", "LICENSE", "Cargo.toml", "Cargo.lock"]
 
+# `cargo binstall lagom` downloads the release archive built by .github/workflows/release.yml
+# (lagom-<version>-<target>.tar.gz with lagom and lgm in a lagom-<version>-<target>/ folder).
+# Linux gnu hosts fall back to the static musl archives. Targets without an archive build
+# from source; third-party quick-install binaries are never used.
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }{ archive-suffix }"
+bin-dir = "{ name }-{ version }-{ target }/{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
+disabled-strategies = ["quick-install"]
+
 [dependencies]
 # preserve_order keeps the user's settings.json key order when we merge hooks into it.
 serde_json = { version = "1", features = ["preserve_order"] }

@@ -5,6 +5,7 @@
 
 mod diff;
 mod json;
+mod log;
 mod search;
 
 /// Output budget. Failed commands get double, so errors are never squeezed out.
@@ -100,6 +101,7 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
             errors_despite_success,
         };
     }
+    let lines = log::collapse(lines, limits, &mut lossy);
     let lines = collapse_repeats(lines, &mut lossy);
     let lines: Vec<String> = lines
         .into_iter()
@@ -440,13 +442,18 @@ fn keep_head_tail_important(lines: Vec<String>, limits: Limits, lossy: &mut bool
     out
 }
 
-/// An error line, or a log line at level ERROR, FATAL, CRITICAL or PANIC. These are
-/// kept before warnings when the middle of a long output is cut.
+/// An error line, a log line at level ERROR, FATAL, CRITICAL, CRIT, PANIC, SEVERE, ALERT
+/// or EMERG, or an HTTP 5xx. These are kept before warnings when the middle of a long
+/// output is cut, and any left out are counted.
 fn is_error_priority(line: &str) -> bool {
     is_error_line(line)
-        || line
-            .split(|c: char| !c.is_ascii_alphanumeric())
-            .any(|w| matches!(w, "ERROR" | "FATAL" | "CRITICAL" | "PANIC"))
+        || line.split(|c: char| !c.is_ascii_alphanumeric()).any(|w| {
+            matches!(
+                w,
+                "ERROR" | "FATAL" | "CRITICAL" | "CRIT" | "PANIC" | "SEVERE" | "ALERT" | "EMERG"
+            )
+        })
+        || log::is_server_error(line)
 }
 
 #[cfg(test)]

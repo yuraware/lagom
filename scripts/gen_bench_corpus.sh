@@ -9,12 +9,13 @@ OUT="$ROOT/bench/corpus"
 W=$(mktemp -d "${TMPDIR:-/tmp}/lagom-corpus.XXXXXX"); trap 'rm -rf "$W"' EXIT
 W=$(cd "$W" && pwd -P)   # real path: tools print it resolved (/private/var/... on macOS)
 WSHORT=${W#/private}
+ME=$(id -un)             # ls -l prints the owner: replaced by "dev" like $HOME
 rm -rf "$OUT"; mkdir -p "$OUT"
 export NO_COLOR=1 CARGO_TERM_COLOR=never GIT_PAGER=cat PAGER=cat
 
 save() { # tool case exit must_keep_json  < output
   local d="$OUT/$1/$2"; mkdir -p "$d"
-  head -c 400000 | sed -e "s#$W#/work#g" -e "s#$WSHORT#/work#g" -e "s#$HOME#/home/dev#g" > "$d/input.txt"
+  head -c 400000 | sed -e "s#$W#/work#g" -e "s#$WSHORT#/work#g" -e "s#$HOME#/home/dev#g" -e "s/ $ME / dev /g" > "$d/input.txt"
   printf '{"exit_code": %s, "must_keep": %s}\n' "$3" "$4" > "$d/meta.json"
 }
 run() { # tool case must_keep_json cmd...
@@ -213,7 +214,7 @@ with open(sys.argv[1], "w") as f:
         if i % 500 == 0:
             f.write(f"2026-11-08T10:{i // 60 % 60:02}:00.000Z WARN  slow query took 1532ms table=orders\n")
 PY
-run logs app-log-errors '["ERROR database connection lost", "WARN  slow query"]' cat "$W/app.log"
+run logs app-log-errors '["10:20:00.000Z ERROR database connection lost", "10:41:40.000Z ERROR database connection lost", "WARN  slow query"]' cat "$W/app.log"  # every error line
 python3 - "$W/access.log" <<'PY'
 import sys
 with open(sys.argv[1], "w") as f:
@@ -221,8 +222,7 @@ with open(sys.argv[1], "w") as f:
         code = 500 if i in (700, 1800) else 200
         f.write(f'10.0.{i % 5}.{i % 250} - - [08/Nov/2026:10:{i // 60 % 60:02}:{i % 60:02} +0000] "GET /static/app.{i % 3}.js HTTP/1.1" {code} {1000 + i % 300} "-" "Mozilla/5.0"\n')
 PY
-run logs access-log '["\" 500 "]' cat "$W/access.log"
-gap logs access-log CMP-09
+run logs access-log '["10:11:40 +0000] \"GET /static/app.1.js HTTP/1.1\" 500", "10:30:00 +0000] \"GET /static/app.0.js HTTP/1.1\" 500"]' cat "$W/access.log"  # every 5xx line
 
 # ---------- containers / clusters (no daemon or cluster needed: real error output) ----------
 if have kubectl; then

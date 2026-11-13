@@ -1,0 +1,45 @@
+name: Style proposal
+description: Suggest a new built-in style or a change to `terse` or `lean-code`.
+title: "style: "
+labels: ["type/feature", "area/style"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Styles are plain Markdown files, so you can try one before proposing it: put it in `~/.config/lagom/styles/<name>.md`
+        and run `lagom style use <name>`. See [docs/styles.md](https://github.com/yuraware/lagom/blob/main/docs/styles.md).
+  - type: input
+    id: name
+    attributes:
+      label: Style name
+      description: New style name, or the built-in style to change.
+      placeholder: review-voice
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What it fixes
+      description: What the agent does today that this style changes, with an example.
+    validations:
+      required: true
+  - type: textarea
+    id: rules
+    attributes:
+      label: The rules
+      description: The full style text, as it would be injected.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: How you tested it
+      description: Agent and model, how many sessions, and what changed. Before and after excerpts or `lagom stats` numbers help most.
+    validations:
+      required: true
+  - type: textarea
+    id: never-cut
+    attributes:
+      label: What it must not cut
+      description: Safety warnings, error details or anything else this style should leave alone.

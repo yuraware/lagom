@@ -1,0 +1,54 @@
+name: Agent request
+description: Support for a new coding agent, or a change in how an agent's hooks work.
+title: "agent: "
+labels: ["agent-request"]
+body:
+  - type: input
+    id: agent
+    attributes:
+      label: Agent
+      placeholder: Gemini CLI
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Agent version
+      description: The version you tested or read the docs for.
+    validations:
+      required: true
+  - type: input
+    id: docs
+    attributes:
+      label: Hook or extension documentation
+      description: A link to the agent's official docs for hooks, plugins or extensions.
+    validations:
+      required: true
+  - type: checkboxes
+    id: events
+    attributes:
+      label: What the agent supports
+      description: Tick what the docs show. Lagom needs at least one of the first two.
+      options:
+        - label: A hook or event at session start that can add context
+        - label: A hook before a shell command runs that can change the command
+        - label: A hook when a subagent starts
+        - label: A hook after context compaction
+        - label: Skills or custom commands
+  - type: textarea
+    id: config
+    attributes:
+      label: Where configuration lives
+      description: Config file paths, their format, and any environment variables that move them.
+      placeholder: ~/.example/hooks.json, overridden by EXAMPLE_HOME
+  - type: textarea
+    id: payload
+    attributes:
+      label: Sample hook input and output
+      description: The JSON the agent sends to a hook and what it expects back, if you have it. Redact secrets and paths.
+      render: json
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Permission or trust prompts, known bugs, or differences between versions.

@@ -1,0 +1,57 @@
+name: Filter request
+description: A command whose output Lagom should compress better, or compresses badly.
+title: "filter: "
+labels: ["filter-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A good filter request is mostly a good sample. **Redact secrets, tokens, hostnames and private paths** before you paste output.
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      description: The exact command line, including flags.
+      placeholder: cargo test --workspace
+    validations:
+      required: true
+  - type: input
+    id: tool-version
+    attributes:
+      label: Tool version
+      description: For example the output of `cargo --version`. Output formats change between versions.
+  - type: textarea
+    id: sample
+    attributes:
+      label: Sample output
+      description: |
+        The raw output, uncompressed (`LAGOM_RAW=1 <command>` or `lagom recall <id>`). Attach a file if it is long.
+        If the run failed, include a failing run: errors are what a filter must never lose.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: must-keep
+    attributes:
+      label: What must be kept
+      description: Lines or facts the agent needs from this output, for example test names, `file:line`, error codes or the summary line.
+    validations:
+      required: true
+  - type: textarea
+    id: can-drop
+    attributes:
+      label: What can be dropped
+      description: Noise the agent doesn't need, for example progress bars, passing tests or download lines.
+  - type: textarea
+    id: current
+    attributes:
+      label: What Lagom does today
+      description: The compressed output you got, if Lagom already handles this command. Say whether anything important was lost.
+      render: text
+  - type: checkboxes
+    id: redacted
+    attributes:
+      label: Check
+      options:
+        - label: I removed secrets and private details from the sample.
+          required: true

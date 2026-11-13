@@ -91,27 +91,27 @@ const SESSION_SOURCES: &str = "startup|resume|clear|compact|fork";
 /// styles survive compaction. Kept here until agent specs move to `agents/*.toml` (AG-01).
 pub struct Compaction {
     pub reinject: bool,
-    /// How it works, or why it can't.
-    pub how: &'static str,
     /// The documentation the answer comes from.
     pub source: &'static str,
 }
 
 pub fn compaction(agent: Agent) -> Compaction {
     match agent {
+        // SessionStart runs again with source "compact" after auto or manual compaction.
         Agent::Claude => Compaction {
             reinject: true,
-            how: "SessionStart runs again with source \"compact\" after auto or manual compaction",
             source: "https://code.claude.com/docs/en/hooks",
         },
+        // SessionStart hooks matching source "compact" run after a root session is
+        // compacted, before the next model request (also mid-turn).
         Agent::Codex => Compaction {
             reinject: true,
-            how: "SessionStart hooks matching source \"compact\" run after a root session is compacted, before the next model request",
-            source: "https://developers.openai.com/codex/hooks",
+            source: "https://learn.chatgpt.com/docs/hooks",
         },
+        // sessionStart runs only for a new conversation, and preCompact is observational
+        // (it can only show the user a message): no hook can add context after compaction.
         Agent::Cursor => Compaction {
             reinject: false,
-            how: "sessionStart runs only for a new conversation, and preCompact is observational (it can only show the user a message), so no hook can add context after compaction",
             source: "https://cursor.com/docs/hooks",
         },
     }

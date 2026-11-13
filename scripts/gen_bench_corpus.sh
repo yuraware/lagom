@@ -184,7 +184,8 @@ PY
 run search rg-context '["src/mod0/file0.rs"]' rg -n -C 1 --sort path "TODO" src
 run search rg-count '["src/mod7/file9.rs:12"]' rg -c --sort path "TODO" src
 run search grep-rn '["TODO(item"]' grep -rn "TODO" src
-run search find-name '["src/mod0/file0.rs", "src/mod7/file9.rs"]' sh -c 'find src -name "*.rs" | sort'
+run search find-name '["src/mod0/file0.rs", "src/mod3/file4.rs", "src/mod7/file9.rs"]' sh -c 'find src -name "*.rs" | sort'
+gap search find-name FLT-19  # file lists collapse to their first and last name
 run search ls-la-recursive '["file0.rs"]' ls -laR src
 run search find-missing-dir '["No such file or directory"]' find /nonexistent-lagom-dir -name x
 run search du-all '["src"]' du -a src
@@ -196,7 +197,8 @@ items = [{"id": i, "name": f"service-{i}", "status": "ok" if i % 37 else "failed
           "error": None if i % 37 else f"timeout after {i}ms", "tags": ["a", "b"]} for i in range(400)]
 json.dump({"items": items, "total": 400}, open(sys.argv[1], "w"))
 PY
-run json jq-pretty-array '["\"status\": \"failed\"", "timeout after 37ms", "\"total\": 400"]' jq . "$W/api.json"
+run json jq-pretty-array '["\"status\": \"failed\"", "timeout after 0ms", "timeout after 37ms", "timeout after 74ms", "timeout after 111ms", "timeout after 148ms", "timeout after 185ms", "timeout after 222ms", "timeout after 259ms", "timeout after 296ms", "timeout after 333ms", "timeout after 370ms", "\"total\": 400"]' jq . "$W/api.json"
+gap json jq-pretty-array CMP-06  # every failed item must survive, not just one
 run json jq-compact-lines '["timeout after 74ms"]' jq -c '.items[]' "$W/api.json"
 gap json jq-compact-lines CMP-06
 run json jq-parse-error '["parse error"]' sh -c 'echo "{\"a\": [1, 2,}" | jq .'

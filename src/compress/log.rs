@@ -25,14 +25,24 @@ fn has_time(line: &str) -> bool {
     })
 }
 
+/// An `ls -l` entry (`-rw-r--r--  1 dev staff 508 Nov  8 10:20 file0.rs`): it has a
+/// time, but it is a listing, and collapsing it would hide the names.
+fn is_listing_entry(line: &str) -> bool {
+    let b = line.as_bytes();
+    b.len() > 10 && b"-dlcbps".contains(&b[0]) && b[1..10].iter().all(|c| b"rwxsStT-".contains(c))
+}
+
 fn looks_like_log(lines: &[String]) -> bool {
     let non_empty = lines.iter().filter(|l| !l.is_empty()).count();
-    let timed = lines.iter().filter(|l| has_time(l)).count();
+    let timed = lines
+        .iter()
+        .filter(|l| has_time(l) && !is_listing_entry(l))
+        .count();
     non_empty > 0 && timed * 10 >= non_empty * 8
 }
 
 /// HTTP status 5xx: access-log `"GET /x HTTP/1.1" 503 …`, or `status=503` / `"status":503`.
-fn is_server_error(line: &str) -> bool {
+pub fn is_server_error(line: &str) -> bool {
     let after = |marker: &str| {
         line.match_indices(marker).any(|(i, m)| {
             let rest = line[i + m.len()..].trim_start_matches([' ', '"', ':', '=']);
@@ -169,6 +179,50 @@ mod tests {
             template("10.0.1.2 - - [08/Nov/2026:10:00:01]"),
             "<n>.<n>.<n>.<n> - - [<n>/Nov/<n>:<n>:<n>:<n>]"
         );
+    }
+
+    /// Every 5xx and CRIT line survives the line budget or is counted in its notice.
+    #[test]
+    fn server_errors_and_crit_lines_are_shown_or_counted() {
+        let log: String = (0..3000)
+            .map(|i| {
+                let time = format!("2026-11-08T10:{:02}:{:02}Z", i / 60 % 60, i % 60);
+                match i {
+                    _ if i % 30 == 7 => format!("{time} INFO  request id=r{i} status=503\n"),
+                    _ if i % 50 == 9 => format!("{time} CRIT  disk {i} almost full\n"),
+                    _ => format!("{time} INFO  request id=r{i} status=200\n"),
+                }
+            })
+            .collect();
+        let problem = |l: &str| l.contains("status=503") || l.contains(" CRIT ");
+        let total = log.lines().filter(|l| problem(l)).count();
+        let out = super::super::compress(&log, false, Limits::default()).text;
+        let shown = out.lines().filter(|l| problem(l)).count();
+        let counted: usize = out
+            .lines()
+            .find_map(|l| {
+                l.strip_prefix("… [")?
+                    .split_once(" more error lines left out")
+            })
+            .and_then(|(n, _)| n.parse().ok())
+            .unwrap_or(0);
+        assert!(shown > 0 && counted > 0, "{out}");
+        assert_eq!(shown + counted, total, "{out}");
+    }
+
+    #[test]
+    fn ls_listings_are_not_logs() {
+        let ls: Vec<String> = (0..200)
+            .map(|i| {
+                format!(
+                    "-rw-r--r--  1 dev  staff  {} Nov  8 10:20 file{i}.rs",
+                    500 + i
+                )
+            })
+            .collect();
+        let mut lossy = false;
+        assert_eq!(collapse(lines(&ls), Limits::default(), &mut lossy), ls);
+        assert!(!lossy);
     }
 
     #[test]

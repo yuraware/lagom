@@ -1,1 +1,1 @@
-{"exit_code": 0, "must_keep": ["ERROR database connection lost", "WARN  slow query"]}
+{"exit_code": 0, "must_keep": ["10:20:00.000Z ERROR database connection lost", "10:41:40.000Z ERROR database connection lost", "WARN  slow query"]}

@@ -1,0 +1,174 @@
+processing record 0
+processing record 1
+processing record 2
+processing record 3
+processing record 4
+processing record 5
+processing record 6
+processing record 7
+processing record 8
+processing record 9
+processing record 10
+processing record 11
+processing record 12
+processing record 13
+processing record 14
+processing record 15
+processing record 16
+processing record 17
+processing record 18
+processing record 19
+processing record 20
+processing record 21
+processing record 22
+processing record 23
+processing record 24
+processing record 25
+processing record 26
+processing record 27
+processing record 28
+processing record 29
+processing record 30
+processing record 31
+processing record 32
+processing record 33
+processing record 34
+processing record 35
+processing record 36
+processing record 37
+processing record 38
+processing record 39
+processing record 40
+processing record 41
+processing record 42
+processing record 43
+processing record 44
+processing record 45
+processing record 46
+processing record 47
+processing record 48
+processing record 49
+processing record 50
+processing record 51
+processing record 52
+processing record 53
+processing record 54
+processing record 55
+processing record 56
+processing record 57
+processing record 58
+processing record 59
+processing record 60
+processing record 61
+processing record 62
+processing record 63
+processing record 64
+processing record 65
+processing record 66
+processing record 67
+processing record 68
+processing record 69
+processing record 70
+processing record 71
+processing record 72
+processing record 73
+processing record 74
+processing record 75
+processing record 76
+processing record 77
+processing record 78
+processing record 79
+processing record 80
+processing record 81
+processing record 82
+processing record 83
+processing record 84
+processing record 85
+processing record 86
+processing record 87
+processing record 88
+processing record 89
+processing record 90
+processing record 91
+processing record 92
+processing record 93
+processing record 94
+processing record 95
+processing record 96
+processing record 97
+processing record 98
+processing record 99
+processing record 100
+processing record 101
+processing record 102
+processing record 103
+processing record 104
+processing record 105
+processing record 106
+processing record 107
+processing record 108
+processing record 109
+processing record 110
+processing record 111
+processing record 112
+processing record 113
+processing record 114
+processing record 115
+processing record 116
+processing record 117
+processing record 118
+processing record 119
+processing record 120
+processing record 121
+processing record 122
+processing record 123
+processing record 124
+processing record 125
+processing record 126
+processing record 127
+processing record 128
+processing record 129
+processing record 130
+processing record 131
+processing record 132
+processing record 133
+processing record 134
+processing record 135
+processing record 136
+processing record 137
+processing record 138
+processing record 139
+processing record 140
+processing record 141
+processing record 142
+processing record 143
+processing record 144
+processing record 145
+processing record 146
+processing record 147
+processing record 148
+processing record 149
+Traceback (most recent call last):
+  File "/work/chain.py", line 4, in load
+    return json.loads(raw)
+           ~~~~~~~~~~^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/__init__.py", line 352, in loads
+    return _default_decoder.decode(s)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/decoder.py", line 345, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/decoder.py", line 361, in raw_decode
+    obj, end = self.scan_once(s, idx)
+               ~~~~~~~~~~~~~~^^^^^^^^
+json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/work/chain.py", line 9, in <module>
+    load("{bad")
+    ~~~~^^^^^^^^
+  File "/work/chain.py", line 6, in load
+    raise RuntimeError("config is not valid JSON") from e
+RuntimeError: config is not valid JSON

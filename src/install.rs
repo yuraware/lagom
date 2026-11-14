@@ -83,26 +83,50 @@ pub fn target(agent: Agent) -> Target {
     }
 }
 
+/// Session sources that run our session-start hook (Claude Code and Codex use the same names).
+/// `compact` re-injects the styles after the agent compacts the chat; `fork` covers forked sessions.
+const SESSION_SOURCES: &str = "startup|resume|clear|compact|fork";
+
+/// Whether an agent runs Lagom's session-start hook again after it compacts the chat, so the
+/// styles survive compaction. Kept here until agent specs move to `agents/*.toml` (AG-01).
+pub struct Compaction {
+    pub reinject: bool,
+    /// The documentation the answer comes from.
+    pub source: &'static str,
+}
+
+pub fn compaction(agent: Agent) -> Compaction {
+    match agent {
+        // SessionStart runs again with source "compact" after auto or manual compaction.
+        Agent::Claude => Compaction {
+            reinject: true,
+            source: "https://code.claude.com/docs/en/hooks",
+        },
+        // SessionStart hooks matching source "compact" run after a root session is
+        // compacted, before the next model request (also mid-turn).
+        Agent::Codex => Compaction {
+            reinject: true,
+            source: "https://learn.chatgpt.com/docs/hooks",
+        },
+        // sessionStart runs only for a new conversation, and preCompact is observational
+        // (it can only show the user a message): no hook can add context after compaction.
+        Agent::Cursor => Compaction {
+            reinject: false,
+            source: "https://cursor.com/docs/hooks",
+        },
+    }
+}
+
 /// (event key in the agent's file, our event name, matcher, timeout seconds)
 fn hook_specs(agent: Agent) -> Vec<(&'static str, &'static str, Option<&'static str>, u64)> {
     match agent {
         Agent::Claude => vec![
-            (
-                "SessionStart",
-                "session-start",
-                Some("startup|resume|clear|compact"),
-                10,
-            ),
+            ("SessionStart", "session-start", Some(SESSION_SOURCES), 10),
             ("SubagentStart", "subagent-start", None, 10),
             ("PreToolUse", "pre-tool", Some("Bash"), 10),
         ],
         Agent::Codex => vec![
-            (
-                "SessionStart",
-                "session-start",
-                Some("startup|resume|clear|compact"),
-                10,
-            ),
+            ("SessionStart", "session-start", Some(SESSION_SOURCES), 10),
             ("PreToolUse", "pre-tool", Some("Bash|bash"), 10),
         ],
         Agent::Cursor => vec![
@@ -386,6 +410,12 @@ pub fn install(agent: Agent, bin: &str, dry_run: bool) -> Result<Outcome, String
     if agent == Agent::Codex && out.changed {
         out.notes.push("Codex: open Codex and run /hooks to review and trust the lagom hooks; they stay inactive until trusted.".into());
     }
+    if !compaction(agent).reinject && out.changed {
+        out.notes.push(format!(
+            "{}: styles are not injected again after the chat is compacted (no hook can add context then); start a new chat to restore them.",
+            agent.name()
+        ));
+    }
     Ok(out)
 }
 
@@ -646,6 +676,58 @@ mod tests {
         merge_hooks(Agent::Claude, &mut cfg, BIN);
         assert!(remove_hooks(Agent::Claude, &mut cfg));
         assert_eq!(cfg, original);
+    }
+
+    #[test]
+    fn session_start_matches_compaction_where_the_agent_supports_it() {
+        for agent in [Agent::Claude, Agent::Codex, Agent::Cursor] {
+            let c = compaction(agent);
+            assert!(c.source.starts_with("https://"), "{}", agent.name());
+            let specs = hook_specs(agent);
+            let (_, _, matcher, _) = specs
+                .iter()
+                .find(|(_, ours, _, _)| *ours == "session-start")
+                .unwrap();
+            match matcher {
+                // Claude Code and Codex filter SessionStart by source.
+                Some(m) => {
+                    let sources: Vec<&str> = m.split('|').collect();
+                    assert_eq!(sources.contains(&"compact"), c.reinject, "{}", agent.name());
+                    assert!(sources.contains(&"fork"), "{}", agent.name());
+                }
+                // Cursor's sessionStart has no matcher and never fires after compaction.
+                None => assert!(!c.reinject, "{}", agent.name()),
+            }
+        }
+        // Cursor's only compaction hook can't add context, so we don't register it.
+        assert!(
+            hook_specs(Agent::Cursor)
+                .iter()
+                .all(|(event, ..)| *event != "preCompact")
+        );
+    }
+
+    #[test]
+    fn codex_session_start_entry_lists_compact_and_fork() {
+        let mut cfg = Map::new();
+        merge_hooks(Agent::Codex, &mut cfg, BIN);
+        let start = &cfg["hooks"]["SessionStart"][0];
+        assert_eq!(start["matcher"], "startup|resume|clear|compact|fork");
+        assert_eq!(
+            start["hooks"][0]["command"],
+            format!("{BIN} hook codex session-start")
+        );
+    }
+
+    #[test]
+    fn reinstall_updates_an_older_session_start_matcher_in_place() {
+        let mut cfg = Map::new();
+        merge_hooks(Agent::Codex, &mut cfg, BIN);
+        cfg["hooks"]["SessionStart"][0]["matcher"] = json!("startup|resume|clear|compact");
+        assert!(merge_hooks(Agent::Codex, &mut cfg, BIN));
+        let starts = cfg["hooks"]["SessionStart"].as_array().unwrap();
+        assert_eq!(starts.len(), 1);
+        assert_eq!(starts[0]["matcher"], SESSION_SOURCES);
     }
 
     #[test]

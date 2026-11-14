@@ -2,6 +2,7 @@
 
 pub mod claude;
 pub mod codex;
+pub mod discover;
 pub mod experiment;
 
 use std::collections::{BTreeMap, HashMap};

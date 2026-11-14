@@ -445,3 +445,45 @@ fn hook_ignores_oversized_input_quickly() {
         start.elapsed()
     );
 }
+
+#[test]
+fn install_dry_run_changes_nothing_and_summarizes() {
+    let home = sandbox("dryrun");
+    fs::create_dir_all(home.join(".claude")).unwrap();
+    let out = lagom(&home, &["install", "--dry-run"], None);
+    assert!(out.status.success());
+    let s = text(&out);
+    assert!(s.contains("hooks: would update"), "{s}");
+    assert!(s.contains("claude  would install"), "{s}");
+    assert!(s.contains("codex   skipped (not found)"), "{s}");
+    assert!(s.contains("Dry run: nothing was changed."), "{s}");
+    assert!(!home.join(".claude/settings.json").exists());
+    assert!(!home.join(".claude/skills").exists());
+
+    let s = text(&lagom(&home, &["install", "--yes"], None));
+    assert!(s.contains("claude  installed"), "{s}");
+    let s = text(&lagom(&home, &["install", "-y"], None));
+    assert!(s.contains("claude  already up to date"), "{s}");
+
+    let s = text(&lagom(&home, &["uninstall", "claude", "--dry-run"], None));
+    assert!(s.contains("claude  would remove"), "{s}");
+    assert!(home.join(".claude/skills/lagom").exists());
+
+    assert_eq!(
+        lagom(&home, &["install", "--bogus"], None).status.code(),
+        Some(2)
+    );
+
+    // A dry run names the backup the first real change would create, and creates nothing.
+    let home = sandbox("dryrun-backup");
+    fs::create_dir_all(home.join(".claude")).unwrap();
+    fs::write(home.join(".claude/settings.json"), "{}").unwrap();
+    let s = text(&lagom(&home, &["install", "claude", "--dry-run"], None));
+    assert!(s.contains("would back up the original to"), "{s}");
+    assert!(s.contains("settings.json.lagom.bak"), "{s}");
+    assert!(!home.join(".claude/settings.json.lagom.bak").exists());
+    assert_eq!(
+        fs::read_to_string(home.join(".claude/settings.json")).unwrap(),
+        "{}"
+    );
+}

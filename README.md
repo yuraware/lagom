@@ -26,6 +26,7 @@ Then connect it to your agents and start a new agent session:
 ```sh
 lagom install            # every agent found: claude, codex, cursor
 lagom install claude     # or pick agents
+lagom install --dry-run  # show what would change, change nothing
 ```
 
 | | Homebrew | Cargo |

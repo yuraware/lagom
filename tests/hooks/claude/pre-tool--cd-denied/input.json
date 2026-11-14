@@ -1,0 +1,13 @@
+{
+  "session_id": "0b6f1c2e-0000-4000-8000-000000000001",
+  "transcript_path": "<HOME>/.claude/projects/p/0b6f1c2e.jsonl",
+  "cwd": "<HOME>/repo",
+  "permission_mode": "bypassPermissions",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "cd sub && git push --force origin",
+    "description": "Run a command"
+  },
+  "tool_use_id": "toolu_01"
+}

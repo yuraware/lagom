@@ -277,7 +277,8 @@ fn pre_tool(agent: Agent, payload: &Value, cwd: &Path, bin: &str) -> Option<Valu
             ) else {
                 return None; // a managed settings file we can't read might deny this command
             };
-            if rules.denies(command) || rules.asks(command) {
+            let parts = CommandParts::of(command);
+            if parts.any(|p| rules.denies(p) || rules.asks(p)) {
                 return None;
             }
             let mut out = json!({
@@ -285,7 +286,7 @@ fn pre_tool(agent: Agent, payload: &Value, cwd: &Path, bin: &str) -> Option<Valu
                 "permissionDecisionReason": "lagom: compress output",
                 "updatedInput": updated,
             });
-            if rules.allows(command) {
+            if rules.allows(parts.main) && parts.cd_stays_inside(cwd) {
                 out["permissionDecision"] = json!("allow");
             } else if payload.get("permission_mode").and_then(Value::as_str)
                 != Some("bypassPermissions")
@@ -308,11 +309,66 @@ fn pre_tool(agent: Agent, payload: &Value, cwd: &Path, bin: &str) -> Option<Valu
             for dir in cwd.ancestors() {
                 rules.add_file(&dir.join(".cursor/cli.json"), "Shell", Source::RestrictOnly);
             }
-            if rules.denies(command) || !rules.allows(command) {
+            let parts = CommandParts::of(command);
+            if parts.any(|p| rules.denies(p))
+                || !rules.allows(parts.main)
+                || !parts.cd_stays_inside(cwd)
+            {
                 return None;
             }
             Some(json!({"continue": true, "permission": "allow", "updated_input": updated}))
         }
+    }
+}
+
+/// A command split the way agents check permissions: the whole text, the leading
+/// `cd <dir>` (if any) and the command that runs.
+struct CommandParts<'a> {
+    whole: &'a str,
+    cd: Option<(String, &'a str)>,
+    main: &'a str,
+}
+
+impl<'a> CommandParts<'a> {
+    fn of(command: &'a str) -> Self {
+        match rewrite::split_cd(command) {
+            Some((dir, main)) => CommandParts {
+                whole: command,
+                cd: Some((format!("cd {dir}"), dir)),
+                main,
+            },
+            None => CommandParts {
+                whole: command,
+                cd: None,
+                main: command,
+            },
+        }
+    }
+
+    /// True if any part matches (deny and ask rules apply to every part).
+    fn any(&self, mut f: impl FnMut(&str) -> bool) -> bool {
+        f(self.whole) || f(self.main) || self.cd.as_ref().is_some_and(|(cd, _)| f(cd))
+    }
+
+    /// A `cd` that stays inside the project folder is read-only; anything else needs
+    /// the user's own approval, so Lagom doesn't grant it.
+    fn cd_stays_inside(&self, cwd: &Path) -> bool {
+        let Some((_, dir)) = &self.cd else {
+            return true;
+        };
+        let dir = Path::new(dir);
+        if dir.is_absolute() {
+            return dir.starts_with(cwd)
+                && !dir
+                    .components()
+                    .any(|c| c == std::path::Component::ParentDir);
+        }
+        !dir.components().any(|c| {
+            matches!(
+                c,
+                std::path::Component::ParentDir | std::path::Component::RootDir
+            )
+        })
     }
 }
 

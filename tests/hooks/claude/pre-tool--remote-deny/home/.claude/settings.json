@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git log:*)",
+      "Bash(git push:*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)"
+    ],
+    "ask": [
+      "Bash(git push origin main)"
+    ]
+  }
+}

@@ -27,4 +27,6 @@ First preview.
 - Skills: `lagom`, `lagom-run`, `lagom-review`, `lagom-commit`, `lagom-stats`.
 - Hooks use a stable binary path (for example `/opt/homebrew/bin/lagom`, never the versioned Homebrew Cellar path), so upgrades don't break them.
 - `~/.lagom` is private (folders 0700, files 0600), and `lagom install` keeps the permissions of the settings files it edits.
+- Hooks ignore input over 8 MB, JSON that is not an object, commands over 64 KB and a `cwd` over 4 KB, staying silent instead of failing.
+- `lagom install` keeps a symlinked settings file a symlink and writes its target.
 - `lgm`, a short alias binary for `lagom`. Hooks always point to `lagom`, and hooks written under either name are recognized as Lagom's own.

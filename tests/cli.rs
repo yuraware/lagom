@@ -126,6 +126,44 @@ fn install_keeps_settings_file_permissions() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn install_keeps_a_symlinked_settings_file_a_symlink() {
+    let home = sandbox("symlink");
+    let dotfiles = home.join("dotfiles");
+    fs::create_dir_all(&dotfiles).unwrap();
+    fs::create_dir_all(home.join(".claude")).unwrap();
+    fs::write(dotfiles.join("settings.json"), "{\"model\": \"x\"}").unwrap();
+    let link = home.join(".claude/settings.json");
+    std::os::unix::fs::symlink(dotfiles.join("settings.json"), &link).unwrap();
+    assert!(lagom(&home, &["install", "claude"], None).status.success());
+    assert!(
+        fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    let target = fs::read_to_string(dotfiles.join("settings.json")).unwrap();
+    assert!(
+        target.contains("hook claude") && target.contains("\"model\""),
+        "{target}"
+    );
+    assert!(!dotfiles.join("settings.json.lagom.tmp").exists());
+    assert!(
+        lagom(&home, &["uninstall", "claude"], None)
+            .status
+            .success()
+    );
+    assert!(
+        fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    let target = fs::read_to_string(dotfiles.join("settings.json")).unwrap();
+    assert!(!target.contains("hook claude"), "{target}");
+}
+
 #[test]
 fn install_refuses_invalid_json() {
     let home = sandbox("badjson");
@@ -370,4 +408,40 @@ fn lgm_alias_matches_lagom_and_hooks_point_to_lagom() {
     );
     let settings = fs::read_to_string(home.join(".claude/settings.json")).unwrap_or_default();
     assert!(!settings.contains("hook claude"), "{settings}");
+}
+
+#[test]
+fn hook_ignores_oversized_input_quickly() {
+    let home = sandbox("bigstdin");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_lagom"))
+        .args(["hook", "cursor", "pre-tool"])
+        .env("HOME", &home)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let start = std::time::Instant::now();
+    let mut stdin = child.stdin.take().unwrap();
+    let writer = std::thread::spawn(move || {
+        let chunk = vec![b' '; 1024 * 1024];
+        let mut written = 0;
+        for _ in 0..50 {
+            if stdin.write_all(&chunk).is_err() {
+                break; // the hook stopped reading: expected
+            }
+            written += 1;
+        }
+        written
+    });
+    let out = child.wait_with_output().unwrap();
+    let written = writer.join().unwrap();
+    assert!(out.status.success());
+    // It read about 8 MB and stopped, instead of reading all 50 MB.
+    assert!(written < 50, "the hook read all {written} MB");
+    assert_eq!(text(&out).trim(), "{}");
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(2),
+        "{:?}",
+        start.elapsed()
+    );
 }

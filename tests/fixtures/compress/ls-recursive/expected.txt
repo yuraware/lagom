@@ -1,0 +1,81 @@
+pkg_0
+… [10 similar lines]
+pkg_9
+
+./pkg_0:
+mod_0.py
+… [13 similar lines]
+mod_9.py
+sub
+
+./pkg_0/sub:
+data_0.json
+… [13 similar lines]
+data_9.json
+
+./pkg_1:
+mod_0.py
+… [13 similar lines]
+mod_9.py
+sub
+
+./pkg_1/sub:
+data_0.json
+… [13 similar lines]
+data_9.json
+
+./pkg_10:
+mod_0.py
+… [13 similar lines]
+mod_9.py
+… [55 lines omitted]
+sub
+
+./pkg_5/sub:
+data_0.json
+… [13 similar lines]
+data_9.json
+
+./pkg_6:
+mod_0.py
+… [13 similar lines]
+mod_9.py
+sub
+
+./pkg_6/sub:
+data_0.json
+… [13 similar lines]
+data_9.json
+
+./pkg_7:
+mod_0.py
+… [13 similar lines]
+mod_9.py
+sub
+
+./pkg_7/sub:
+data_0.json
+… [13 similar lines]
+data_9.json
+
+./pkg_8:
+mod_0.py
+… [13 similar lines]
+mod_9.py
+sub
+
+./pkg_8/sub:
+data_0.json
+… [13 similar lines]
+data_9.json
+
+./pkg_9:
+mod_0.py
+… [13 similar lines]
+mod_9.py
+sub
+
+./pkg_9/sub:
+data_0.json
+… [13 similar lines]
+data_9.json

@@ -1,0 +1,72 @@
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   src/mod_1.rs
+	modified:   src/mod_2.rs
+	modified:   src/mod_3.rs
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	untracked_1.txt
+	untracked_10.txt
+	untracked_11.txt
+	untracked_12.txt
+	untracked_13.txt
+	untracked_14.txt
+	untracked_15.txt
+	untracked_16.txt
+	untracked_17.txt
+	untracked_18.txt
+	untracked_19.txt
+	untracked_2.txt
+	untracked_20.txt
+	untracked_21.txt
+	untracked_22.txt
+	untracked_23.txt
+	untracked_24.txt
+	untracked_25.txt
+	untracked_26.txt
+	untracked_27.txt
+	untracked_28.txt
+	untracked_29.txt
+	untracked_3.txt
+	untracked_30.txt
+	untracked_31.txt
+	untracked_32.txt
+	untracked_33.txt
+	untracked_34.txt
+	untracked_35.txt
+	untracked_36.txt
+	untracked_37.txt
+	untracked_38.txt
+	untracked_39.txt
+	untracked_4.txt
+	untracked_40.txt
+	untracked_41.txt
+	untracked_42.txt
+	untracked_43.txt
+	untracked_44.txt
+	untracked_45.txt
+	untracked_46.txt
+	untracked_47.txt
+	untracked_48.txt
+	untracked_49.txt
+	untracked_5.txt
+	untracked_50.txt
+	untracked_51.txt
+	untracked_52.txt
+	untracked_53.txt
+	untracked_54.txt
+	untracked_55.txt
+	untracked_56.txt
+	untracked_57.txt
+	untracked_58.txt
+	untracked_59.txt
+	untracked_6.txt
+	untracked_60.txt
+	untracked_7.txt
+	untracked_8.txt
+	untracked_9.txt
+
+no changes added to commit (use "git add" and/or "git commit -a")

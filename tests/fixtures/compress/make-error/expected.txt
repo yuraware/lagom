@@ -1,0 +1,6 @@
+building target 1 ... ok
+… [88 similar lines]
+building target 90 ... ok
+linking app
+ld: undefined symbol: _start_engine
+make: *** [broken] Error 2

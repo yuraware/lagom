@@ -234,6 +234,13 @@ pub fn render(cwd: &Path) -> String {
         out.push_str(&neutralize_tags(&s.body()));
         out.push_str("\n\n");
     }
+    // The code style gets one project-specific line about tests (Rust and Python).
+    if names.iter().any(|n| n == "lean-code") {
+        if let Some(note) = crate::lang::project_note(cwd) {
+            out.push_str(&note);
+            out.push_str("\n\n");
+        }
+    }
     out.push_str(RECALL_NOTE);
     out.push_str("\n</lagom>");
     out

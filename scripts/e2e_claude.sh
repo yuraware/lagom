@@ -62,12 +62,14 @@ inject = [e for e in events if e.get("kind") == "inject"]
 runs = [e for e in events if e.get("kind") == "run" and e.get("cmd") == "git"]
 compressed = [e for e in runs if e.get("in", 0) > e.get("out", 0)]
 print(f"e2e: injections={len(inject)} git runs={len(runs)} compressed={len(compressed)}")
+attributed = [e for e in runs if e.get("agent") == "claude" and e.get("session")]
+print(f"e2e: git runs attributed to a Claude session: {len(attributed)}")
 for e in compressed:
     print(f"e2e: git output {e['in']} -> {e['out']} bytes")
 # Compression must not cost correctness: the commit changed exactly 300 files.
 correct = re.search(r"\b300\b", answer) is not None
 print(f"e2e: answer correct={correct}")
-ok = inject and compressed and correct
+ok = inject and compressed and attributed and correct
 print("e2e: PASS" if ok else "e2e: FAIL")
 sys.exit(0 if ok else 1)
 PY

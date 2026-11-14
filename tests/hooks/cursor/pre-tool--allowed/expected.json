@@ -2,6 +2,6 @@
   "continue": true,
   "permission": "allow",
   "updated_input": {
-    "command": "<LAGOM> run -- git log -5"
+    "command": "<LAGOM> run --session cursor:c-1 -- git log -5"
   }
 }

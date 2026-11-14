@@ -3,7 +3,7 @@
     "hookEventName": "PreToolUse",
     "permissionDecisionReason": "lagom: compress output",
     "updatedInput": {
-      "command": "<LAGOM> run -- cargo test",
+      "command": "<LAGOM> run --session claude:0b6f1c2e-0000-4000-8000-000000000001 -- cargo test",
       "description": "Run a command",
       "timeout": 600000
     }

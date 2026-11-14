@@ -107,7 +107,14 @@ fn per_session(Messages { by_id, order }: Messages) -> Vec<SessionUsage> {
         if m.sidechain {
             s.subagents.add(&m.usage)
         } else {
-            s.main.add(&m.usage)
+            s.main.add(&m.usage);
+            // `<synthetic>` messages are errors Claude Code shows itself: no API call, so
+            // not a turn (their zero usage would pull the medians down).
+            if m.model.as_deref() != Some("<synthetic>") {
+                let u = &m.usage;
+                s.turns
+                    .push((u.input + u.cache_write + u.cache_read, u.output));
+            }
         }
         // The session's model is the main conversation's, not a subagent's, and not the
         // `<synthetic>` placeholder Claude Code writes for errors it shows itself.

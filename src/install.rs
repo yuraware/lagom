@@ -195,6 +195,12 @@ fn write_json_atomic(path: &Path, value: &Map<String, Value>) -> Result<(), Stri
     if path.exists() && !backup.exists() {
         fs::copy(path, &backup).map_err(err)?;
     }
+    // A settings file linked from a dotfiles folder stays a link: write its target.
+    let target = match fs::symlink_metadata(path) {
+        Ok(m) if m.file_type().is_symlink() => fs::canonicalize(path).map_err(err)?,
+        _ => path.to_path_buf(),
+    };
+    let path = target.as_path();
     let tmp = PathBuf::from(format!("{}.lagom.tmp", path.display()));
     let text = serde_json::to_string_pretty(&Value::Object(value.clone()))
         .map_err(|e| e.to_string())?

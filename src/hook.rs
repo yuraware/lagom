@@ -41,17 +41,38 @@ impl Agent {
     }
 }
 
+/// Largest hook payload we read. Bigger input is ignored (fail open).
+const MAX_PAYLOAD: u64 = 8 * 1024 * 1024;
+/// Longest shell command we consider rewriting.
+const MAX_COMMAND: usize = 64 * 1024;
+/// Longest `cwd` we accept. Real paths are far shorter; a huge one would make the
+/// settings lookup walk millions of parent folders.
+const MAX_PATH: usize = 4096;
+
 /// Entry point used by `main`. Always exits successfully.
 pub fn run(agent: &str, event: &str) {
-    let mut input = String::new();
-    let _ = std::io::stdin().read_to_string(&mut input);
-    let payload: Value = serde_json::from_str(&input).unwrap_or(Value::Null);
-    let response = Agent::parse(agent).and_then(|a| respond(a, event, &payload, &lagom_bin()));
+    let payload = read_payload(std::io::stdin().lock());
+    let response = payload
+        .as_ref()
+        .zip(Agent::parse(agent))
+        .and_then(|(p, a)| respond(a, event, p, &lagom_bin()));
     match (response, Agent::parse(agent)) {
         (Some(out), _) => println!("{out}"),
         (None, Some(Agent::Cursor)) => println!("{{}}"),
         (None, _) => {}
     }
+}
+
+/// Parse a hook payload: a JSON object of at most [`MAX_PAYLOAD`] bytes, else `None`.
+fn read_payload(input: impl Read) -> Option<Value> {
+    let mut bytes = Vec::new();
+    input.take(MAX_PAYLOAD + 1).read_to_end(&mut bytes).ok()?;
+    if bytes.len() as u64 > MAX_PAYLOAD {
+        return None;
+    }
+    serde_json::from_slice::<Value>(&bytes)
+        .ok()
+        .filter(Value::is_object)
 }
 
 /// Path written into hooks: [`choose_bin`] for the running process.
@@ -135,9 +156,11 @@ pub fn respond(agent: Agent, event: &str, payload: &Value, bin: &str) -> Option<
     if std::env::var_os("LAGOM_DISABLE").is_some() {
         return None;
     }
-    let cwd = payload
-        .get("cwd")
-        .and_then(Value::as_str)
+    let cwd = payload.get("cwd").and_then(Value::as_str);
+    if cwd.is_some_and(|c| c.len() > MAX_PATH) {
+        return None;
+    }
+    let cwd = cwd
         .map(PathBuf::from)
         .or_else(|| std::env::current_dir().ok())
         .unwrap_or_else(|| PathBuf::from("."));
@@ -175,6 +198,9 @@ fn pre_tool(agent: Agent, payload: &Value, cwd: &Path, bin: &str) -> Option<Valu
         return None;
     }
     let command = input.get("command")?.as_str()?;
+    if command.len() > MAX_COMMAND {
+        return None;
+    }
     let rewritten = rewrite::rewrite(command, bin)?;
 
     // updatedInput replaces the whole input: keep every original field.
@@ -331,6 +357,32 @@ pub fn pattern_matches(pattern: &str, cmd: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn payload_limits() {
+        assert!(read_payload(&b"{\"a\":1}"[..]).is_some());
+        assert!(read_payload(&b"[1,2]"[..]).is_none());
+        assert!(read_payload(&b"\"text\""[..]).is_none());
+        assert!(read_payload(&b"not json"[..]).is_none());
+        assert!(read_payload(&[0xff, 0xfe][..]).is_none());
+        let big = format!("{{\"a\":\"{}\"}}", "x".repeat(MAX_PAYLOAD as usize));
+        assert!(read_payload(big.as_bytes()).is_none());
+    }
+
+    #[test]
+    fn huge_cwd_is_ignored() {
+        let cwd = "/a".repeat(MAX_PATH);
+        let p = json!({"cwd": cwd, "tool_input": {"command": "git status"}, "permission_mode": "bypassPermissions"});
+        assert!(respond(Agent::Claude, "pre-tool", &p, "/bin/lagom").is_none());
+        assert!(respond(Agent::Claude, "session-start", &p, "/bin/lagom").is_none());
+    }
+
+    #[test]
+    fn huge_command_is_not_rewritten() {
+        let cmd = format!("git log {}", "a".repeat(MAX_COMMAND));
+        let p = json!({"tool_name": "Bash", "tool_input": {"command": cmd}, "permission_mode": "bypassPermissions"});
+        assert!(pre_tool(Agent::Claude, &p, Path::new("/"), "/bin/lagom").is_none());
+    }
 
     #[cfg(unix)]
     fn brew_layout(name: &str) -> PathBuf {

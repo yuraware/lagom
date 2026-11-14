@@ -1,0 +1,20 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.5, pytest-9.2.0, pluggy-1.7.0
+rootdir: /work/py
+collected 80 items / 1 error
+
+==================================== ERRORS ====================================
+_______________________ ERROR collecting test_broken.py ________________________
+ImportError while importing test module '/work/py/test_broken.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test_broken.py:1: in <module>
+    import not_a_real_module_xyz
+E   ModuleNotFoundError: No module named 'not_a_real_module_xyz'
+=========================== short test summary info ============================
+ERROR test_broken.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+=============================== 1 error in 0.11s ===============================

@@ -16,6 +16,7 @@ Status: **0.1.0, first public preview.** Tested on macOS; Linux should work; Win
 cargo install --git https://github.com/yuraware/lagom   # or: cargo install --path .
 lagom install            # every agent found: claude, codex, cursor
 lagom install claude     # or pick agents
+lagom install --dry-run  # show what would change, change nothing
 ```
 
 Then start a new agent session.

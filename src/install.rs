@@ -431,6 +431,71 @@ pub fn uninstall(agent: Agent, dry_run: bool) -> Result<Outcome, String> {
     Ok(out)
 }
 
+/// Folders `--purge` deletes: Lagom's data (`~/.lagom`) and config (`~/.config/lagom`).
+pub fn purge_targets() -> Vec<PathBuf> {
+    vec![crate::store::lagom_dir(), crate::style::config_dir()]
+}
+
+/// Delete Lagom's data and config folders. Only folders Lagom created are deleted: the
+/// default `~/.lagom` and `~/.config/lagom`, or any folder holding Lagom's marker file.
+/// Anything else (a `LAGOM_HOME` pointing at `~/Documents`, the home folder, a filesystem
+/// root) is refused before anything is deleted.
+pub fn purge(dry_run: bool) -> Result<Vec<String>, String> {
+    let home = home_dir();
+    let defaults = [home.join(".lagom"), home.join(".config").join("lagom")];
+    let dirs: Vec<PathBuf> = purge_targets().into_iter().filter(|d| d.exists()).collect();
+    for dir in &dirs {
+        let shallow = dir.components().count() < 3;
+        let ours = defaults.contains(dir) || dir.join(crate::store::DIR_MARKER).is_file();
+        if shallow || home.starts_with(dir) || !ours {
+            return Err(format!(
+                "refusing to delete {}: Lagom didn't create it (no {} file); delete it yourself if you are sure",
+                dir.display(),
+                crate::store::DIR_MARKER
+            ));
+        }
+    }
+    let mut notes = Vec::new();
+    for dir in dirs {
+        if dry_run {
+            notes.push(format!("would delete {}", dir.display()));
+        } else {
+            fs::remove_dir_all(&dir)
+                .map_err(|e| format!("cannot delete {}: {e}", dir.display()))?;
+            notes.push(format!("deleted {}", dir.display()));
+        }
+    }
+    Ok(notes)
+}
+
+/// The command that removes the binary itself, guessed from where it lives.
+/// Links are followed first: Homebrew on Intel Macs and pipx put a link on `PATH`
+/// (`/usr/local/bin/lagom`, `~/.local/bin/lagom`) that points into their own folders.
+pub fn removal_hint(exe: &Path) -> String {
+    let resolved = fs::canonicalize(exe).unwrap_or_else(|_| exe.to_path_buf());
+    let has = |part: &str| resolved.components().any(|c| c.as_os_str() == part);
+    let dir = exe.parent().unwrap_or(Path::new("."));
+    if has("Cellar")
+        || resolved.starts_with("/opt/homebrew")
+        || resolved.starts_with("/home/linuxbrew")
+    {
+        "brew uninstall lagom".into()
+    } else if has(".cargo") {
+        "cargo uninstall lagom".into()
+    } else if has("pipx") {
+        "pipx uninstall lagom-ai".into()
+    } else if has("site-packages") || resolved.to_string_lossy().contains("/.local/share/uv/") {
+        "pip uninstall lagom-ai (or: uv tool uninstall lagom-ai)".into()
+    } else {
+        let ext = std::env::consts::EXE_SUFFIX;
+        format!(
+            "rm {} {}",
+            shell_quote(&dir.join(format!("lagom{ext}")).to_string_lossy()),
+            shell_quote(&dir.join(format!("lgm{ext}")).to_string_lossy())
+        )
+    }
+}
+
 /// (agent, hooks installed, skills installed)
 pub fn status(agent: Agent) -> (bool, usize) {
     let t = target(agent);
@@ -454,6 +519,46 @@ pub fn status(agent: Agent) -> (bool, usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn removal_hint_matches_install_method() {
+        let hint = |p: &str| removal_hint(Path::new(p));
+        assert_eq!(
+            hint("/opt/homebrew/Cellar/lagom/0.1.0/bin/lagom"),
+            "brew uninstall lagom"
+        );
+        assert_eq!(hint("/opt/homebrew/bin/lagom"), "brew uninstall lagom");
+        assert_eq!(hint("/home/a/.cargo/bin/lagom"), "cargo uninstall lagom");
+        assert_eq!(
+            hint("/home/a/.local/share/pipx/venvs/lagom-ai/bin/lagom"),
+            "pipx uninstall lagom-ai"
+        );
+        assert!(hint("/home/a/.local/bin/lagom").starts_with("rm /home/a/.local/bin/lagom"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn removal_hint_follows_links_into_package_folders() {
+        let root = std::env::temp_dir().join(format!("lagom-hint-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        for (real, expected) in [
+            (
+                "usr/local/Cellar/lagom/0.1.0/bin/lagom",
+                "brew uninstall lagom",
+            ),
+            ("pipx/venvs/lagom-ai/bin/lagom", "pipx uninstall lagom-ai"),
+        ] {
+            let real = root.join(real);
+            fs::create_dir_all(real.parent().unwrap()).unwrap();
+            fs::write(&real, "").unwrap();
+            let link = root.join("bin/lagom");
+            fs::create_dir_all(link.parent().unwrap()).unwrap();
+            let _ = fs::remove_file(&link);
+            std::os::unix::fs::symlink(&real, &link).unwrap();
+            assert_eq!(removal_hint(&link), expected);
+        }
+        let _ = fs::remove_dir_all(&root);
+    }
 
     const BIN: &str = "/opt/lagom/bin/lagom";
 

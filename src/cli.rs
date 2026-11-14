@@ -13,6 +13,7 @@ Usage:
   lagom install [claude|codex|cursor ...]   Install hooks and skills (default: every agent found)
                 [--dry-run] [--yes]         Show changes only / don't ask for confirmation
   lagom uninstall [claude|codex|cursor ...] Remove Lagom's hooks and skills [--dry-run]
+                  [--all] [--purge] [--yes]  --purge also deletes ~/.lagom and ~/.config/lagom
   lagom status                              Show what is installed and which styles are active
   lagom style                               Show active styles
   lagom style list                          List built-in, user and project styles
@@ -128,17 +129,35 @@ fn confirm(question: &str, input: &mut impl std::io::BufRead, out: &mut impl Wri
 }
 
 fn cmd_install(args: &[String], installing: bool) -> ExitCode {
-    let (mut dry_run, mut yes, mut names) = (false, false, Vec::new());
+    let (mut dry_run, mut yes, mut purge, mut all, mut names) =
+        (false, false, false, false, Vec::new());
     for a in args {
         match a.as_str() {
             "--dry-run" | "-n" => dry_run = true,
             "--yes" | "-y" => yes = true,
+            "--all" => all = true, // the default when no agent is named
+            "--purge" if !installing => purge = true,
             s if s.starts_with('-') => {
-                eprintln!("lagom: unknown option `{s}` (use --dry-run or --yes)");
+                eprintln!("lagom: unknown option `{s}`");
                 return ExitCode::from(2);
             }
             _ => names.push(a.clone()),
         }
+    }
+    if all && !names.is_empty() {
+        eprintln!("lagom: use either --all or agent names, not both");
+        return ExitCode::from(2);
+    }
+    if purge && !names.is_empty() {
+        eprintln!(
+            "lagom: --purge deletes data every agent shares; run `lagom uninstall --all --purge`"
+        );
+        return ExitCode::from(2);
+    }
+    // Decide before changing anything: without a terminal there is no one to ask.
+    if purge && !dry_run && !yes && !std::io::stdin().is_terminal() {
+        eprintln!("lagom: --purge deletes Lagom's data and config; rerun with --yes to confirm");
+        return ExitCode::from(2);
     }
     let agents = match parse_agents(&names, installing) {
         Ok(a) if a.is_empty() => {
@@ -212,7 +231,18 @@ fn cmd_install(args: &[String], installing: bool) -> ExitCode {
     for (agent, state) in &summary {
         println!("  {:<7} {state}", agent.name());
     }
-    let failed = summary.iter().any(|(_, s)| s.starts_with("failed"));
+    let mut failed = summary.iter().any(|(_, s)| s.starts_with("failed"));
+    if purge && !failed {
+        failed = !cmd_purge(dry_run, yes);
+    }
+    if !installing && names.is_empty() && !failed {
+        if let Ok(exe) = std::env::current_exe() {
+            println!(
+                "To remove the program itself: {}",
+                install::removal_hint(&exe)
+            );
+        }
+    }
     if dry_run {
         println!("Dry run: nothing was changed.");
     } else if installing && !failed {
@@ -222,6 +252,45 @@ fn cmd_install(args: &[String], installing: bool) -> ExitCode {
         ExitCode::from(1)
     } else {
         ExitCode::SUCCESS
+    }
+}
+
+/// Delete Lagom's data and config. Asks first in a terminal; needs `--yes` otherwise.
+/// Returns false on failure or when the user declines.
+fn cmd_purge(dry_run: bool, yes: bool) -> bool {
+    let dirs: Vec<_> = install::purge_targets()
+        .into_iter()
+        .filter(|d| d.exists())
+        .collect();
+    if dirs.is_empty() {
+        println!("purge: no Lagom data or config found");
+        return true;
+    }
+    if !dry_run && !yes {
+        let list: Vec<String> = dirs.iter().map(|d| d.display().to_string()).collect();
+        print!(
+            "Delete {} (stats, saved outputs, styles, config)? [y/N] ",
+            list.join(" and ")
+        );
+        let _ = std::io::stdout().flush();
+        let mut answer = String::new();
+        let _ = std::io::stdin().read_line(&mut answer);
+        if !answer.trim().to_lowercase().starts_with('y') {
+            println!("purge: skipped");
+            return true;
+        }
+    }
+    match install::purge(dry_run) {
+        Ok(notes) => {
+            for n in notes {
+                println!("purge: {n}");
+            }
+            true
+        }
+        Err(e) => {
+            eprintln!("lagom: {e}");
+            false
+        }
     }
 }
 

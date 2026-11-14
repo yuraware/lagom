@@ -30,4 +30,5 @@ First preview.
 - Hooks ignore input over 8 MB, JSON that is not an object, commands over 64 KB and a `cwd` over 4 KB, staying silent instead of failing.
 - `lagom install` keeps a symlinked settings file a symlink and writes its target.
 - `lagom install` / `uninstall` accept `--dry-run` and `--yes`, ask once before installing in a terminal, and end with a one-line summary per agent.
+- `lagom uninstall --all --purge` removes Lagom from every agent and deletes `~/.lagom` and `~/.config/lagom` (asks first; `--yes` in scripts), then prints the command that removes the binary. It deletes only folders Lagom created (a `.lagom-dir` file marks them), so a `LAGOM_HOME` pointing elsewhere is refused.
 - `lgm`, a short alias binary for `lagom`. Hooks always point to `lagom`, and hooks written under either name are recognized as Lagom's own.

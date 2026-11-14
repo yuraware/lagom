@@ -1,0 +1,7 @@
+{"timestamp":"2026-10-07T18:13:50Z","type":"session_meta","payload":{"id":"019a-codex-1","originator":"codex-tui","cli_version":"0.162.0"}}
+{"timestamp":"2026-10-07T18:13:51Z","type":"turn_context","payload":{"model":"gpt-6.1-sol","approval_policy":"never"}}
+{"timestamp":"2026-10-07T18:13:59Z","type":"token_usage_record","payload":{"session_id":"019a-codex-1","response_id":"resp_1","usage":{"input_tokens":25677,"cached_input_tokens":13056,"cache_write_input_tokens":0,"output_tokens":201,"reasoning_output_tokens":0,"total_tokens":25878}}}
+{"timestamp":"2026-10-07T18:14:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":25677,"cached_input_tokens":13056,"output_tokens":201},"last_token_usage":{"input_tokens":25677,"cached_input_tokens":13056,"output_tokens":201}}}}
+{"timestamp":"2026-10-07T18:14:00Z","type":"token_usage_record","payload":{"session_id":"019a-codex-1","response_id":"resp_1","usage":{"input_tokens":25677,"cached_input_tokens":13056,"cache_write_input_tokens":0,"output_tokens":201}}}
+not json
+{"timestamp":"2026-10-07T18:15:10Z","type":"token_usage_record","payload":{"session_id":"019a-codex-1","response_id":"resp_2","usage":{"input_tokens":30000,"cached_input_tokens":25000,"cache_write_input_tokens":0,"output_tokens":50}}}

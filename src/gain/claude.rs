@@ -98,6 +98,7 @@ fn per_session(Messages { by_id, order }: Messages) -> Vec<SessionUsage> {
         let m = &by_id[id];
         let i = *index.entry(m.session.clone()).or_insert_with(|| {
             sessions.push(SessionUsage {
+                agent: "claude".into(),
                 session_id: m.session.clone(),
                 ..Default::default()
             });

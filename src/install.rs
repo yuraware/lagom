@@ -42,7 +42,7 @@ pub fn claude_dir() -> PathBuf {
         .unwrap_or_else(|| home_dir().join(".claude"))
 }
 
-fn codex_dir() -> PathBuf {
+pub fn codex_dir() -> PathBuf {
     std::env::var_os("CODEX_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| home_dir().join(".codex"))

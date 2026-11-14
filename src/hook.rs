@@ -156,7 +156,12 @@ pub fn respond(agent: Agent, event: &str, payload: &Value, bin: &str) -> Option<
     if std::env::var_os("LAGOM_DISABLE").is_some() {
         return None;
     }
-    let cwd = payload.get("cwd").and_then(Value::as_str);
+    // Claude Code and Codex send `cwd`; Cursor sends `workspace_roots`.
+    let cwd = payload.get("cwd").and_then(Value::as_str).or_else(|| {
+        payload
+            .pointer("/workspace_roots/0")
+            .and_then(Value::as_str)
+    });
     if cwd.is_some_and(|c| c.len() > MAX_PATH) {
         return None;
     }

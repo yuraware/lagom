@@ -521,6 +521,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn every_registered_hook_has_a_contract_fixture() {
+        // QA-03: tests/hooks/<agent>/<event>[--variant]/ must exist for every hook we install.
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/hooks");
+        for agent in [Agent::Claude, Agent::Codex, Agent::Cursor] {
+            let cases: Vec<String> = fs::read_dir(root.join(agent.name()))
+                .map(|d| {
+                    d.flatten()
+                        .map(|e| e.file_name().to_string_lossy().into_owned())
+                        .collect()
+                })
+                .unwrap_or_default();
+            for (_, event, _, _) in hook_specs(agent) {
+                assert!(
+                    cases
+                        .iter()
+                        .any(|c| c == event || c.starts_with(&format!("{event}--"))),
+                    "no fixture in tests/hooks/{}/ for `{event}`",
+                    agent.name()
+                );
+            }
+        }
+    }
+
+    #[test]
     fn removal_hint_matches_install_method() {
         let hint = |p: &str| removal_hint(Path::new(p));
         assert_eq!(

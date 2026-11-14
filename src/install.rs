@@ -186,12 +186,24 @@ fn read_json_object(path: &Path) -> Result<Map<String, Value>, String> {
     }
 }
 
+/// Where the first change to an existing file keeps a copy of the original.
+fn backup_path(path: &Path) -> PathBuf {
+    PathBuf::from(format!("{}.lagom.bak", path.display()))
+}
+
+/// Dry-run note for the backup `write_json_atomic` would create, if any.
+fn backup_note(path: &Path) -> Option<String> {
+    let backup = backup_path(path);
+    (path.exists() && !backup.exists())
+        .then(|| format!("would back up the original to {}", backup.display()))
+}
+
 fn write_json_atomic(path: &Path, value: &Map<String, Value>) -> Result<(), String> {
     let err = |e: std::io::Error| format!("cannot write {}: {e}", path.display());
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(err)?;
     }
-    let backup = PathBuf::from(format!("{}.lagom.bak", path.display()));
+    let backup = backup_path(path);
     if path.exists() && !backup.exists() {
         fs::copy(path, &backup).map_err(err)?;
     }
@@ -286,15 +298,35 @@ pub fn remove_hooks(agent: Agent, config: &mut Map<String, Value>) -> bool {
     *config != before
 }
 
-fn install_skills(dir: &Path) -> Result<Vec<String>, String> {
+/// Result of installing into or removing from one agent.
+#[derive(Debug, Default)]
+pub struct Outcome {
+    pub notes: Vec<String>,
+    /// Something was (or, in a dry run, would be) changed.
+    pub changed: bool,
+}
+
+/// Write our skills into `dir`. Returns notes and whether anything changed.
+fn install_skills(dir: &Path, dry_run: bool) -> Result<(Vec<String>, bool), String> {
     let mut notes = Vec::new();
+    let mut changed = false;
     for (name, text) in SKILLS {
         let skill_dir = dir.join(name);
-        if skill_dir.exists() && !skill_dir.join(MARKER).exists() {
+        let ours = skill_dir.join(MARKER).exists();
+        if skill_dir.exists() && !ours {
             notes.push(format!(
                 "skipped skill {name}: {} exists and is not Lagom's",
                 skill_dir.display()
             ));
+            continue;
+        }
+        let current = fs::read_to_string(skill_dir.join("SKILL.md")).ok();
+        if ours && current.as_deref() == Some(text) {
+            continue;
+        }
+        changed = true;
+        if dry_run {
+            notes.push(format!("would write skill {}", skill_dir.display()));
             continue;
         }
         let err = |e: std::io::Error| format!("cannot write skill {name}: {e}");
@@ -306,70 +338,97 @@ fn install_skills(dir: &Path) -> Result<Vec<String>, String> {
         )
         .map_err(err)?;
     }
-    Ok(notes)
+    Ok((notes, changed))
 }
 
-fn uninstall_skills(dir: &Path) -> usize {
+/// Remove our skills from `dir` (or count them in a dry run).
+fn uninstall_skills(dir: &Path, dry_run: bool) -> usize {
     SKILLS
         .iter()
         .map(|(name, _)| dir.join(name))
         .filter(|d| d.join(MARKER).exists())
-        .filter(|d| fs::remove_dir_all(d).is_ok())
+        .filter(|d| dry_run || fs::remove_dir_all(d).is_ok())
         .count()
 }
 
-pub fn install(agent: Agent, bin: &str) -> Result<Vec<String>, String> {
+/// Install hooks and skills for `agent`. With `dry_run`, only report what would change.
+pub fn install(agent: Agent, bin: &str, dry_run: bool) -> Result<Outcome, String> {
     let t = target(agent);
-    let mut notes = Vec::new();
+    let mut out = Outcome::default();
     let mut config = read_json_object(&t.hooks_file)?;
     if merge_hooks(agent, &mut config, bin) {
-        write_json_atomic(&t.hooks_file, &config)?;
-        notes.push(format!("hooks: updated {}", t.hooks_file.display()));
+        out.changed = true;
+        if dry_run {
+            out.notes
+                .push(format!("hooks: would update {}", t.hooks_file.display()));
+            out.notes.extend(backup_note(&t.hooks_file));
+        } else {
+            write_json_atomic(&t.hooks_file, &config)?;
+            out.notes
+                .push(format!("hooks: updated {}", t.hooks_file.display()));
+        }
     } else {
-        notes.push(format!(
+        out.notes.push(format!(
             "hooks: already up to date in {}",
             t.hooks_file.display()
         ));
     }
-    notes.extend(install_skills(&t.skills_dir)?);
-    notes.push(format!(
-        "skills: {} in {}",
-        SKILLS.len(),
-        t.skills_dir.display()
-    ));
-    if agent == Agent::Codex {
-        notes.push("Codex: open Codex and run /hooks to review and trust the lagom hooks; they stay inactive until trusted.".into());
+    let (skill_notes, skills_changed) = install_skills(&t.skills_dir, dry_run)?;
+    out.notes.extend(skill_notes);
+    out.changed |= skills_changed;
+    if !dry_run {
+        out.notes.push(format!(
+            "skills: {} in {}",
+            SKILLS.len(),
+            t.skills_dir.display()
+        ));
     }
-    Ok(notes)
+    if agent == Agent::Codex && out.changed {
+        out.notes.push("Codex: open Codex and run /hooks to review and trust the lagom hooks; they stay inactive until trusted.".into());
+    }
+    Ok(out)
 }
 
-pub fn uninstall(agent: Agent) -> Result<Vec<String>, String> {
+/// Remove Lagom's hooks and skills from `agent`. With `dry_run`, only report.
+pub fn uninstall(agent: Agent, dry_run: bool) -> Result<Outcome, String> {
     let t = target(agent);
-    let mut notes = Vec::new();
+    let mut out = Outcome::default();
     if t.hooks_file.exists() {
         let mut config = read_json_object(&t.hooks_file)?;
         if remove_hooks(agent, &mut config) {
+            out.changed = true;
             let only_version = config.len() == 1 && config.contains_key("version");
-            if config.is_empty() || (agent == Agent::Cursor && only_version) {
+            let delete = config.is_empty() || (agent == Agent::Cursor && only_version);
+            let verb = if dry_run { "would remove" } else { "removed" };
+            if !dry_run && delete {
                 fs::remove_file(&t.hooks_file).map_err(|e| e.to_string())?;
-                notes.push(format!(
-                    "hooks: removed {} (only Lagom hooks were in it)",
-                    t.hooks_file.display()
-                ));
-            } else {
+            } else if !dry_run {
                 write_json_atomic(&t.hooks_file, &config)?;
-                notes.push(format!("hooks: removed from {}", t.hooks_file.display()));
+            }
+            out.notes.push(if delete {
+                format!(
+                    "hooks: {verb} {} (only Lagom hooks were in it)",
+                    t.hooks_file.display()
+                )
+            } else {
+                format!("hooks: {verb} from {}", t.hooks_file.display())
+            });
+            if dry_run && !delete {
+                out.notes.extend(backup_note(&t.hooks_file));
             }
         } else {
-            notes.push(format!("hooks: none found in {}", t.hooks_file.display()));
+            out.notes
+                .push(format!("hooks: none found in {}", t.hooks_file.display()));
         }
     }
-    notes.push(format!(
-        "skills: removed {} from {}",
-        uninstall_skills(&t.skills_dir),
+    let skills = uninstall_skills(&t.skills_dir, dry_run);
+    out.changed |= skills > 0;
+    out.notes.push(format!(
+        "skills: {} {skills} from {}",
+        if dry_run { "would remove" } else { "removed" },
         t.skills_dir.display()
     ));
-    Ok(notes)
+    Ok(out)
 }
 
 /// (agent, hooks installed, skills installed)

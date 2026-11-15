@@ -37,6 +37,7 @@ On real outputs: `git log --stat -3` 115,863 → 5,462 bytes, `rg -n fn` 136,128
 - [Styles](docs/styles.md): use, write your own, turn off
 - [Compression](docs/compression.md): what gets rewritten, permissions, recall
 - [Data and privacy](docs/privacy.md)
+- [Troubleshooting](docs/troubleshooting.md)
 - [Testing](docs/dev/testing.md)
 
 ## Honest numbers

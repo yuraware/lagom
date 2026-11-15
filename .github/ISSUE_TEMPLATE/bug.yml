@@ -1,0 +1,86 @@
+name: Bug report
+description: Something in Lagom is broken or behaves differently than documented.
+title: "bug: "
+labels: ["type/bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please remove secrets, tokens and private paths from anything you paste.
+        Security problems go through private vulnerability reporting, not here.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The smallest set of commands that shows the problem.
+      placeholder: |
+        1. lagom install claude
+        2. Ask the agent to run `cargo test`
+        3. The output is missing the failing test name
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Lagom version
+      description: Output of `lagom --version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent
+      multiple: true
+      options:
+        - Claude Code
+        - Codex
+        - Cursor
+        - None (CLI only)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: agent-version
+    attributes:
+      label: Agent version
+      description: For example the output of `claude --version`.
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How Lagom was installed
+      options:
+        - cargo install
+        - install.sh
+        - Homebrew
+        - pip / uv
+        - Built from source
+        - Other
+  - type: textarea
+    id: status
+    attributes:
+      label: Output of `lagom status`
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Command output or logs
+      description: If the problem is about compressed output, include the full output from `lagom recall <id>` as well.
+      render: text

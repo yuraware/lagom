@@ -158,7 +158,6 @@ done
 for i in $(seq 1 120); do sed -i '' "s/item-$i\"/renamed-$i\"/" "pkg$((i % 10))/f$i.toml"; done
 for i in $(seq 1 300); do sed -i '' "s/version = \"1.$i.0\"/version = \"2.$i.0\"/" Cargo.lock; done
 run git git-diff-with-lockfile '["renamed-1\"", "renamed-120\"", "Cargo.lock"]' git diff
-gap git git-diff-with-lockfile CMP-07
 run git git-diff-stat '["files changed"]' git diff --stat
 run git git-log-oneline '["tune item 80", "initial import"]' git log --oneline
 run git git-log-patch '["tune item 80", "changed = 80"]' git log -p -5

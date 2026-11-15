@@ -632,3 +632,38 @@ fn purge_refuses_unsafe_lagom_home() {
     assert!(String::from_utf8_lossy(&out.stderr).contains("refusing to delete"));
     assert!(home.exists());
 }
+
+#[test]
+fn stuck_hook_gives_up_at_the_deadline() {
+    // The agent never closes the hook's input: reading it blocks forever. The real
+    // binary must still answer (Cursor: `{}`) and exit after about 2 seconds.
+    let home = sandbox("deadline");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_lagom"))
+        .args(["hook", "cursor", "session-start"])
+        .env("HOME", &home)
+        .env_remove("CLAUDE_PROJECT_DIR")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let held_open = child.stdin.take();
+    let start = std::time::Instant::now();
+    // Poll instead of waiting, so a hook without a deadline fails here instead of hanging.
+    let status = loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            break status;
+        }
+        if start.elapsed() > std::time::Duration::from_secs(8) {
+            let _ = child.kill();
+            panic!("the hook was still running after 8 s");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    };
+    let took = start.elapsed();
+    drop(held_open);
+    let mut stdout = String::new();
+    std::io::Read::read_to_string(&mut child.stdout.take().unwrap(), &mut stdout).unwrap();
+    assert!(status.success());
+    assert_eq!(stdout.trim(), "{}");
+    assert!(took >= std::time::Duration::from_millis(1500), "{took:?}");
+}

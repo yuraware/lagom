@@ -103,6 +103,7 @@ GO
   { echo 'package m'; echo 'import "testing"'; for i in $(seq 1 60); do echo "func TestAdd$i(t *testing.T) { if Add($i, 1) != $((i + 1)) { t.Fatal(\"bad\") } }"; done
     echo 'func TestBroken(t *testing.T) { if Add(2, 2) != 5 { t.Errorf("Add(2,2) = %d, want 5", Add(2, 2)) } }'; } > m_test.go
   run go go-test-fail '["--- FAIL: TestBroken", "Add(2,2) = 4, want 5", "FAIL"]' go test -v ./...
+  run go go-test-json '["--- FAIL: TestBroken", "Add(2,2) = 4, want 5", "\"Action\":\"fail\""]' env TZ=UTC go test -json ./...  # UTC: no local time zone in the corpus
   sed -i '' '/TestBroken/d' m_test.go
   run go go-test-pass '["ok"]' go test -v ./...
   printf 'package m\nfunc Bad() int { return "x" }\n' > bad.go
@@ -196,10 +197,9 @@ items = [{"id": i, "name": f"service-{i}", "status": "ok" if i % 37 else "failed
           "error": None if i % 37 else f"timeout after {i}ms", "tags": ["a", "b"]} for i in range(400)]
 json.dump({"items": items, "total": 400}, open(sys.argv[1], "w"))
 PY
-run json jq-pretty-array '["\"status\": \"failed\"", "timeout after 0ms", "timeout after 37ms", "timeout after 74ms", "timeout after 111ms", "timeout after 148ms", "timeout after 185ms", "timeout after 222ms", "timeout after 259ms", "timeout after 296ms", "timeout after 333ms", "timeout after 370ms", "\"total\": 400"]' jq . "$W/api.json"
-gap json jq-pretty-array CMP-06  # every failed item must survive, not just one
-run json jq-compact-lines '["timeout after 74ms"]' jq -c '.items[]' "$W/api.json"
-gap json jq-compact-lines CMP-06
+TIMEOUTS='"timeout after 0ms", "timeout after 37ms", "timeout after 74ms", "timeout after 111ms", "timeout after 148ms", "timeout after 185ms", "timeout after 222ms", "timeout after 259ms", "timeout after 296ms", "timeout after 333ms", "timeout after 370ms"'  # every failed item must survive, not just one
+run json jq-pretty-array '["\"status\":\"failed\"", '"$TIMEOUTS"', "\"total\":400"]' jq . "$W/api.json"  # Lagom prints JSON compactly
+run json jq-compact-lines '['"$TIMEOUTS"']' jq -c '.items[]' "$W/api.json"
 run json jq-parse-error '["parse error"]' sh -c 'echo "{\"a\": [1, 2,}" | jq .'
 
 # ---------- logs ----------

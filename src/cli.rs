@@ -397,6 +397,10 @@ fn cmd_status() -> ExitCode {
         );
     }
     print_active_styles(&cwd());
+    let langs = crate::lang::detect(&cwd());
+    if !langs.names().is_empty() {
+        println!("project languages: {}", langs.names().join(", "));
+    }
     ExitCode::SUCCESS
 }
 

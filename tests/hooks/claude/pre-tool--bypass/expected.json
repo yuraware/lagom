@@ -1,0 +1,11 @@
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecisionReason": "lagom: compress output",
+    "updatedInput": {
+      "command": "<LAGOM> run -- cargo test",
+      "description": "Run a command",
+      "timeout": 600000
+    }
+  }
+}

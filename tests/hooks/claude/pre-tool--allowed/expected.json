@@ -1,0 +1,11 @@
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecisionReason": "lagom: compress output",
+    "updatedInput": {
+      "command": "<LAGOM> run -- git log --stat -3",
+      "description": "Run a command"
+    },
+    "permissionDecision": "allow"
+  }
+}

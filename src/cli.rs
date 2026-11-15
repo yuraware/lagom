@@ -26,7 +26,7 @@ Usage:
                   [--lines A-B] [--head N] [--tail N]  or only part of it
   lagom recall --list | --clear             List or delete saved outputs
   lagom stats                               Show estimated savings
-  lagom stats --usage [--days N]            Real token usage per style (Claude Code)
+  lagom stats --usage [--days N]            Real token usage per style (Claude Code, Codex)
   lagom bench compress [DIR…] [--json F]    Compress a corpus of real outputs; report sizes and
                   [--compare BASELINE]      kept must_keep strings (exit 1 on an unexpected loss)
   lagom hook <agent> <event>                Used by agent hooks (reads JSON on stdin)
@@ -492,28 +492,33 @@ fn cmd_usage(args: &[String]) -> ExitCode {
     };
     let since =
         std::time::SystemTime::now().checked_sub(std::time::Duration::from_secs(days * 86_400));
-    let sessions = crate::gain::claude::sessions(since);
-    if sessions.is_empty() {
-        println!("No Claude Code sessions in the last {days} days.");
+    let (styles, tracked_since) = store::session_styles();
+    let agents = [
+        ("Claude Code", crate::gain::claude::sessions(since)),
+        ("Codex", crate::gain::codex::sessions(since)),
+    ];
+    if agents.iter().all(|(_, s)| s.is_empty()) {
+        println!("No Claude Code or Codex sessions in the last {days} days.");
         return ExitCode::SUCCESS;
     }
-    let (styles, tracked_since) = store::session_styles();
-    let groups = crate::gain::by_style(&sessions, &styles, tracked_since);
-    println!("Claude Code token usage, last {days} days (from its transcripts):");
-    println!(
-        "{:<30} {:>8} {:>7} {:>14} {:>15} {:>11}",
-        "style", "sessions", "turns", "output/turn", "input/turn", "cache read"
-    );
-    for g in &groups {
+    for (name, sessions) in agents.iter().filter(|(_, s)| !s.is_empty()) {
+        println!("{name} token usage, last {days} days (from its own logs):");
         println!(
-            "{:<30} {:>8} {:>7} {:>14} {:>15} {:>10.0}%",
-            g.style,
-            g.sessions,
-            g.turns,
-            g.median_output_per_turn,
-            g.median_input_per_turn,
-            g.cache_read_share * 100.0
+            "{:<30} {:>8} {:>7} {:>14} {:>15} {:>11}",
+            "style", "sessions", "turns", "output/turn", "input/turn", "cache read"
         );
+        for g in &crate::gain::by_style(sessions, &styles, tracked_since) {
+            println!(
+                "{:<30} {:>8} {:>7} {:>14} {:>15} {:>10.0}%",
+                g.style,
+                g.sessions,
+                g.turns,
+                g.median_output_per_turn,
+                g.median_input_per_turn,
+                g.cache_read_share * 100.0
+            );
+        }
+        println!();
     }
     println!(
         "Medians per main-conversation turn. Observational: sessions differ in their work, so this does not prove a style's effect."

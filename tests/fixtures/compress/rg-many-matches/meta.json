@@ -1,1 +1,1 @@
-{"exit_code": 0, "must_keep": ["tree/pkg_0/mod_0.py:1:def handler_0_0_0"]}
+{"exit_code": 0, "must_keep": ["tree/pkg_0/mod_0.py (8)", "1: def handler_0_0_0(request):", "mod_9.py (8)"]}

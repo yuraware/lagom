@@ -67,6 +67,17 @@ fn install_and_uninstall_round_trip_for_all_agents() {
         String::from_utf8_lossy(&out.stderr)
     );
 
+    // Only Cursor can't re-inject styles after compaction, and install says so once.
+    let first = text(&out);
+    assert!(
+        first.contains("cursor: styles are not injected again after the chat is compacted"),
+        "{first}"
+    );
+    assert!(
+        !first.contains("claude: styles are not injected"),
+        "{first}"
+    );
+    assert!(!first.contains("codex: styles are not injected"), "{first}");
     let settings: Value =
         serde_json::from_str(&fs::read_to_string(home.join(".claude/settings.json")).unwrap())
             .unwrap();
@@ -93,6 +104,7 @@ fn install_and_uninstall_round_trip_for_all_agents() {
     // Re-install changes nothing (Codex trust depends on byte-identical entries).
     let again = lagom(&home, &["install"], None);
     assert!(text(&again).contains("already up to date"));
+    assert!(!text(&again).contains("styles are not injected again"));
     assert_eq!(
         fs::read_to_string(home.join(".codex/hooks.json")).unwrap(),
         codex_before

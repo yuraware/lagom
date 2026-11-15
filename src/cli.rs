@@ -26,6 +26,9 @@ Usage:
                   [--lines A-B] [--head N] [--tail N]  or only part of it
   lagom recall --list | --clear             List or delete saved outputs
   lagom stats                               Show estimated savings
+  lagom experiment start [--holdout 0.2]    Measure styles: some sessions run without them
+                  [--days 14] | status | stop
+  lagom stats --experiment                  Styled vs holdout output tokens, with a 95% interval
   lagom stats --usage [--days N]            Real token usage per style (Claude Code, Codex)
   lagom bench compress [DIR…] [--json F]    Compress a corpus of real outputs; report sizes and
                   [--compare BASELINE]      kept must_keep strings (exit 1 on an unexpected loss)
@@ -67,15 +70,17 @@ pub fn main() -> ExitCode {
         Some("style") => cmd_style(&rest(1)),
         Some("stats") => match args.get(1).map(String::as_str) {
             Some("--usage") => cmd_usage(&rest(2)),
+            Some("--experiment") => cmd_experiment_report(),
             None => cmd_stats(),
             Some(other) => {
                 eprintln!(
-                    "lagom: unknown option `{other}`\nusage: lagom stats [--usage [--days N]]"
+                    "lagom: unknown option `{other}`\nusage: lagom stats [--usage [--days N] | --experiment]"
                 );
                 ExitCode::from(2)
             }
         },
         Some("bench") => crate::bench::run(&rest(1)),
+        Some("experiment") => cmd_experiment(&rest(1)),
         Some("--version" | "-V" | "version") => {
             println!("lagom {}", env!("CARGO_PKG_VERSION"));
             ExitCode::SUCCESS
@@ -523,6 +528,142 @@ fn cmd_usage(args: &[String]) -> ExitCode {
     println!(
         "Medians per main-conversation turn. Observational: sessions differ in their work, so this does not prove a style's effect."
     );
+    ExitCode::SUCCESS
+}
+
+/// `lagom experiment start --holdout 0.2 [--days 14] | status | stop`.
+fn cmd_experiment(args: &[String]) -> ExitCode {
+    use crate::gain::experiment::Experiment;
+    const USAGE: &str = "usage: lagom experiment start [--holdout 0.2] [--days 14] | status | stop";
+    match args.first().map(String::as_str) {
+        Some("start") => {
+            let (mut holdout, mut days) = (0.2_f64, 14_u64);
+            let mut it = args[1..].iter();
+            while let Some(flag) = it.next() {
+                let value = it.next();
+                match (flag.as_str(), value) {
+                    ("--holdout", Some(v)) => match v.parse::<f64>() {
+                        Ok(h) if (0.05..=0.5).contains(&h) => holdout = h,
+                        _ => {
+                            eprintln!("lagom: --holdout must be between 0.05 and 0.5");
+                            return ExitCode::from(2);
+                        }
+                    },
+                    ("--days", Some(v)) => match v.parse::<u64>() {
+                        Ok(d) if (1..=90).contains(&d) => days = d,
+                        _ => {
+                            eprintln!("lagom: --days must be between 1 and 90");
+                            return ExitCode::from(2);
+                        }
+                    },
+                    _ => {
+                        eprintln!("lagom: {USAGE}");
+                        return ExitCode::from(2);
+                    }
+                }
+            }
+            match Experiment::start(holdout, days) {
+                Ok(_) => {
+                    println!(
+                        "Experiment started: about {:.0}% of new sessions run without styles for {days} days.",
+                        holdout * 100.0
+                    );
+                    println!("See results any time with `lagom stats --experiment`.");
+                    println!(
+                        "Other tools that add answer rules at session start (Caveman, for example) run in both groups and blur the result: turn them off while it runs."
+                    );
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("lagom: cannot save the experiment: {e}");
+                    ExitCode::from(1)
+                }
+            }
+        }
+        Some("status") => {
+            match Experiment::load() {
+                Some(e) if Experiment::active().is_some() => println!(
+                    "Running: {:.0}% holdout, {} days left.",
+                    e.holdout * 100.0,
+                    e.ends.saturating_sub(store_now()) / 86_400
+                ),
+                Some(_) => println!("Finished. `lagom stats --experiment` shows the results."),
+                None => println!("No experiment. Start one with `lagom experiment start`."),
+            }
+            ExitCode::SUCCESS
+        }
+        Some("stop") => match Experiment::stop() {
+            Ok(Some(_)) => {
+                println!(
+                    "Experiment stopped; every session gets styles again. `lagom stats --experiment` still shows the results."
+                );
+                ExitCode::SUCCESS
+            }
+            Ok(None) => {
+                println!("No experiment is running.");
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("lagom: {e}");
+                ExitCode::from(1)
+            }
+        },
+        _ => {
+            eprintln!("lagom: {USAGE}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn store_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// `lagom stats --experiment`: styled vs holdout output tokens per turn.
+fn cmd_experiment_report() -> ExitCode {
+    use crate::gain::experiment::{Experiment, compare, per_arm, recorded_arms};
+    let Some(e) = Experiment::load() else {
+        println!("No experiment. Start one with `lagom experiment start --holdout 0.2`.");
+        return ExitCode::SUCCESS;
+    };
+    let since = std::time::UNIX_EPOCH + std::time::Duration::from_secs(e.started);
+    let mut sessions = crate::gain::claude::sessions(Some(since));
+    sessions.extend(crate::gain::codex::sessions(Some(since)));
+    let (styled, holdout) = per_arm(&sessions, &recorded_arms(e.started));
+    println!(
+        "Holdout experiment ({:.0}% without styles): {} styled sessions, {} holdout sessions.",
+        e.holdout * 100.0,
+        styled.len(),
+        holdout.len()
+    );
+    match compare(&styled, &holdout, 10_000, e.started) {
+        Some(c) => {
+            println!(
+                "Output tokens per turn (mean per session): styled {:.0}, holdout {:.0}.",
+                c.styled_mean, c.holdout_mean
+            );
+            let pct = |x: f64| x * 100.0 / c.holdout_mean.max(1.0);
+            println!(
+                "Difference: {:+.0} tokens per turn ({:+.0}%), 95% interval {:+.0} to {:+.0} ({:+.0}% to {:+.0}%).",
+                c.diff,
+                pct(c.diff),
+                c.ci_low,
+                c.ci_high,
+                pct(c.ci_low),
+                pct(c.ci_high)
+            );
+            if c.ci_low <= 0.0 && c.ci_high >= 0.0 {
+                println!("The interval includes zero: no measurable effect yet.");
+            }
+            if c.holdout_sessions < 20 {
+                println!("Few holdout sessions so far; the interval narrows as more come in.");
+            }
+        }
+        None => println!("Not enough sessions in both arms yet (at least 2 each)."),
+    }
     ExitCode::SUCCESS
 }
 

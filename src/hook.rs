@@ -191,19 +191,30 @@ pub fn respond(agent: Agent, event: &str, payload: &Value, bin: &str) -> Option<
         .or_else(|| std::env::current_dir().ok())
         .unwrap_or_else(|| PathBuf::from("."));
     match event {
-        "session-start" | "subagent-start" => inject(agent, event, &cwd),
+        "session-start" | "subagent-start" => inject(agent, event, &cwd, payload),
         "pre-tool" => pre_tool(agent, payload, &cwd, bin),
         _ => None,
     }
 }
 
-fn inject(agent: Agent, event: &str, cwd: &Path) -> Option<Value> {
+/// `agent:id` for stats, from the payload's session id (Cursor: conversation id).
+fn session_token(agent: Agent, payload: &Value) -> Option<String> {
+    let id = payload["session_id"]
+        .as_str()
+        .or(payload["conversation_id"].as_str())?;
+    store::is_safe_id(id).then(|| format!("{}:{id}", agent.name()))
+}
+
+fn inject(agent: Agent, event: &str, cwd: &Path, payload: &Value) -> Option<Value> {
     let text = style::render(cwd);
     if text.is_empty() {
         return None;
     }
-    store::record(
-        json!({"kind": "inject", "agent": agent.name(), "event": event, "bytes": text.len()}),
+    let who = store::Attribution::from_token(session_token(agent, payload).as_deref(), cwd);
+    store::record_for(
+        json!({"kind": "inject", "agent": agent.name(), "event": event, "bytes": text.len(),
+               "styles": style::active(cwd)}),
+        &who,
     );
     Some(match agent {
         Agent::Cursor => json!({"additional_context": text}),
@@ -227,7 +238,7 @@ fn pre_tool(agent: Agent, payload: &Value, cwd: &Path, bin: &str) -> Option<Valu
     if command.len() > MAX_COMMAND || !style::rewrite_enabled(cwd) {
         return None;
     }
-    let rewritten = rewrite::rewrite(command, bin)?;
+    let rewritten = rewrite::rewrite(command, bin, session_token(agent, payload).as_deref())?;
 
     // updatedInput replaces the whole input: keep every original field.
     let mut updated = input.clone();

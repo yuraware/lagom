@@ -3,6 +3,8 @@
 //! Rules: never hide failures, keep exact text of what survives, and report
 //! anything dropped so the caller can store the original for `lagom recall`.
 
+mod search;
+
 /// Output budget. Failed commands get double, so errors are never squeezed out.
 #[derive(Clone, Copy, Debug)]
 pub struct Limits {
@@ -69,6 +71,24 @@ pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
     let mut lossy = false;
 
     let lines = normalize_lines(&cleaned);
+    // Search results come from a command that succeeded (`rg`, `grep`, `git grep` exit 0
+    // when they match). A failed command printing `path:line:` lines is usually a linter
+    // or compiler reporting problems; those go through the general path, which keeps far
+    // more of them.
+    if let Some(grouped) = (!failed)
+        .then(|| search::compress(&lines, limits))
+        .flatten()
+    {
+        let mut text = grouped.join("\n");
+        if raw.ends_with('\n') {
+            text.push('\n');
+        }
+        return Compressed {
+            text,
+            lossy: true,
+            errors_despite_success,
+        };
+    }
     let lines = collapse_repeats(lines, &mut lossy);
     let lines: Vec<String> = lines
         .into_iter()
@@ -468,6 +488,20 @@ mod tests {
     }
 
     #[test]
+    fn a_failed_linter_is_not_squeezed_like_search_results() {
+        // `ruff check` style: path:line:col: CODE message, exit code 1.
+        let raw: String = (0..300)
+            .map(|i| format!("pkg/m{}.py:{i}:1: F401 `os` imported but unused\n", i % 10))
+            .collect();
+        let as_search = compress(&raw, false, Limits::default());
+        assert!(as_search.text.contains("matches in 10 files"));
+        let failed = compress(&raw, true, Limits::default());
+        assert!(!failed.text.contains("matches in"), "{}", failed.text);
+        let kept = failed.text.lines().filter(|l| l.contains("F401")).count();
+        assert!(kept > 100, "kept only {kept} findings");
+    }
+
+    #[test]
     fn many_similar_important_lines_stay_linear() {
         // 100k search-result lines: same digit shape, all important (file:line).
         // The old quadratic scan took minutes here; linear takes well under a second.
@@ -477,7 +511,16 @@ mod tests {
         let start = std::time::Instant::now();
         let c = compress(&raw, false, Limits::default());
         assert!(c.lossy);
-        assert!(c.text.contains("src/mod_0.rs:0:"));
+        assert!(
+            c.text.contains("src/mod_0.rs (1)"),
+            "search results are grouped by file"
+        );
+        // The same shape outside search format (stack-trace style) takes the general path.
+        let trace: String = (0..100_000)
+            .map(|i| format!("  at src/mod_{i}.rs:{i} in handler_{i}\n"))
+            .collect();
+        let c = compress(&trace, false, Limits::default());
+        assert!(c.lossy && c.text.contains("at src/mod_0.rs:0 in handler_0"));
         assert!(
             start.elapsed() < std::time::Duration::from_secs(5),
             "{:?}",

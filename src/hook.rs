@@ -275,7 +275,9 @@ fn pre_tool(agent: Agent, payload: &Value, cwd: &Path, bin: &str) -> Option<Valu
                 &crate::install::claude_dir(),
                 &claude_managed_dir(),
             ) else {
-                return None; // a managed settings file we can't read might deny this command
+                // A managed settings file or server-managed policy cache we can't read
+                // might deny this command.
+                return None;
             };
             let parts = CommandParts::of(command);
             if parts.any(|p| rules.denies(p) || rules.asks(p)) {
@@ -386,8 +388,8 @@ fn claude_managed_dir() -> PathBuf {
 /// True when Claude Code may be enforcing a policy Lagom can't read: a macOS MDM
 /// profile, or Windows (policy can live in the registry). Claude Code checks deny
 /// rules against the *rewritten* command, so Lagom must see every deny rule itself;
-/// when it can't, it doesn't rewrite. Server-managed settings fetched from claude.ai
-/// can't be detected locally (documented limitation).
+/// when it can't, it doesn't rewrite. Server-managed settings from claude.ai are read
+/// from Claude Code's cache by [`claude_remote_policy`].
 fn unreadable_claude_policy() -> bool {
     if cfg!(windows) {
         return true;
@@ -402,9 +404,76 @@ fn unreadable_claude_policy() -> bool {
                 .exists())
 }
 
-/// Collect Claude Code's permission rules the way Claude Code applies them:
+/// Server-managed settings (claude.ai admin console) as Claude Code cached them.
+#[derive(Debug, PartialEq)]
+enum RemotePolicy {
+    /// No cache: no server-managed policy has been delivered to this config folder.
+    Absent,
+    /// A cache Lagom can't read or parse; it may hold deny rules.
+    Unreadable,
+    /// The cached settings.
+    Settings(Value),
+}
+
+/// Read Claude Code's cache of server-managed settings, `<config dir>/remote-settings.json`.
+/// Claude Code fetches the policy at startup, refreshes it hourly and applies the cache
+/// on later starts; `/logout` deletes it.
+fn claude_remote_policy(user_dir: &Path) -> RemotePolicy {
+    let file = user_dir.join("remote-settings.json");
+    let text = match fs::read_to_string(&file) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return RemotePolicy::Absent,
+        Err(_) => return RemotePolicy::Unreadable,
+    };
+    match serde_json::from_str::<Value>(&text) {
+        Ok(v) if v.is_object() => RemotePolicy::Settings(v),
+        _ => RemotePolicy::Unreadable,
+    }
+}
+
+/// The settings object inside a cached remote payload: the top level, or a `settings`
+/// object if the cache wraps it.
+fn remote_settings(v: &Value) -> &Value {
+    match v.get("settings") {
+        Some(inner) if inner.is_object() && v.get("permissions").is_none() => inner,
+        _ => v,
+    }
+}
+
+/// Every `permissions` object in `v`, at any depth up to `depth`. Deny and ask rules are
+/// taken from all of them, so an unexpected cache layout can only make Lagom stricter.
+fn permission_objects(v: &Value, depth: usize, out: &mut Vec<Value>) {
+    let Some(map) = v.as_object() else {
+        return;
+    };
+    for (key, child) in map {
+        if key == "permissions" && child.is_object() {
+            out.push(json!({ "permissions": child }));
+        } else if depth > 0 {
+            permission_objects(child, depth - 1, out);
+        }
+    }
+}
+
+/// True if `key` is `true` anywhere in `v`, up to `depth` levels down. Used for
+/// `allowManagedPermissionRulesOnly` in the server-managed cache: like its deny rules,
+/// an unexpected layout can only make Lagom stricter.
+fn flag_anywhere(v: &Value, key: &str, depth: usize) -> bool {
+    let Some(map) = v.as_object() else {
+        return false;
+    };
+    map.get(key) == Some(&json!(true))
+        || (depth > 0 && map.values().any(|c| flag_anywhere(c, key, depth - 1)))
+}
+
+/// Collect Claude Code's permission rules the way Claude Code applies them, or `None`
+/// when a server-managed policy cache exists but can't be read.
+/// - server-managed settings (Claude Code's cache, see [`claude_remote_policy`]): deny
+///   and ask rules always count. When the cache holds any setting, it is the managed
+///   source Claude Code selects, so file-based managed allow rules no longer count;
 /// - managed settings (`managed-settings.json`, then `managed-settings.d/*.json`);
-///   with `allowManagedPermissionRulesOnly`, they are the only source of allow rules.
+///   with `allowManagedPermissionRulesOnly` (in any managed source), they are the only
+///   source of allow rules.
 ///   A managed file that exists but can't be read or parsed gives `None`: its deny rules
 ///   are unknown, so the caller must not rewrite;
 /// - user settings and the config home's `settings.local.json`;
@@ -420,6 +489,27 @@ fn claude_rules(
     managed_dir: &Path,
 ) -> Option<Rules> {
     let mut rules = Rules::new(Syntax::Claude);
+    let remote = match claude_remote_policy(user_dir) {
+        RemotePolicy::Absent => None,
+        RemotePolicy::Unreadable => return None,
+        RemotePolicy::Settings(v) => Some(v),
+    };
+    let remote_selected = remote
+        .as_ref()
+        .and_then(|v| remote_settings(v).as_object())
+        .is_some_and(|m| !m.is_empty());
+    let mut managed_only = false;
+    if let Some(v) = &remote {
+        let settings = remote_settings(v);
+        managed_only = flag_anywhere(v, "allowManagedPermissionRulesOnly", 4);
+        rules.add_value(settings, "Bash", Source::Trusted, None);
+        let mut nested = vec![];
+        permission_objects(v, 4, &mut nested);
+        for p in &nested {
+            rules.add_value(p, "Bash", Source::RestrictOnly, None);
+        }
+    }
+
     let mut managed = vec![managed_dir.join("managed-settings.json")];
     match fs::read_dir(managed_dir.join("managed-settings.d")) {
         Ok(entries) => {
@@ -442,11 +532,16 @@ fn claude_rules(
     if managed.iter().any(|f| f.exists() && read_json(f).is_none()) {
         return None;
     }
-    let managed_only = managed.iter().any(|f| {
+    managed_only |= managed.iter().any(|f| {
         read_json(f).is_some_and(|v| v.get("allowManagedPermissionRulesOnly") == Some(&json!(true)))
     });
+    let file_managed = if remote_selected {
+        Source::RestrictOnly
+    } else {
+        Source::Trusted
+    };
     for f in &managed {
-        rules.add_file(f, "Bash", Source::Trusted);
+        rules.add_file(f, "Bash", file_managed);
     }
     let others = if managed_only {
         Source::RestrictOnly
@@ -546,9 +641,14 @@ impl Rules {
     }
 
     pub fn add_file(&mut self, file: &Path, tool: &str, source: Source) {
-        let Some(v) = read_json(file) else {
-            return;
-        };
+        if let Some(v) = read_json(file) {
+            self.add_value(&v, tool, source, Some(file));
+        }
+    }
+
+    /// Add the rules of one settings object. `file` is needed for [`Source::LocalFile`];
+    /// without it, local allow rules are ignored.
+    fn add_value(&mut self, v: &Value, tool: &str, source: Source, file: Option<&Path>) {
         let list = |key: &str| -> Vec<String> {
             v.pointer(&format!("/permissions/{key}"))
                 .and_then(Value::as_array)
@@ -562,9 +662,12 @@ impl Rules {
         match source {
             Source::Trusted => self.allow.extend(list("allow")),
             Source::RestrictOnly => {}
-            Source::LocalFile => self
-                .local_allow
-                .extend(list("allow").into_iter().map(|p| (file.to_path_buf(), p))),
+            Source::LocalFile => {
+                if let Some(file) = file {
+                    self.local_allow
+                        .extend(list("allow").into_iter().map(|p| (file.to_path_buf(), p)));
+                }
+            }
         }
     }
 
@@ -855,6 +958,95 @@ mod tests {
             "user allow rules don't count under managed-only policy"
         );
         assert!(r.denies("git push origin"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn server_managed_policy_cache_is_read() {
+        let root = scratch("remote");
+        let (user, managed, repo) = (
+            root.join("home/.claude"),
+            root.join("managed"),
+            root.join("repo"),
+        );
+        fs::create_dir_all(&repo).unwrap();
+        write(
+            &user.join("settings.json"),
+            json!({"permissions": {"allow": ["Bash(git *)", "Bash(cargo *)"]}}),
+        );
+        write(
+            &managed.join("managed-settings.json"),
+            json!({"permissions": {"allow": ["Bash(make *)"]}}),
+        );
+        let remote = user.join("remote-settings.json");
+
+        // No cache: user and file-based managed rules apply as before.
+        let r = claude_rules(&repo, None, &user, &managed).unwrap();
+        assert!(r.allows("git push") && r.allows("make test"));
+
+        // Cached deny and ask rules win; a non-empty cache is the managed source Claude
+        // Code selects, so file-based managed allow rules stop counting.
+        write(
+            &remote,
+            json!({"permissions": {"deny": ["Bash(git push *)"], "ask": ["Bash(cargo publish *)"]}}),
+        );
+        let r = claude_rules(&repo, None, &user, &managed).unwrap();
+        assert!(r.denies("git push origin") && r.asks("cargo publish --dry-run"));
+        assert!(r.allows("git log") && !r.allows("make test"));
+
+        // Managed-only policy from the server: user allow rules don't count.
+        write(
+            &remote,
+            json!({"allowManagedPermissionRulesOnly": true,
+                   "permissions": {"allow": ["Bash(git log *)"]}}),
+        );
+        let r = claude_rules(&repo, None, &user, &managed).unwrap();
+        assert!(r.allows("git log --oneline") && !r.allows("cargo test"));
+
+        // Managed-only policy nested anywhere in the cache still counts (HK-16).
+        write(
+            &remote,
+            json!({"payload": {"policy": {"allowManagedPermissionRulesOnly": true}}}),
+        );
+        let r = claude_rules(&repo, None, &user, &managed).unwrap();
+        assert!(
+            !r.allows("git log"),
+            "nested managed-only must drop user allow rules"
+        );
+
+        // A wrapped or nested layout still contributes its deny rules.
+        write(
+            &remote,
+            json!({"etag": "x", "settings": {"permissions": {"deny": ["Bash(git push *)"]}}}),
+        );
+        assert!(
+            claude_rules(&repo, None, &user, &managed)
+                .unwrap()
+                .denies("git push")
+        );
+        write(
+            &remote,
+            json!({"payload": {"policy": {"permissions": {"deny": ["Bash(rm *)"]}}}}),
+        );
+        assert!(
+            claude_rules(&repo, None, &user, &managed)
+                .unwrap()
+                .denies("rm -rf x")
+        );
+
+        // An empty cache selects nothing: file-based managed allow rules count again.
+        write(&remote, json!({}));
+        assert!(
+            claude_rules(&repo, None, &user, &managed)
+                .unwrap()
+                .allows("make test")
+        );
+
+        // A cache Lagom can't parse may hold deny rules: no rules, so no rewrite.
+        fs::write(&remote, "{\"permissions\": {\"deny\": [").unwrap();
+        assert!(claude_rules(&repo, None, &user, &managed).is_none());
+        fs::write(&remote, "[]").unwrap();
+        assert!(claude_rules(&repo, None, &user, &managed).is_none());
         let _ = fs::remove_dir_all(&root);
     }
 

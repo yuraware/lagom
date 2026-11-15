@@ -13,7 +13,7 @@ Long command output (tests, builds, `git log`, searches) is shortened before the
 
 ## Automatic: command rewrite
 
-A pre-tool hook turns a simple command such as `git log --stat` into `lagom run -- git log --stat`.
+A pre-tool hook turns a simple command such as `git log --stat` into `lagom run --session claude:<id> -- git log --stat`. The session id only tags the command's line in `~/.lagom/stats.jsonl`.
 
 - **Rewritten:** only one known program (git, cargo, npm, pytest, go, rg, docker, …) with no pipes, `&&`, `;`, redirects or subshells, and no environment assignment in front.
 - **Left alone:** dev servers, watch modes, `-f`/`--follow`, background commands.
@@ -22,7 +22,7 @@ A pre-tool hook turns a simple command such as `git log --stat` into `lagom run 
     - Lagom reads rules the way Claude Code applies them: managed (organization) settings, your user settings, and a project's `.claude/settings.local.json` when it is your own file (not committed to git) in the folder the session started in or its repository root. Allow rules in a project's shared `.claude/settings.json` are **not** used, because Claude Code applies them only after you trust the folder, which Lagom can't see. Deny and ask rules from every file always count. If a managed settings file can't be read, Lagom doesn't rewrite.
     - **Cursor:** allow rules come from `~/.cursor/cli-config.json`. A project's `.cursor/cli.json` deny rules count; its allow rules don't, because a cloned repository supplies them.
     - Claude Code checks deny rules against the rewritten command, so Lagom must see every deny rule itself. It doesn't rewrite when an organization policy it can't read may apply (a macOS MDM profile, or Windows). Server-managed settings from the claude.ai admin console can't be detected locally: if your organization uses them, set `LAGOM_DISABLE=1` or keep rewriting off.
-  - **Codex:** Lagom hands Codex the rewritten command, and Codex applies its own approval policy and sandbox to it. Commands you approved earlier by prefix may be asked about once more, because they now start with `lagom run`. This has not been checked in a live Codex session yet.
+  - **Codex:** Lagom hands Codex the rewritten command, and Codex applies its own approval policy and sandbox to it. Commands you approved earlier by prefix may be asked about once more, because they now start with `lagom run --session codex:<id>`, and the id changes with every session. This has not been checked in a live Codex session yet.
 
 ## Escape hatches
 

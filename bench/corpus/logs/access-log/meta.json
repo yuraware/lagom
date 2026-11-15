@@ -1,1 +1,1 @@
-{"exit_code": 0, "must_keep": ["\" 500 "], "known_gap": "CMP-09"}
+{"exit_code": 0, "must_keep": ["10:11:40 +0000] \"GET /static/app.1.js HTTP/1.1\" 500", "10:30:00 +0000] \"GET /static/app.0.js HTTP/1.1\" 500"]}

@@ -40,7 +40,7 @@ You can always compress by hand: `lagom run -- <command>`.
 
 ## I need the full output
 
-Compressed output ends with `[lagom: N → M lines; full output: lagom recall <id> …]`. Run `lagom recall <id>`, or fetch only what you need: `--grep TEXT` (matching lines with their numbers), `--lines A-B`, `--head N`, `--tail N`. Lagom keeps the last 500 originals; older ones are gone.
+Compressed output ends with `[lagom: N → M lines; full output: lagom recall <id> …]`. Run `lagom recall <id>`, or fetch only what you need: `--grep TEXT` (matching lines with their numbers), `--lines A-B`, `--head N`, `--tail N`. Lagom keeps the last 500 originals, up to 200 MB and 14 days; older ones are gone. `lagom recall --list` shows what is kept.
 
 To skip compression for one command: `LAGOM_RAW=1 git log`. To turn all hooks off: `LAGOM_DISABLE=1`.
 

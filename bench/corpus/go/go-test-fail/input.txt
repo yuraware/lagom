@@ -1,0 +1,126 @@
+=== RUN   TestAdd1
+--- PASS: TestAdd1 (0.00s)
+=== RUN   TestAdd2
+--- PASS: TestAdd2 (0.00s)
+=== RUN   TestAdd3
+--- PASS: TestAdd3 (0.00s)
+=== RUN   TestAdd4
+--- PASS: TestAdd4 (0.00s)
+=== RUN   TestAdd5
+--- PASS: TestAdd5 (0.00s)
+=== RUN   TestAdd6
+--- PASS: TestAdd6 (0.00s)
+=== RUN   TestAdd7
+--- PASS: TestAdd7 (0.00s)
+=== RUN   TestAdd8
+--- PASS: TestAdd8 (0.00s)
+=== RUN   TestAdd9
+--- PASS: TestAdd9 (0.00s)
+=== RUN   TestAdd10
+--- PASS: TestAdd10 (0.00s)
+=== RUN   TestAdd11
+--- PASS: TestAdd11 (0.00s)
+=== RUN   TestAdd12
+--- PASS: TestAdd12 (0.00s)
+=== RUN   TestAdd13
+--- PASS: TestAdd13 (0.00s)
+=== RUN   TestAdd14
+--- PASS: TestAdd14 (0.00s)
+=== RUN   TestAdd15
+--- PASS: TestAdd15 (0.00s)
+=== RUN   TestAdd16
+--- PASS: TestAdd16 (0.00s)
+=== RUN   TestAdd17
+--- PASS: TestAdd17 (0.00s)
+=== RUN   TestAdd18
+--- PASS: TestAdd18 (0.00s)
+=== RUN   TestAdd19
+--- PASS: TestAdd19 (0.00s)
+=== RUN   TestAdd20
+--- PASS: TestAdd20 (0.00s)
+=== RUN   TestAdd21
+--- PASS: TestAdd21 (0.00s)
+=== RUN   TestAdd22
+--- PASS: TestAdd22 (0.00s)
+=== RUN   TestAdd23
+--- PASS: TestAdd23 (0.00s)
+=== RUN   TestAdd24
+--- PASS: TestAdd24 (0.00s)
+=== RUN   TestAdd25
+--- PASS: TestAdd25 (0.00s)
+=== RUN   TestAdd26
+--- PASS: TestAdd26 (0.00s)
+=== RUN   TestAdd27
+--- PASS: TestAdd27 (0.00s)
+=== RUN   TestAdd28
+--- PASS: TestAdd28 (0.00s)
+=== RUN   TestAdd29
+--- PASS: TestAdd29 (0.00s)
+=== RUN   TestAdd30
+--- PASS: TestAdd30 (0.00s)
+=== RUN   TestAdd31
+--- PASS: TestAdd31 (0.00s)
+=== RUN   TestAdd32
+--- PASS: TestAdd32 (0.00s)
+=== RUN   TestAdd33
+--- PASS: TestAdd33 (0.00s)
+=== RUN   TestAdd34
+--- PASS: TestAdd34 (0.00s)
+=== RUN   TestAdd35
+--- PASS: TestAdd35 (0.00s)
+=== RUN   TestAdd36
+--- PASS: TestAdd36 (0.00s)
+=== RUN   TestAdd37
+--- PASS: TestAdd37 (0.00s)
+=== RUN   TestAdd38
+--- PASS: TestAdd38 (0.00s)
+=== RUN   TestAdd39
+--- PASS: TestAdd39 (0.00s)
+=== RUN   TestAdd40
+--- PASS: TestAdd40 (0.00s)
+=== RUN   TestAdd41
+--- PASS: TestAdd41 (0.00s)
+=== RUN   TestAdd42
+--- PASS: TestAdd42 (0.00s)
+=== RUN   TestAdd43
+--- PASS: TestAdd43 (0.00s)
+=== RUN   TestAdd44
+--- PASS: TestAdd44 (0.00s)
+=== RUN   TestAdd45
+--- PASS: TestAdd45 (0.00s)
+=== RUN   TestAdd46
+--- PASS: TestAdd46 (0.00s)
+=== RUN   TestAdd47
+--- PASS: TestAdd47 (0.00s)
+=== RUN   TestAdd48
+--- PASS: TestAdd48 (0.00s)
+=== RUN   TestAdd49
+--- PASS: TestAdd49 (0.00s)
+=== RUN   TestAdd50
+--- PASS: TestAdd50 (0.00s)
+=== RUN   TestAdd51
+--- PASS: TestAdd51 (0.00s)
+=== RUN   TestAdd52
+--- PASS: TestAdd52 (0.00s)
+=== RUN   TestAdd53
+--- PASS: TestAdd53 (0.00s)
+=== RUN   TestAdd54
+--- PASS: TestAdd54 (0.00s)
+=== RUN   TestAdd55
+--- PASS: TestAdd55 (0.00s)
+=== RUN   TestAdd56
+--- PASS: TestAdd56 (0.00s)
+=== RUN   TestAdd57
+--- PASS: TestAdd57 (0.00s)
+=== RUN   TestAdd58
+--- PASS: TestAdd58 (0.00s)
+=== RUN   TestAdd59
+--- PASS: TestAdd59 (0.00s)
+=== RUN   TestAdd60
+--- PASS: TestAdd60 (0.00s)
+=== RUN   TestBroken
+    m_test.go:63: Add(2,2) = 4, want 5
+--- FAIL: TestBroken (0.00s)
+FAIL
+FAIL	example.com/m	0.264s
+FAIL

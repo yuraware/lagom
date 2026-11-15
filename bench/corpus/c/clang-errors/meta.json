@@ -1,0 +1,1 @@
+{"exit_code": 1, "must_keep": ["bad.c:4", "bad.c:5", "error:"]}

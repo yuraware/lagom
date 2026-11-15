@@ -29,6 +29,7 @@ Usage:
   lagom experiment start [--holdout 0.2]    Measure styles: some sessions run without them
                   [--days 14] | status | stop
   lagom stats --experiment                  Styled vs holdout output tokens, with a 95% interval
+  lagom discover [--days N]                 Large outputs Lagom didn't compress, and why
   lagom stats --usage [--days N]            Real token usage per style (Claude Code, Codex)
   lagom bench compress [DIR…] [--json F]    Compress a corpus of real outputs; report sizes and
                   [--compare BASELINE]      kept must_keep strings (exit 1 on an unexpected loss)
@@ -81,6 +82,7 @@ pub fn main() -> ExitCode {
         },
         Some("bench") => crate::bench::run(&rest(1)),
         Some("experiment") => cmd_experiment(&rest(1)),
+        Some("discover") => cmd_discover(&rest(1)),
         Some("--version" | "-V" | "version") => {
             println!("lagom {}", env!("CARGO_PKG_VERSION"));
             ExitCode::SUCCESS
@@ -495,8 +497,8 @@ fn cmd_usage(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let since =
-        std::time::SystemTime::now().checked_sub(std::time::Duration::from_secs(days * 86_400));
+    let since = std::time::SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(days.saturating_mul(86_400)));
     let (styles, tracked_since) = store::session_styles();
     let agents = [
         ("Claude Code", crate::gain::claude::sessions(since)),
@@ -528,6 +530,106 @@ fn cmd_usage(args: &[String]) -> ExitCode {
     println!(
         "Medians per main-conversation turn. Observational: sessions differ in their work, so this does not prove a style's effect."
     );
+    ExitCode::SUCCESS
+}
+
+/// `lagom discover [--days N]`: large outputs Lagom didn't compress, and why.
+fn cmd_discover(args: &[String]) -> ExitCode {
+    use crate::gain::{claude, codex, discover};
+    let days: u64 = match args {
+        [] => 30,
+        [flag, n] if flag == "--days" && n.parse::<u64>().is_ok() => n.parse().unwrap_or(30),
+        _ => {
+            eprintln!("usage: lagom discover [--days N]");
+            return ExitCode::from(2);
+        }
+    };
+    let since = std::time::SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(days.saturating_mul(86_400)));
+    let mut calls = Vec::new();
+    // Lossy: a log still being written may end in the middle of a character.
+    let read = |p: &std::path::Path| {
+        std::fs::read(p)
+            .ok()
+            .map(|b| String::from_utf8_lossy(&b).into_owned())
+    };
+    for path in claude::transcript_files(&claude::projects_dir(), since) {
+        if let Some(text) = read(&path) {
+            calls.extend(discover::claude_calls(&text));
+        }
+    }
+    for path in claude::transcript_files(&codex::sessions_dir(), since) {
+        if let Some(text) = read(&path) {
+            calls.extend(discover::codex_calls(&text));
+        }
+    }
+    let r = discover::analyze(&calls);
+    let kb = |b: usize| format!("{:.0} KB", b as f64 / 1024.0);
+    println!(
+        "Last {days} days: {} tool calls read from Claude Code and Codex logs, {} already compressed by Lagom.",
+        calls.len(),
+        r.compressed
+    );
+    let mut groups: Vec<_> = r.uncompressed.iter().collect();
+    groups.sort_by_key(|(_, g)| std::cmp::Reverse(g.bytes));
+    if groups.is_empty() {
+        println!(
+            "\nNo large uncompressed command outputs (≥ {}).",
+            kb(discover::LARGE)
+        );
+    } else {
+        println!(
+            "\nLarge command outputs not compressed (≥ {} each):",
+            kb(discover::LARGE)
+        );
+        for ((key, reason), g) in groups.iter().take(10) {
+            println!(
+                "  {:>3} × {key:<24} {:>8} total (~{} tokens) — {reason}",
+                g.count,
+                kb(g.bytes),
+                g.bytes / 4
+            );
+        }
+        let hint = |r: &str| groups.iter().any(|((_, reason), _)| *reason == r);
+        println!("\nWhat to do:");
+        if hint("no allow rule matched, or Lagom's hook isn't installed for this agent") {
+            println!(
+                "  - Install Lagom (`lagom install`) and allow the commands you trust, e.g. `Bash(cargo test *)` in ~/.claude/settings.json."
+            );
+        }
+        if hint("pipes, &&, ;, redirects and subshells are never rewritten") {
+            println!(
+                "  - Compound commands are left alone on purpose; split them, or run `lagom run -- <command>` yourself."
+            );
+        }
+        if hint("program not in Lagom's rewrite list") {
+            println!(
+                "  - Unknown programs can still be compressed with `lagom run -- <command>`; filters for more tools are planned."
+            );
+        }
+    }
+    let large: usize = r.by_tool.values().map(|g| g.bytes).sum();
+    if large > 0 {
+        let mut tools: Vec<_> = r.by_tool.iter().collect();
+        tools.sort_by_key(|(_, g)| std::cmp::Reverse(g.bytes));
+        let shares: Vec<String> = tools
+            .iter()
+            .map(|(tool, g)| format!("{tool} {:.0}%", g.bytes as f64 * 100.0 / large as f64))
+            .collect();
+        println!(
+            "\nLarge outputs (≥ {}) by tool, share of bytes: {}",
+            kb(discover::LARGE),
+            shares.join(", ")
+        );
+    }
+    let mut rereads: Vec<_> = r.rereads.iter().collect();
+    rereads.sort_by_key(|(_, g)| std::cmp::Reverse(g.bytes));
+    if !rereads.is_empty() {
+        println!("\nLarge files (or the same part of one) read again in the same session:");
+        for (path, g) in rereads.iter().take(10) {
+            println!("  {:>3} × {path} ({} again)", g.count, kb(g.bytes));
+        }
+    }
     ExitCode::SUCCESS
 }
 

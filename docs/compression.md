@@ -24,6 +24,10 @@ A pre-tool hook turns a simple command such as `git log --stat` into `lagom run 
     - Claude Code checks deny rules against the rewritten command, so Lagom must see every deny rule itself. It doesn't rewrite when an organization policy it can't read may apply (a macOS MDM profile, or Windows). Server-managed settings from the claude.ai admin console can't be detected locally: if your organization uses them, set `LAGOM_DISABLE=1` or keep rewriting off.
   - **Codex:** Lagom hands Codex the rewritten command, and Codex applies its own approval policy and sandbox to it. Commands you approved earlier by prefix may be asked about once more, because they now start with `lagom run --session codex:<id>`, and the id changes with every session. This has not been checked in a live Codex session yet.
 
+## Find what isn't compressed
+
+`lagom discover [--days N]` (default 30) reads Claude Code's and Codex's logs on this machine and lists large command outputs (4 KB or more) that weren't compressed, with the reason (no allow rule, a compound command, a program Lagom doesn't know). It also shows each tool's share of large outputs and the files whose same part was read again in one session. Commands appear as the program name, plus the subcommand for programs Lagom knows (`git log`, `cargo test`); other arguments never appear.
+
 ## Escape hatches
 
 | To skip compression for | Do this |

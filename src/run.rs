@@ -61,7 +61,7 @@ pub fn render(raw: &str, code: i32, program: &str) -> String {
     if compressed.lossy {
         match store::save_original(raw) {
             Ok(id) => out.push_str(&format!(
-                "[lagom: {} → {} lines; full output: lagom recall {id}]\n",
+                "[lagom: {} → {} lines; full output: lagom recall {id} (or part: --grep TEXT, --lines A-B)]\n",
                 raw.lines().count(),
                 out.lines().count()
             )),

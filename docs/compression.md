@@ -1,0 +1,36 @@
+# Command-output compression
+
+Long command output (tests, builds, `git log`, searches) is shortened before the agent reads it:
+
+- ANSI colors removed, progress bars resolved to their final state, blank-line runs collapsed.
+- Exact repeats become one line with a count (`[×37]`); runs of lines that differ only in numbers keep their first and last line.
+- Over 120 lines, the output keeps its first 30 and last 50 lines, plus up to 40 error, warning and `file:line` lines from the middle, in the order they appear. Failed commands get double these limits. Anything past them is left out, so check the footer below when a long log has many errors.
+- Exit codes are unchanged.
+- Anything dropped stays available: the output ends with `[lagom: N → M lines; full output: lagom recall <id>]`.
+
+## Automatic: command rewrite
+
+A pre-tool hook turns a simple command such as `git log --stat` into `lagom run -- git log --stat`.
+
+- **Rewritten:** only one known program (git, cargo, npm, pytest, go, rg, docker, …) with no pipes, `&&`, `;`, redirects or subshells, and no environment assignment in front.
+- **Left alone:** dev servers, watch modes, `-f`/`--follow`, background commands.
+- **Permissions never widen:**
+  - **Claude Code and Cursor:** a command is rewritten (and allowed) only if your own allow rule already matches it, for example `Bash(git log:*)` or `Shell(git)`. Deny and ask rules always win. In Claude's `bypassPermissions` mode, commands are rewritten without granting anything.
+  - **Codex:** Lagom hands Codex the rewritten command, and Codex applies its own approval policy and sandbox to it. Commands you approved earlier by prefix may be asked about once more, because they now start with `lagom run`. This has not been checked in a live Codex session yet.
+
+To keep one command uncompressed, put an environment assignment in front: `LAGOM_RAW=1 git log`.
+
+## By hand
+
+```sh
+lagom run -- cargo test        # compressed output, same exit code
+some-command | lagom compress  # compress any text
+lagom recall 3fa9c01d2e        # full original of a compressed result
+lagom stats                    # estimated savings vs. style overhead
+```
+
+Measured on real outputs: `git log --stat -3` 115,863 → 5,462 bytes, `rg -n fn` 136,128 → 10,216 bytes, `find -name '*.py'` 80,692 → 5,598 bytes. Token figures in `lagom stats` are estimates (4 bytes ≈ 1 token).
+
+## Turn off
+
+`LAGOM_DISABLE=1` turns off all hooks; `lagom uninstall` removes them.

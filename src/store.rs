@@ -367,6 +367,15 @@ fn private_dir(dir: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Replace `path` with `text`, readable only by the user (folder 0700, file 0600).
+pub fn write_private(path: &Path, text: &str) -> std::io::Result<()> {
+    if let Some(dir) = path.parent() {
+        private_dir(dir)?;
+    }
+    private_file(fs::OpenOptions::new().write(true).truncate(true), path)?
+        .write_all(text.as_bytes())
+}
+
 /// Open (creating if needed) a file readable only by the user (0600 on Unix).
 fn private_file(options: &mut fs::OpenOptions, path: &Path) -> std::io::Result<fs::File> {
     #[cfg(unix)]
@@ -488,6 +497,12 @@ pub fn session_styles() -> (std::collections::HashMap<String, String>, Option<u6
             if let Some(ts) = v["ts"].as_u64() {
                 since = Some(since.map_or(ts, |s| s.min(ts)));
             }
+        }
+        if v["kind"] == "holdout" {
+            if let Some(session) = v["session"].as_str() {
+                out.insert(session.to_string(), crate::gain::HOLDOUT.to_string());
+            }
+            continue;
         }
         if v["kind"] != "inject" {
             continue;

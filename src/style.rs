@@ -234,10 +234,17 @@ pub fn render(cwd: &Path) -> String {
         out.push_str(&neutralize_tags(&s.body()));
         out.push_str("\n\n");
     }
-    out.push_str(
-        "Lagom compresses long command output. A line like `[lagom: … lagom recall <id>]` means lines were omitted; run `lagom recall <id>` if you need them.\n</lagom>",
-    );
+    out.push_str(RECALL_NOTE);
+    out.push_str("\n</lagom>");
     out
+}
+
+/// Explains the recall footer. Holdout sessions of an experiment get only this: they
+/// lose the styles, but compression stays on.
+const RECALL_NOTE: &str = "Lagom compresses long command output. A line like `[lagom: … lagom recall <id>]` means lines were omitted; run `lagom recall <id>` if you need them.";
+
+pub fn render_recall_note() -> String {
+    format!("<lagom>\n{RECALL_NOTE}\n</lagom>")
 }
 
 /// Save the active style list to the user config, or to `.lagom/config.json` in `dir` when given.

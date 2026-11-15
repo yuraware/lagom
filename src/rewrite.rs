@@ -61,24 +61,44 @@ const STREAMING_ARGS: [&str; 12] = [
 /// Characters that make a command more than "one program with arguments".
 const SHELL_OPERATORS: [char; 9] = ['|', '&', ';', '<', '>', '`', '\n', '(', ')'];
 
+/// Why `command` would not be rewritten, or `None` if it would be.
+pub fn skip_reason(command: &str) -> Option<&'static str> {
+    let trimmed = command.trim();
+    if trimmed.is_empty() {
+        return Some("empty command");
+    }
+    if trimmed.contains(SHELL_OPERATORS) || trimmed.contains("$(") {
+        return Some("pipes, &&, ;, redirects and subshells are never rewritten");
+    }
+    let mut words = trimmed.split_whitespace();
+    let first = words.next().unwrap_or_default();
+    if first.contains('=') {
+        return Some("starts with an environment assignment");
+    }
+    if first.contains('/') {
+        return Some("program given by path");
+    }
+    if !PROGRAMS.contains(&first) {
+        return Some("program not in Lagom's rewrite list");
+    }
+    if words.any(|w| STREAMING_ARGS.contains(&w.trim_matches(['"', '\'']))) {
+        return Some("long-running or watch mode");
+    }
+    None
+}
+
+/// True for programs Lagom rewrites (`git`, `cargo`, …).
+pub fn is_known_program(name: &str) -> bool {
+    PROGRAMS.contains(&name)
+}
+
 /// Returns the rewritten command, or None to leave it unchanged.
 /// `session` is an `agent:id` token for stats; it is dropped unless it's a plain id.
 pub fn rewrite(command: &str, lagom_bin: &str, session: Option<&str>) -> Option<String> {
+    if skip_reason(command).is_some() {
+        return None;
+    }
     let trimmed = command.trim();
-    if trimmed.is_empty() || trimmed.contains(SHELL_OPERATORS) || trimmed.contains("$(") {
-        return None;
-    }
-    let mut words = trimmed.split_whitespace();
-    let first = words.next()?;
-    if first.contains('=') || first.contains('/') {
-        return None; // env assignment or explicit path: leave as written
-    }
-    if !PROGRAMS.contains(&first) {
-        return None;
-    }
-    if words.any(|w| STREAMING_ARGS.contains(&w.trim_matches(['"', '\'']))) {
-        return None;
-    }
     let session = session
         .filter(|s| {
             s.split_once(':')

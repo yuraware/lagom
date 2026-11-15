@@ -166,7 +166,7 @@ for b in $(seq 1 60); do git branch "feature/item-$b"; done
 run git git-branch-many '["feature/item-1", "main"]' git branch -a
 run git git-status-porcelain '["pkg1/f1.toml"]' git status --short
 gap git git-status-porcelain FLT-07
-run git git-grep '["pkg0/f10.toml", "pkg9/f99.toml"]' git grep -n "name ="
+run git git-grep '["pkg0/f10.toml", "f99.toml (1)"]' git grep -n "name ="  # later files are listed per folder
 run git git-show-stat '["tune item 80"]' git show --stat HEAD
 run git git-not-a-repo '["fatal: not a git repository"]' git -C / status
 run git git-bad-ref '["fatal:"]' git log no-such-branch

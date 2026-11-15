@@ -1,1 +1,1 @@
-{"exit_code": 0, "must_keep": ["pkg0/f10.toml", "pkg9/f99.toml"]}
+{"exit_code": 0, "must_keep": ["pkg0/f10.toml", "f99.toml (1)"]}

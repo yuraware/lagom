@@ -1,0 +1,180 @@
+test_dict (test_fail.Broken.test_dict) ... FAIL
+test_raise (test_fail.Broken.test_raise) ... ERROR
+test_0 (test_ok_000.T.test_0) ... ok
+test_1 (test_ok_001.T.test_1) ... ok
+test_2 (test_ok_002.T.test_2) ... ok
+test_3 (test_ok_003.T.test_3) ... ok
+test_4 (test_ok_004.T.test_4) ... ok
+test_5 (test_ok_005.T.test_5) ... ok
+test_6 (test_ok_006.T.test_6) ... ok
+test_7 (test_ok_007.T.test_7) ... ok
+test_8 (test_ok_008.T.test_8) ... ok
+test_9 (test_ok_009.T.test_9) ... ok
+test_10 (test_ok_010.T.test_10) ... ok
+test_11 (test_ok_011.T.test_11) ... ok
+test_12 (test_ok_012.T.test_12) ... ok
+test_13 (test_ok_013.T.test_13) ... ok
+test_14 (test_ok_014.T.test_14) ... ok
+test_15 (test_ok_015.T.test_15) ... ok
+test_16 (test_ok_016.T.test_16) ... ok
+test_17 (test_ok_017.T.test_17) ... ok
+test_18 (test_ok_018.T.test_18) ... ok
+test_19 (test_ok_019.T.test_19) ... ok
+test_20 (test_ok_020.T.test_20) ... ok
+test_21 (test_ok_021.T.test_21) ... ok
+test_22 (test_ok_022.T.test_22) ... ok
+test_23 (test_ok_023.T.test_23) ... ok
+test_24 (test_ok_024.T.test_24) ... ok
+test_25 (test_ok_025.T.test_25) ... ok
+test_26 (test_ok_026.T.test_26) ... ok
+test_27 (test_ok_027.T.test_27) ... ok
+test_28 (test_ok_028.T.test_28) ... ok
+test_29 (test_ok_029.T.test_29) ... ok
+test_30 (test_ok_030.T.test_30) ... ok
+test_31 (test_ok_031.T.test_31) ... ok
+test_32 (test_ok_032.T.test_32) ... ok
+test_33 (test_ok_033.T.test_33) ... ok
+test_34 (test_ok_034.T.test_34) ... ok
+test_35 (test_ok_035.T.test_35) ... ok
+test_36 (test_ok_036.T.test_36) ... ok
+test_37 (test_ok_037.T.test_37) ... ok
+test_38 (test_ok_038.T.test_38) ... ok
+test_39 (test_ok_039.T.test_39) ... ok
+test_40 (test_ok_040.T.test_40) ... ok
+test_41 (test_ok_041.T.test_41) ... ok
+test_42 (test_ok_042.T.test_42) ... ok
+test_43 (test_ok_043.T.test_43) ... ok
+test_44 (test_ok_044.T.test_44) ... ok
+test_45 (test_ok_045.T.test_45) ... ok
+test_46 (test_ok_046.T.test_46) ... ok
+test_47 (test_ok_047.T.test_47) ... ok
+test_48 (test_ok_048.T.test_48) ... ok
+test_49 (test_ok_049.T.test_49) ... ok
+test_50 (test_ok_050.T.test_50) ... ok
+test_51 (test_ok_051.T.test_51) ... ok
+test_52 (test_ok_052.T.test_52) ... ok
+test_53 (test_ok_053.T.test_53) ... ok
+test_54 (test_ok_054.T.test_54) ... ok
+test_55 (test_ok_055.T.test_55) ... ok
+test_56 (test_ok_056.T.test_56) ... ok
+test_57 (test_ok_057.T.test_57) ... ok
+test_58 (test_ok_058.T.test_58) ... ok
+test_59 (test_ok_059.T.test_59) ... ok
+test_60 (test_ok_060.T.test_60) ... ok
+test_61 (test_ok_061.T.test_61) ... ok
+test_62 (test_ok_062.T.test_62) ... ok
+test_63 (test_ok_063.T.test_63) ... ok
+test_64 (test_ok_064.T.test_64) ... ok
+test_65 (test_ok_065.T.test_65) ... ok
+test_66 (test_ok_066.T.test_66) ... ok
+test_67 (test_ok_067.T.test_67) ... ok
+test_68 (test_ok_068.T.test_68) ... ok
+test_69 (test_ok_069.T.test_69) ... ok
+test_70 (test_ok_070.T.test_70) ... ok
+test_71 (test_ok_071.T.test_71) ... ok
+test_72 (test_ok_072.T.test_72) ... ok
+test_73 (test_ok_073.T.test_73) ... ok
+test_74 (test_ok_074.T.test_74) ... ok
+test_75 (test_ok_075.T.test_75) ... ok
+test_76 (test_ok_076.T.test_76) ... ok
+test_77 (test_ok_077.T.test_77) ... ok
+test_78 (test_ok_078.T.test_78) ... ok
+test_79 (test_ok_079.T.test_79) ... ok
+test_80 (test_ok_080.T.test_80) ... ok
+test_81 (test_ok_081.T.test_81) ... ok
+test_82 (test_ok_082.T.test_82) ... ok
+test_83 (test_ok_083.T.test_83) ... ok
+test_84 (test_ok_084.T.test_84) ... ok
+test_85 (test_ok_085.T.test_85) ... ok
+test_86 (test_ok_086.T.test_86) ... ok
+test_87 (test_ok_087.T.test_87) ... ok
+test_88 (test_ok_088.T.test_88) ... ok
+test_89 (test_ok_089.T.test_89) ... ok
+test_90 (test_ok_090.T.test_90) ... ok
+test_91 (test_ok_091.T.test_91) ... ok
+test_92 (test_ok_092.T.test_92) ... ok
+test_93 (test_ok_093.T.test_93) ... ok
+test_94 (test_ok_094.T.test_94) ... ok
+test_95 (test_ok_095.T.test_95) ... ok
+test_96 (test_ok_096.T.test_96) ... ok
+test_97 (test_ok_097.T.test_97) ... ok
+test_98 (test_ok_098.T.test_98) ... ok
+test_99 (test_ok_099.T.test_99) ... ok
+test_100 (test_ok_100.T.test_100) ... ok
+test_101 (test_ok_101.T.test_101) ... ok
+test_102 (test_ok_102.T.test_102) ... ok
+test_103 (test_ok_103.T.test_103) ... ok
+test_104 (test_ok_104.T.test_104) ... ok
+test_105 (test_ok_105.T.test_105) ... ok
+test_106 (test_ok_106.T.test_106) ... ok
+test_107 (test_ok_107.T.test_107) ... ok
+test_108 (test_ok_108.T.test_108) ... ok
+test_109 (test_ok_109.T.test_109) ... ok
+test_110 (test_ok_110.T.test_110) ... ok
+test_111 (test_ok_111.T.test_111) ... ok
+test_112 (test_ok_112.T.test_112) ... ok
+test_113 (test_ok_113.T.test_113) ... ok
+test_114 (test_ok_114.T.test_114) ... ok
+test_115 (test_ok_115.T.test_115) ... ok
+test_116 (test_ok_116.T.test_116) ... ok
+test_117 (test_ok_117.T.test_117) ... ok
+test_118 (test_ok_118.T.test_118) ... ok
+test_119 (test_ok_119.T.test_119) ... ok
+test_120 (test_ok_120.T.test_120) ... ok
+test_121 (test_ok_121.T.test_121) ... ok
+test_122 (test_ok_122.T.test_122) ... ok
+test_123 (test_ok_123.T.test_123) ... ok
+test_124 (test_ok_124.T.test_124) ... ok
+test_125 (test_ok_125.T.test_125) ... ok
+test_126 (test_ok_126.T.test_126) ... ok
+test_127 (test_ok_127.T.test_127) ... ok
+test_128 (test_ok_128.T.test_128) ... ok
+test_129 (test_ok_129.T.test_129) ... ok
+test_130 (test_ok_130.T.test_130) ... ok
+test_131 (test_ok_131.T.test_131) ... ok
+test_132 (test_ok_132.T.test_132) ... ok
+test_133 (test_ok_133.T.test_133) ... ok
+test_134 (test_ok_134.T.test_134) ... ok
+test_135 (test_ok_135.T.test_135) ... ok
+test_136 (test_ok_136.T.test_136) ... ok
+test_137 (test_ok_137.T.test_137) ... ok
+test_138 (test_ok_138.T.test_138) ... ok
+test_139 (test_ok_139.T.test_139) ... ok
+test_140 (test_ok_140.T.test_140) ... ok
+test_141 (test_ok_141.T.test_141) ... ok
+test_142 (test_ok_142.T.test_142) ... ok
+test_143 (test_ok_143.T.test_143) ... ok
+test_144 (test_ok_144.T.test_144) ... ok
+test_145 (test_ok_145.T.test_145) ... ok
+test_146 (test_ok_146.T.test_146) ... ok
+test_147 (test_ok_147.T.test_147) ... ok
+test_148 (test_ok_148.T.test_148) ... ok
+test_149 (test_ok_149.T.test_149) ... ok
+
+======================================================================
+ERROR: test_raise (test_fail.Broken.test_raise)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/work/py/test_fail.py", line 6, in test_raise
+    raise ValueError("bad config value: retries=-1")
+ValueError: bad config value: retries=-1
+
+======================================================================
+FAIL: test_dict (test_fail.Broken.test_dict)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/work/py/test_fail.py", line 4, in test_dict
+    self.assertEqual({"a": 1, "b": [1, 2]}, {"a": 1, "b": [1, 3]})
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: {'a': 1, 'b': [1, 2]} != {'a': 1, 'b': [1, 3]}
+- {'a': 1, 'b': [1, 2]}
+?                   ^
+
++ {'a': 1, 'b': [1, 3]}
+?                   ^
+
+
+----------------------------------------------------------------------
+Ran 152 tests in 0.004s
+
+FAILED (failures=1, errors=1)

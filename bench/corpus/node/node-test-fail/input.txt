@@ -1,0 +1,96 @@
+✔ adds 1 (0.989542ms)
+✔ adds 2 (0.098833ms)
+✔ adds 3 (0.073666ms)
+✔ adds 4 (0.056292ms)
+✔ adds 5 (0.075375ms)
+✔ adds 6 (0.057917ms)
+✔ adds 7 (0.056792ms)
+✔ adds 8 (0.050959ms)
+✔ adds 9 (0.059542ms)
+✔ adds 10 (0.778708ms)
+✔ adds 11 (0.082958ms)
+✔ adds 12 (0.049167ms)
+✔ adds 13 (0.041125ms)
+✔ adds 14 (0.030208ms)
+✔ adds 15 (0.028708ms)
+✔ adds 16 (0.029667ms)
+✔ adds 17 (0.025458ms)
+✔ adds 18 (0.029875ms)
+✔ adds 19 (0.026375ms)
+✔ adds 20 (0.047375ms)
+✔ adds 21 (0.038042ms)
+✔ adds 22 (0.029625ms)
+✔ adds 23 (0.026833ms)
+✔ adds 24 (0.02725ms)
+✔ adds 25 (0.02475ms)
+✔ adds 26 (0.024125ms)
+✔ adds 27 (0.024416ms)
+✔ adds 28 (0.036125ms)
+✔ adds 29 (0.025458ms)
+✔ adds 30 (0.027375ms)
+✔ adds 31 (0.025625ms)
+✔ adds 32 (0.030834ms)
+✔ adds 33 (0.030167ms)
+✔ adds 34 (0.030875ms)
+✔ adds 35 (0.024167ms)
+✔ adds 36 (0.024959ms)
+✔ adds 37 (0.024ms)
+✔ adds 38 (0.024625ms)
+✔ adds 39 (0.034291ms)
+✔ adds 40 (0.023583ms)
+✔ adds 41 (0.029917ms)
+✔ adds 42 (0.030166ms)
+✔ adds 43 (0.040875ms)
+✔ adds 44 (0.036ms)
+✔ adds 45 (0.02475ms)
+✔ adds 46 (0.024292ms)
+✔ adds 47 (0.03125ms)
+✔ adds 48 (0.027291ms)
+✔ adds 49 (0.022125ms)
+✔ adds 50 (0.02175ms)
+✔ adds 51 (0.023166ms)
+✔ adds 52 (0.026875ms)
+✔ adds 53 (0.0235ms)
+✔ adds 54 (0.024333ms)
+✔ adds 55 (0.031ms)
+✔ adds 56 (0.029583ms)
+✔ adds 57 (0.024208ms)
+✔ adds 58 (0.025041ms)
+✔ adds 59 (0.025083ms)
+✔ adds 60 (0.023792ms)
+✖ parses config (1.276917ms)
+ℹ tests 61
+ℹ suites 0
+ℹ pass 60
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 79.128375
+
+✖ failing tests:
+
+test at app.test.js:62:1
+✖ parses config (1.276917ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+  +   retries: 3
+  -   retries: -1
+    }
+  
+      at TestContext.<anonymous> (/work/js/app.test.js:62:36)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { retries: 3 },
+    expected: { retries: -1 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

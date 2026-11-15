@@ -1,0 +1,5 @@
+unknown flag: --no-such-flag
+
+Usage:  docker ps [OPTIONS]
+
+Run 'docker ps --help' for more information

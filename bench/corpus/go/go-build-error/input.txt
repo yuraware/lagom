@@ -1,0 +1,2 @@
+# example.com/m
+./bad.go:2:25: cannot use "x" (untyped string constant) as int value in return statement

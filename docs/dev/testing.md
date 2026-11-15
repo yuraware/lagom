@@ -5,6 +5,7 @@
 | Unit and integration tests | `cargo test` | Integration tests run the real binary against a throwaway `HOME`; they never touch your agent config |
 | Compressor golden cases | `cargo test --test golden` | Real outputs in `tests/fixtures/compress/`. After an intended change: `LAGOM_BLESS=1 cargo test --test golden`, then review the diff. Regenerate inputs with `scripts/gen_compress_fixtures.sh` |
 | Hook contract cases | `cargo test --test hooks` | One payload per agent and event in `tests/hooks/`. Bless the same way with `LAGOM_BLESS=1` |
+| Slow checks | `cargo test --release -- --ignored` | `lagom run` with 200 MB of output must stay under 100 MB of memory (about 4 s in release, a minute in debug) |
 | Release-notes script | `python3 -I -m unittest discover -s scripts -p 'test_*.py'` | Standard library only |
 | Lint | `cargo fmt --check && cargo clippy --all-targets -- -D warnings` | CI runs both |
 | Live Claude Code check | `scripts/e2e_claude.sh` | Costs one short Haiku session. See below |

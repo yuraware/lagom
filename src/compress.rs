@@ -246,8 +246,14 @@ pub fn is_important(line: &str) -> bool {
         "expected",
         "segmentation fault",
     ];
-    let lower = line.to_ascii_lowercase();
-    WORDS.iter().any(|w| lower.contains(w)) || has_file_location(line)
+    let bytes = line.as_bytes();
+    // Case-insensitive search without allocating: this runs on every line of big outputs.
+    WORDS.iter().any(|w| {
+        let w = w.as_bytes();
+        bytes
+            .windows(w.len())
+            .any(|win| win[0].eq_ignore_ascii_case(&w[0]) && win.eq_ignore_ascii_case(w))
+    }) || (bytes.contains(&b':') && has_file_location(line))
 }
 
 /// Matches `name.ext:12` style locations used by compilers, linters and stack traces.

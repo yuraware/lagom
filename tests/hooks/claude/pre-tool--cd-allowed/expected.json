@@ -1,0 +1,11 @@
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecisionReason": "lagom: compress output",
+    "updatedInput": {
+      "command": "cd sub && <LAGOM> run --session claude:0b6f1c2e-0000-4000-8000-000000000001 -- git log --stat -3",
+      "description": "Run a command"
+    },
+    "permissionDecision": "allow"
+  }
+}

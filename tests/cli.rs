@@ -19,6 +19,7 @@ fn lagom(home: &Path, args: &[&str], stdin: Option<&str>) -> Output {
     cmd.args(args)
         .env("HOME", home)
         .env_remove("CLAUDE_CONFIG_DIR")
+        .env_remove("CLAUDE_PROJECT_DIR")
         .env_remove("CODEX_HOME")
         .env_remove("XDG_CONFIG_HOME")
         .env_remove("LAGOM_HOME")

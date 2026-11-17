@@ -19,7 +19,7 @@ coverage: 4 injections recorded at session start, subagent start and after compa
 
 Output (median output tokens per main-conversation turn, from the agents' own logs; observational, so not proof of a style's effect)
 no Claude Code or Codex sessions found
-coverage: 0 sessions measured (Claude Code 0, Codex 0) / 1 unavailable (Cursor keeps no usage data)
+coverage: 0 sessions measured (Claude Code 0, Codex 0); Cursor: not measurable locally (1 sessions seen)
 
 Net (tokens saved by compression minus tokens of injected style rules; a style's effect on answer length is not included)
 net: ~39750 tokens

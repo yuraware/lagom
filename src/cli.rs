@@ -428,7 +428,11 @@ fn cmd_status() -> ExitCode {
 }
 
 fn print_active_styles(cwd: &Path) {
-    let names = style::active(cwd);
+    let config = crate::config::Config::load(cwd);
+    for problem in &config.problems {
+        println!("config: {problem}");
+    }
+    let names = config.styles;
     if names.is_empty() {
         println!("styles: off");
         return;

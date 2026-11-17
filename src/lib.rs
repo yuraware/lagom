@@ -8,6 +8,7 @@
 pub mod bench;
 pub mod cli;
 pub mod compress;
+pub mod config;
 pub mod gain;
 pub mod hook;
 pub mod install;

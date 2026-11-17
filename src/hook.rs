@@ -228,7 +228,7 @@ fn inject(agent: Agent, event: &str, cwd: &Path, payload: &Value) -> Option<Valu
     } else {
         store::record_for(
             json!({"kind": "inject", "agent": agent.name(), "event": event, "bytes": text.len(),
-                   "styles": style::active(cwd), "arm": arm.map(|_| "styled")}),
+                   "styles": crate::config::Config::load(cwd).styles, "arm": arm.map(|_| "styled")}),
             &who,
         );
         text
@@ -252,7 +252,7 @@ fn pre_tool(agent: Agent, payload: &Value, cwd: &Path, bin: &str) -> Option<Valu
         return None;
     }
     let command = input.get("command")?.as_str()?;
-    if command.len() > MAX_COMMAND || !style::rewrite_enabled(cwd) {
+    if command.len() > MAX_COMMAND || !crate::config::Config::load(cwd).rewrite {
         return None;
     }
     let rewritten = rewrite::rewrite(command, bin, session_token(agent, payload).as_deref())?;

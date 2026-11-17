@@ -36,11 +36,25 @@ A pre-tool hook turns a simple command such as `git log --stat` into `lagom run 
 | To skip compression for | Do this |
 |---|---|
 | One command | `LAGOM_RAW=1 git log` or `command git log` (anything not starting with a known program is left alone) |
+| One program | `{"rewrite": {"exclude": ["docker"]}}` in either config file |
 | One project | `{"rewrite": false}` in the project's `.lagom/config.json` |
 | You, everywhere | `{"rewrite": false}` in `~/.config/lagom/config.json`, or `LAGOM_REWRITE=off` in your shell |
 | All hooks, including styles | `LAGOM_DISABLE=1` |
 
 A project file can only turn rewriting off: `{"rewrite": true}` in a repository doesn't undo your own `false`. `LAGOM_REWRITE=on` overrides any config file that turned rewriting off. Commands you run by hand with `lagom run` are always compressed.
+
+## Choose the programs
+
+Lagom wraps a built-in list of programs whose output is usually long (git, cargo, npm, pytest, go, rg, docker, …). Change it in `~/.config/lagom/config.json`:
+
+```json
+{"rewrite": {"extra": ["just", "terraform"], "exclude": ["docker"]}}
+```
+
+- `extra` adds programs. Only your own config can add them: a project's file can't, because a cloned repository could add anything.
+- `exclude` removes programs, from either file.
+- Added programs get the same checks as the built-in ones: one command, no pipes, no dev servers or watch modes, and in Claude Code and Cursor only when your own allow rule already permits the command.
+- Leave off tools whose output is already cut to a budget, such as `graphify query`: compressing it again can drop the path and line that make it useful.
 
 ## By hand
 

@@ -84,14 +84,14 @@ pub fn split_cd(command: &str) -> Option<(&str, &str)> {
 }
 
 /// Why `command` would not be rewritten, or `None` if it would be.
-pub fn skip_reason(command: &str) -> Option<&'static str> {
+pub fn skip_reason(command: &str, wrapped: Wrapped) -> Option<&'static str> {
     match split_cd(command) {
-        Some((_, cmd)) => single_command_skip_reason(cmd),
-        None => single_command_skip_reason(command),
+        Some((_, cmd)) => single_command_skip_reason(cmd, wrapped),
+        None => single_command_skip_reason(command, wrapped),
     }
 }
 
-fn single_command_skip_reason(command: &str) -> Option<&'static str> {
+fn single_command_skip_reason(command: &str, wrapped: Wrapped) -> Option<&'static str> {
     let trimmed = command.trim();
     if trimmed.is_empty() {
         return Some("empty command");
@@ -107,8 +107,8 @@ fn single_command_skip_reason(command: &str) -> Option<&'static str> {
     if first.contains('/') {
         return Some("program given by path");
     }
-    if !PROGRAMS.contains(&first) {
-        return Some("program not in Lagom's rewrite list");
+    if let Some(why) = wrapped.reason_to_skip(first) {
+        return Some(why);
     }
     if words.any(|w| STREAMING_ARGS.contains(&w.trim_matches(['"', '\'']))) {
         return Some("long-running or watch mode");
@@ -116,15 +116,40 @@ fn single_command_skip_reason(command: &str) -> Option<&'static str> {
     None
 }
 
-/// True for programs Lagom rewrites (`git`, `cargo`, …).
+/// True for programs on Lagom's built-in list (`git`, `cargo`, …).
 pub fn is_known_program(name: &str) -> bool {
     PROGRAMS.contains(&name)
 }
 
+/// Which programs are wrapped: the built-in list, plus `rewrite.extra` from the user's
+/// config, minus `rewrite.exclude` (FLT-18). The default is the built-in list.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Wrapped<'a> {
+    pub extra: &'a [String],
+    pub exclude: &'a [String],
+}
+
+impl Wrapped<'_> {
+    fn reason_to_skip(&self, program: &str) -> Option<&'static str> {
+        if self.exclude.iter().any(|p| p == program) {
+            Some("program excluded by rewrite.exclude")
+        } else if PROGRAMS.contains(&program) || self.extra.iter().any(|p| p == program) {
+            None
+        } else {
+            Some("program not in Lagom's rewrite list")
+        }
+    }
+}
+
 /// Returns the rewritten command, or None to leave it unchanged.
 /// `session` is an `agent:id` token for stats; it is dropped unless it's a plain id.
-pub fn rewrite(command: &str, lagom_bin: &str, session: Option<&str>) -> Option<String> {
-    if skip_reason(command).is_some() {
+pub fn rewrite(
+    command: &str,
+    lagom_bin: &str,
+    session: Option<&str>,
+    wrapped: Wrapped,
+) -> Option<String> {
+    if skip_reason(command, wrapped).is_some() {
         return None;
     }
     let session = session
@@ -162,6 +187,40 @@ pub fn shell_quote(s: &str) -> String {
 mod tests {
     use super::*;
 
+    #[test]
+    fn extra_adds_programs_and_exclude_removes_them() {
+        let (extra, exclude) = (vec!["just".to_string()], vec!["docker".to_string()]);
+        let wrapped = Wrapped {
+            extra: &extra,
+            exclude: &exclude,
+        };
+        assert!(rewrite("just build", BIN, None, wrapped).is_some());
+        assert_eq!(rewrite("docker ps", BIN, None, wrapped), None);
+        assert_eq!(
+            skip_reason("docker ps", wrapped),
+            Some("program excluded by rewrite.exclude")
+        );
+        assert!(rw("docker ps", BIN, None).is_some(), "on the built-in list");
+        assert_eq!(rw("just build", BIN, None), None);
+        // Excluding wins over adding, and the streaming checks still apply to added programs.
+        let both = vec!["just".to_string()];
+        let w = Wrapped {
+            extra: &extra,
+            exclude: &both,
+        };
+        assert_eq!(rewrite("just build", BIN, None, w), None);
+        // Output already cut to a budget stays off the default list (OVERVIEW §11).
+        assert_eq!(
+            skip_reason("graphify query auth", Wrapped::default()),
+            Some("program not in Lagom's rewrite list")
+        );
+    }
+
+    /// `rewrite` with the built-in program list.
+    fn rw(command: &str, bin: &str, session: Option<&str>) -> Option<String> {
+        rewrite(command, bin, session, Wrapped::default())
+    }
+
     const BIN: &str = "/usr/local/bin/lagom";
 
     #[test]
@@ -173,18 +232,18 @@ mod tests {
             "cd '-' && git log",
         ] {
             assert_eq!(split_cd(c), None, "{c}");
-            assert_eq!(rewrite(c, BIN, None), None, "{c}");
+            assert_eq!(rw(c, BIN, None), None, "{c}");
         }
     }
 
     #[test]
     fn cd_prefix_is_kept_and_the_command_compressed() {
         assert_eq!(
-            rewrite("cd src && cargo test", BIN, None).unwrap(),
+            rw("cd src && cargo test", BIN, None).unwrap(),
             format!("cd src && {BIN} run -- cargo test")
         );
         assert_eq!(
-            rewrite("cd 'my dir/x' && git log -3", BIN, None).unwrap(),
+            rw("cd 'my dir/x' && git log -3", BIN, None).unwrap(),
             format!("cd 'my dir/x' && {BIN} run -- git log -3")
         );
         assert_eq!(
@@ -204,19 +263,19 @@ mod tests {
             "cd x && echo hi",
             "cd `pwd` && git log",
         ] {
-            assert_eq!(rewrite(cmd, BIN, None), None, "{cmd}");
+            assert_eq!(rw(cmd, BIN, None), None, "{cmd}");
         }
     }
 
     #[test]
     fn session_token_is_added_only_when_safe() {
         assert_eq!(
-            rewrite("git log", BIN, Some("claude:9b2f-11")).unwrap(),
+            rw("git log", BIN, Some("claude:9b2f-11")).unwrap(),
             format!("{BIN} run --session claude:9b2f-11 -- git log")
         );
         for bad in ["claude:a b", "claude:$(rm)", "no-colon", "claude:", "x;y:z"] {
             assert_eq!(
-                rewrite("git log", BIN, Some(bad)).unwrap(),
+                rw("git log", BIN, Some(bad)).unwrap(),
                 format!("{BIN} run -- git log"),
                 "{bad}"
             );
@@ -226,14 +285,14 @@ mod tests {
     #[test]
     fn simple_known_commands_are_wrapped() {
         assert_eq!(
-            rewrite("git status", BIN, None).unwrap(),
+            rw("git status", BIN, None).unwrap(),
             "/usr/local/bin/lagom run -- git status"
         );
         assert_eq!(
-            rewrite("git commit -m \"fix: x y\"", BIN, None).unwrap(),
+            rw("git commit -m \"fix: x y\"", BIN, None).unwrap(),
             "/usr/local/bin/lagom run -- git commit -m \"fix: x y\""
         );
-        assert!(rewrite("cargo test --all", BIN, None).is_some());
+        assert!(rw("cargo test --all", BIN, None).is_some());
     }
 
     #[test]
@@ -252,15 +311,15 @@ mod tests {
             "lagom run -- git status",
             "",
         ] {
-            assert_eq!(rewrite(cmd, BIN, None), None, "{cmd}");
+            assert_eq!(rw(cmd, BIN, None), None, "{cmd}");
         }
     }
 
     #[test]
     fn streaming_commands_are_left_alone() {
-        assert_eq!(rewrite("npm run dev", BIN, None), None);
-        assert_eq!(rewrite("cargo watch", BIN, None), None);
-        assert_eq!(rewrite("docker logs -f api", BIN, None), None);
+        assert_eq!(rw("npm run dev", BIN, None), None);
+        assert_eq!(rw("cargo watch", BIN, None), None);
+        assert_eq!(rw("docker logs -f api", BIN, None), None);
     }
 
     #[test]

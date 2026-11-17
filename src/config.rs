@@ -19,6 +19,10 @@ pub struct Config {
     pub styles: Vec<String>,
     /// Whether the pre-tool hook may rewrite commands to `lagom run`.
     pub rewrite: bool,
+    /// Programs added to the wrapped list (`rewrite.extra`, the user's file only).
+    pub rewrite_extra: Vec<String>,
+    /// Programs taken off it (`rewrite.exclude`, any file).
+    pub rewrite_exclude: Vec<String>,
     /// Malformed files, wrong value types and unknown keys. `lagom status` shows them,
     /// and `LAGOM_DEBUG` prints them on stderr.
     pub problems: Vec<String>,
@@ -37,6 +41,24 @@ pub fn read_file(path: &Path) -> Result<Option<Map<String, Value>>, String> {
         Ok(_) => Err(format!("{}: not a JSON object", path.display())),
         Err(e) => Err(format!("{}: not valid JSON ({e})", path.display())),
     }
+}
+
+/// Program names for `rewrite.extra` and `rewrite.exclude`: plain words such as `just` or
+/// `terraform`, never a path or anything a shell would expand.
+fn program_names(value: &Value) -> Option<Vec<String>> {
+    value
+        .as_array()?
+        .iter()
+        .map(|v| {
+            v.as_str()
+                .filter(|s| {
+                    !s.is_empty()
+                        && s.bytes()
+                            .all(|b| b.is_ascii_alphanumeric() || b"-_.+".contains(&b))
+                })
+                .map(String::from)
+        })
+        .collect()
 }
 
 /// A config file's contents with the name to report it by.
@@ -77,6 +99,7 @@ impl Config {
     ) -> Config {
         let mut problems = Vec::new();
         let layers: Vec<Layer> = [project, user].into_iter().flatten().collect();
+        let project_name = project.map(|(name, _)| name);
         for (name, map) in &layers {
             for key in map.keys().filter(|k| !KNOWN.contains(&k.as_str())) {
                 problems.push(format!("{name}: unknown key `{key}`"));
@@ -103,27 +126,64 @@ impl Config {
                 .unwrap_or_else(|| style::DEFAULT_STYLES.map(String::from).to_vec()),
         };
 
-        // `LAGOM_REWRITE` decides alone. Otherwise any file can turn rewriting off, and
-        // none can turn it back on: a cloned repository must not undo the user's `false`.
+        // `rewrite` is `true`/`false`, or `{"enabled", "extra", "exclude"}`. Any file can
+        // turn rewriting off or exclude a program; none can turn it back on, and only the
+        // user's own file can add programs: a cloned repository may only turn things off
+        // until SEC-01 trusts it.
+        let (mut off, mut rewrite_extra, mut rewrite_exclude) = (false, Vec::new(), Vec::new());
+        for (name, map) in &layers {
+            let from_project = Some(*name) == project_name;
+            match map.get("rewrite") {
+                None => {}
+                Some(Value::Bool(on)) => off |= !on,
+                Some(Value::Object(fields)) => {
+                    for (key, value) in fields {
+                        match (key.as_str(), value) {
+                            ("enabled", Value::Bool(on)) => off |= !on,
+                            ("extra", _) if from_project => problems.push(format!(
+                                "{name}: `rewrite.extra` is ignored in a project file; add programs in your own config"
+                            )),
+                            ("extra" | "exclude", _) => match program_names(value) {
+                                Some(names) if key == "extra" => rewrite_extra.extend(names),
+                                Some(names) => rewrite_exclude.extend(names),
+                                None => problems.push(format!(
+                                    "{name}: `rewrite.{key}` must be a list of program names"
+                                )),
+                            },
+                            ("enabled", _) => problems
+                                .push(format!("{name}: `rewrite.enabled` must be true or false")),
+                            _ => problems.push(format!("{name}: unknown key `rewrite.{key}`")),
+                        }
+                    }
+                }
+                Some(_) => problems.push(format!(
+                    "{name}: `rewrite` must be true, false or an object"
+                )),
+            }
+        }
+        // `LAGOM_REWRITE` alone decides on or off.
         let rewrite = match env_rewrite {
             Some(v) => !matches!(
                 v.trim().to_ascii_lowercase().as_str(),
                 "0" | "off" | "false" | "no"
             ),
-            None => !layers.iter().any(|(name, map)| match map.get("rewrite") {
-                None => false,
-                Some(Value::Bool(on)) => !on,
-                Some(_) => {
-                    problems.push(format!("{name}: `rewrite` must be true or false"));
-                    false
-                }
-            }),
+            None => !off,
         };
 
         Config {
             styles,
             rewrite,
+            rewrite_extra,
+            rewrite_exclude,
             problems,
+        }
+    }
+
+    /// The programs the hook wraps, for [`crate::rewrite`].
+    pub fn wrapped(&self) -> crate::rewrite::Wrapped<'_> {
+        crate::rewrite::Wrapped {
+            extra: &self.rewrite_extra,
+            exclude: &self.rewrite_exclude,
         }
     }
 }
@@ -172,6 +232,44 @@ mod tests {
     }
 
     #[test]
+    fn rewrite_extra_comes_from_the_user_and_exclude_from_any_file() {
+        let user = map(json!({"rewrite": {"extra": ["just", "terraform"], "exclude": ["docker"]}}));
+        let project = map(json!({"rewrite": {"extra": ["evil"], "exclude": ["git"]}}));
+        let c = Config::from_layers(
+            None,
+            None,
+            Some(("project", &project)),
+            Some(("user", &user)),
+        );
+        assert!(c.rewrite);
+        assert_eq!(c.rewrite_extra, ["just", "terraform"]);
+        assert_eq!(c.rewrite_exclude, ["git", "docker"]);
+        assert_eq!(
+            c.problems,
+            [
+                "project: `rewrite.extra` is ignored in a project file; add programs in your own config"
+            ]
+        );
+        // The object form can turn rewriting off too; the boolean form keeps working.
+        let off = map(json!({"rewrite": {"enabled": false}}));
+        assert!(!Config::from_layers(None, None, None, Some(("u", &off))).rewrite);
+        assert!(
+            !Config::from_layers(
+                None,
+                None,
+                None,
+                Some(("u", &map(json!({"rewrite": false}))))
+            )
+            .rewrite
+        );
+        // Only plain program names count.
+        let bad = map(json!({"rewrite": {"extra": ["../bin/x"], "exclude": "git", "speed": 1}}));
+        let c = Config::from_layers(None, None, None, Some(("u", &bad)));
+        assert!(c.rewrite_extra.is_empty() && c.rewrite_exclude.is_empty());
+        assert_eq!(c.problems.len(), 3, "{:?}", c.problems);
+    }
+
+    #[test]
     fn wrong_types_and_unknown_keys_are_reported_and_ignored() {
         let bad = map(json!({"styles": "terse", "rewrite": "no", "colour": 1}));
         let c = Config::from_layers(None, None, None, Some(("user", &bad)));
@@ -182,7 +280,7 @@ mod tests {
             [
                 "user: unknown key `colour`",
                 "user: `styles` must be a list of names",
-                "user: `rewrite` must be true or false",
+                "user: `rewrite` must be true, false or an object",
             ]
         );
     }

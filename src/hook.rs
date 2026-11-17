@@ -286,12 +286,14 @@ fn pre_tool(agent: Agent, payload: &Value, cwd: &Path, bin: &str) -> Option<Valu
     if command.len() > MAX_COMMAND {
         return skip("command over 64 KB");
     }
-    if !crate::config::Config::load(cwd).rewrite {
+    let config = crate::config::Config::load(cwd);
+    if !config.rewrite {
         return skip("rewriting is off (LAGOM_REWRITE or a config file)");
     }
-    let Some(rewritten) = rewrite::rewrite(command, bin, session_token(agent, payload).as_deref())
+    let session = session_token(agent, payload);
+    let Some(rewritten) = rewrite::rewrite(command, bin, session.as_deref(), config.wrapped())
     else {
-        return skip(rewrite::skip_reason(command).unwrap_or("not rewritable"));
+        return skip(rewrite::skip_reason(command, config.wrapped()).unwrap_or("not rewritable"));
     };
 
     // updatedInput replaces the whole input: keep every original field.

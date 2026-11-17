@@ -619,7 +619,8 @@ fn cmd_discover(args: &[String]) -> ExitCode {
             calls.extend(discover::codex_calls(&text));
         }
     }
-    let r = discover::analyze(&calls);
+    let config = crate::config::Config::load(&cwd());
+    let r = discover::analyze(&calls, config.wrapped());
     let kb = |b: usize| format!("{:.0} KB", b as f64 / 1024.0);
     println!(
         "Last {days} days: {} tool calls read from Claude Code and Codex logs, {} already compressed by Lagom.",

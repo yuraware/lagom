@@ -195,7 +195,7 @@ pub struct Report {
     pub compressed: usize,
 }
 
-pub fn analyze(calls: &[Call]) -> Report {
+pub fn analyze(calls: &[Call], wrapped: rewrite::Wrapped) -> Report {
     let mut r = Report::default();
     let mut reads: HashMap<(&str, &str, ReadRange), Vec<usize>> = HashMap::new();
     for call in calls {
@@ -219,7 +219,7 @@ pub fn analyze(calls: &[Call]) -> Report {
                 if *bytes < LARGE {
                     continue;
                 }
-                let reason = rewrite::skip_reason(command).unwrap_or(
+                let reason = rewrite::skip_reason(command, wrapped).unwrap_or(
                     "no allow rule matched, or Lagom's hook isn't installed for this agent",
                 );
                 let g = r
@@ -262,7 +262,7 @@ mod tests {
         let codex = include_str!("../../tests/fixtures/transcripts/codex-tools.jsonl");
         let mut calls = claude_calls(claude);
         calls.extend(codex_calls(codex));
-        let r = analyze(&calls);
+        let r = analyze(&calls, rewrite::Wrapped::default());
         assert_eq!(r.compressed, 1);
         let get = |k: &str, reason: &str| r.uncompressed.get(&(k.to_string(), reason)).cloned();
         let allow = "no allow rule matched, or Lagom's hook isn't installed for this agent";

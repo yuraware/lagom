@@ -28,7 +28,7 @@ The lines hold sizes and decisions, never a command's text or a payload. An agen
 
 The hook rewrites a command to `lagom run -- …` only when all of these hold:
 
-- **You already allow it** (Claude Code and Cursor). Lagom never grants a permission you haven't. Add allow rules for read-only commands you run often:
+- **You already allow it** (Claude Code and Cursor). Lagom never grants a permission you haven't. Add allow rules for read-only commands you run often; `lagom permissions suggest` lists the ones your Claude Code logs show, with the rules to copy (it never adds them itself):
   ```json
   // ~/.claude/settings.json
   { "permissions": { "allow": ["Bash(git log:*)", "Bash(git diff:*)", "Bash(cargo test:*)"] } }

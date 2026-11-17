@@ -32,6 +32,7 @@ Usage:
                   [--days 14] | status | stop
   lagom stats --experiment                  Styled vs holdout output tokens, with a 95% interval
   lagom discover [--days N]                 Large outputs Lagom didn't compress, and why
+  lagom permissions suggest [--days N]      Allow rules for read-only commands that ran often
   lagom stats --usage [--days N]            Real token usage per style (Claude Code, Codex)
   lagom bench compress [DIR…] [--json F]    Compress a corpus of real outputs; report sizes and
                   [--compare BASELINE]      kept must_keep strings (exit 1 on an unexpected loss)
@@ -139,6 +140,7 @@ pub fn main() -> ExitCode {
         Some("bench") => crate::bench::run(&rest(1)),
         Some("experiment") => cmd_experiment(&rest(1)),
         Some("discover") => cmd_discover(&rest(1)),
+        Some("permissions") => cmd_permissions(&rest(1)),
         Some("--version" | "-V" | "version") => {
             println!("lagom {}", env!("CARGO_PKG_VERSION"));
             ExitCode::SUCCESS
@@ -615,6 +617,98 @@ fn cmd_usage(days: Option<&str>) -> ExitCode {
 }
 
 /// `lagom discover [--days N]`: large outputs Lagom didn't compress, and why.
+/// A log file as text. Lossy: a log still being written may end in the middle of a character.
+fn read_log(path: &Path) -> Option<String> {
+    std::fs::read(path)
+        .ok()
+        .map(|b| String::from_utf8_lossy(&b).into_owned())
+}
+
+/// Tool calls in Claude Code's transcripts changed since `since`.
+fn claude_tool_calls(since: Option<std::time::SystemTime>) -> Vec<crate::gain::discover::Call> {
+    use crate::gain::{claude, discover};
+    claude::transcript_files(&claude::projects_dir(), since)
+        .iter()
+        .filter_map(|p| read_log(p))
+        .flat_map(|text| discover::claude_calls(&text))
+        .collect()
+}
+
+/// `lagom permissions suggest` (HK-10): allow rules for read-only commands that ran often
+/// in Claude Code without one. It prints them; it never writes a rule.
+fn cmd_permissions(args: &[String]) -> ExitCode {
+    use crate::gain::discover;
+    const USAGE: &str = "lagom permissions suggest [--days N]";
+    if args.first().map(String::as_str) != Some("suggest") {
+        return usage_error("which permissions command? only `suggest` exists", USAGE);
+    }
+    let a = match Args::parse(&args[1..], &["--days="], 0) {
+        Ok(a) => a,
+        Err(e) => return usage_error(&e, USAGE),
+    };
+    let days: u64 = match a.value("--days").map(str::parse) {
+        None => 30,
+        Some(Ok(n)) => n,
+        Some(Err(_)) => return usage_error("--days needs a number", USAGE),
+    };
+    let since = std::time::SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(days.saturating_mul(86_400)));
+    let calls = claude_tool_calls(since);
+    let cwd = cwd();
+    let rules = hook::claude_user_rules(&cwd);
+    let config = crate::config::Config::load(&cwd);
+    let found = discover::suggest(&calls, config.wrapped(), |cmd| {
+        rules.as_ref().is_some_and(|r| r.allows(cmd))
+    });
+    if rules.is_none() {
+        println!(
+            "Note: a managed Claude Code policy can't be read, so Lagom rewrites nothing until it can; these rules wouldn't help yet.\n"
+        );
+    }
+    if found.is_empty() {
+        println!(
+            "No read-only command ran {} or more times in Claude Code without an allow rule in the last {days} days.",
+            discover::SUGGEST_MIN_RUNS
+        );
+        return ExitCode::SUCCESS;
+    }
+    println!(
+        "Read-only commands that ran {}+ times in Claude Code in the last {days} days with no allow rule, so Lagom left their output uncompressed:",
+        discover::SUGGEST_MIN_RUNS
+    );
+    for s in &found {
+        println!(
+            "  {:<16} {:>4} runs, {:.0} KB",
+            s.key,
+            s.runs,
+            s.bytes as f64 / 1024.0
+        );
+    }
+    let claude: Vec<String> = found
+        .iter()
+        .map(|s| format!("\"{}\"", s.claude_rule))
+        .collect();
+    println!("\nClaude Code: add to \"permissions.allow\" in ~/.claude/settings.json:");
+    println!("  {}", claude.join(",\n  "));
+    let cursor: Vec<String> = found
+        .iter()
+        .filter_map(|s| s.cursor_rule.as_ref().map(|r| format!("\"{r}\"")))
+        .collect();
+    if !cursor.is_empty() {
+        println!("\nCursor: add to \"permissions.allow\" in ~/.cursor/cli-config.json:");
+        println!("  {}", cursor.join(",\n  "));
+    }
+    if cursor.len() < found.len() {
+        println!(
+            "Cursor rules name only the program, so none is suggested for commands like git or cargo: Shell(git) would also allow git push."
+        );
+    }
+    println!(
+        "\nLagom never adds rules itself. Each rule allows that command with any arguments: read it before you add it."
+    );
+    ExitCode::SUCCESS
+}
+
 fn cmd_discover(args: &[String]) -> ExitCode {
     use crate::gain::{claude, codex, discover};
     const USAGE: &str = "lagom discover [--days N]";
@@ -629,20 +723,9 @@ fn cmd_discover(args: &[String]) -> ExitCode {
     };
     let since = std::time::SystemTime::now()
         .checked_sub(std::time::Duration::from_secs(days.saturating_mul(86_400)));
-    let mut calls = Vec::new();
-    // Lossy: a log still being written may end in the middle of a character.
-    let read = |p: &std::path::Path| {
-        std::fs::read(p)
-            .ok()
-            .map(|b| String::from_utf8_lossy(&b).into_owned())
-    };
-    for path in claude::transcript_files(&claude::projects_dir(), since) {
-        if let Some(text) = read(&path) {
-            calls.extend(discover::claude_calls(&text));
-        }
-    }
+    let mut calls = claude_tool_calls(since);
     for path in claude::transcript_files(&codex::sessions_dir(), since) {
-        if let Some(text) = read(&path) {
+        if let Some(text) = read_log(&path) {
             calls.extend(discover::codex_calls(&text));
         }
     }

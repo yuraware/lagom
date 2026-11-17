@@ -36,13 +36,14 @@ On real outputs: `git log --stat -3` 115,863 → 5,462 bytes, `rg -n fn` 136,128
 - [Agents](docs/agents.md)
 - [Styles](docs/styles.md): use, write your own, turn off
 - [Compression](docs/compression.md): what gets rewritten, permissions, recall
+- [Savings and stats](docs/stats.md): what `lagom stats` measures, estimates or can't know yet
 - [Data and privacy](docs/privacy.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Testing](docs/dev/testing.md)
 
 ## Honest numbers
 
-`lagom stats` reports compression savings and the size of the injected style rules (~400 tokens per session with the defaults). Token figures are estimates (4 bytes ≈ 1 token). The effect of styles on answer length is not measured yet; an A/B harness is planned.
+`lagom stats` reports what compression saved, what the injected style rules cost (~400 tokens per session with the defaults), output tokens and cache use from your agents' own logs, and an estimated cost. Every number says whether it is measured or estimated; what styles save stays "unknown" until a holdout experiment measures it on your own sessions. See [Savings and stats](docs/stats.md).
 
 ## Develop
 

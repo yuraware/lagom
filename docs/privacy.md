@@ -5,7 +5,7 @@ Everything stays on your machine. No telemetry and no network calls.
 | Path | What | Kept |
 |---|---|---|
 | `~/.lagom/recall/` | Full originals of compressed output, for `lagom recall`, plus the program name | Last 500, at most 200 MB, at most 14 days. `lagom recall --list` / `--clear` |
-| `~/.lagom/stats.jsonl` | Byte counts, program names, agent, session id, active style names, and a project id (a hash of the repository folder, not its path). Never output or commands' arguments | At 16 MB it moves to `stats.1.jsonl`, replacing the older file, so the two take at most about 32 MB. `lagom stats` reads both |
+| `~/.lagom/stats.jsonl` | Byte counts, program names, agent, session id, active style names, the Lagom version, and a project id (a hash of the repository folder, not its path). Never output or commands' arguments | At 16 MB it moves to `stats.1.jsonl`, replacing the older file, so the two take at most about 32 MB. `lagom stats` reads both |
 | `~/.lagom/debug.log` | Only with `LAGOM_DEBUG=1`: hook decisions with sizes, never commands or payloads | At 1 MB it moves to `debug.1.log`, replacing the older file |
 | `~/.config/lagom/` | Your styles and config | Until you delete it |
 | `<repo>/.lagom/` | Project styles and config, only if you create them | — |

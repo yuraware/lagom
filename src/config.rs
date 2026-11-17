@@ -11,7 +11,7 @@ use serde_json::{Map, Value};
 use crate::style;
 
 /// Keys Lagom reads. Anything else in a config file is reported as unknown.
-const KNOWN: [&str; 2] = ["styles", "rewrite"];
+const KNOWN: [&str; 3] = ["styles", "rewrite", "compress"];
 
 #[derive(Debug, PartialEq)]
 pub struct Config {
@@ -23,6 +23,9 @@ pub struct Config {
     pub rewrite_extra: Vec<String>,
     /// Programs taken off it (`rewrite.exclude`, any file).
     pub rewrite_exclude: Vec<String>,
+    /// Substrings that make a line important to the compressor (`compress.keep`, any file:
+    /// keeping more lines only ever shows more).
+    pub compress_keep: Vec<String>,
     /// Malformed files, wrong value types and unknown keys. `lagom status` shows them,
     /// and `LAGOM_DEBUG` prints them on stderr.
     pub problems: Vec<String>,
@@ -58,6 +61,15 @@ fn program_names(value: &Value) -> Option<Vec<String>> {
                 })
                 .map(String::from)
         })
+        .collect()
+}
+
+/// A list of non-empty strings, such as `compress.keep`.
+fn text_list(value: &Value) -> Option<Vec<String>> {
+    value
+        .as_array()?
+        .iter()
+        .map(|v| v.as_str().filter(|s| !s.is_empty()).map(String::from))
         .collect()
 }
 
@@ -161,6 +173,27 @@ impl Config {
                 )),
             }
         }
+        let mut compress_keep = Vec::new();
+        for (name, map) in &layers {
+            match map.get("compress") {
+                None => {}
+                Some(Value::Object(fields)) => {
+                    for (key, value) in fields {
+                        match key.as_str() {
+                            "keep" => match text_list(value) {
+                                Some(items) => compress_keep.extend(items),
+                                None => problems.push(format!(
+                                    "{name}: `compress.keep` must be a list of non-empty strings"
+                                )),
+                            },
+                            _ => problems.push(format!("{name}: unknown key `compress.{key}`")),
+                        }
+                    }
+                }
+                Some(_) => problems.push(format!("{name}: `compress` must be an object")),
+            }
+        }
+
         // `LAGOM_REWRITE` alone decides on or off.
         let rewrite = match env_rewrite {
             Some(v) => !matches!(
@@ -175,6 +208,7 @@ impl Config {
             rewrite,
             rewrite_extra,
             rewrite_exclude,
+            compress_keep,
             problems,
         }
     }
@@ -267,6 +301,19 @@ mod tests {
         let c = Config::from_layers(None, None, None, Some(("u", &bad)));
         assert!(c.rewrite_extra.is_empty() && c.rewrite_exclude.is_empty());
         assert_eq!(c.problems.len(), 3, "{:?}", c.problems);
+    }
+
+    #[test]
+    fn compress_keep_comes_from_every_file() {
+        let project = map(json!({"compress": {"keep": ["SECURITY"]}}));
+        let user = map(json!({"compress": {"keep": ["panicked at", "ACME-"]}}));
+        let c = Config::from_layers(None, None, Some(("p", &project)), Some(("u", &user)));
+        assert_eq!(c.compress_keep, ["SECURITY", "panicked at", "ACME-"]);
+        assert!(c.problems.is_empty());
+        let bad = map(json!({"compress": {"keep": ["", 3], "fast": true}}));
+        let c = Config::from_layers(None, None, None, Some(("u", &bad)));
+        assert!(c.compress_keep.is_empty());
+        assert_eq!(c.problems.len(), 2, "{:?}", c.problems);
     }
 
     #[test]

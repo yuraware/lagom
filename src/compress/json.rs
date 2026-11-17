@@ -15,13 +15,15 @@ const KEEP_HEAD: usize = 3;
 const KEEP_TAIL: usize = 2;
 
 /// True if an item reports a failure or error anywhere inside it.
-fn is_interesting(v: &Value) -> bool {
+fn is_interesting(v: &Value, keep: &[String]) -> bool {
     match v {
-        Value::String(s) => s.lines().any(super::is_important),
-        Value::Array(items) => items.iter().any(is_interesting),
+        Value::String(s) => s.lines().any(|l| {
+            super::is_important(l) || keep.iter().any(|k| !k.is_empty() && l.contains(k.as_str()))
+        }),
+        Value::Array(items) => items.iter().any(|v| is_interesting(v, keep)),
         Value::Object(obj) => obj
             .iter()
-            .any(|(k, v)| reports_problem(k, v) || is_interesting(v)),
+            .any(|(k, v)| reports_problem(k, v) || is_interesting(v, keep)),
         _ => false,
     }
 }
@@ -80,22 +82,22 @@ fn keys_of(items: &[Value]) -> String {
 }
 
 /// Which indexes of `items` to keep.
-fn keep_indexes(items: &[Value]) -> Vec<usize> {
+fn keep_indexes(items: &[Value], keep: &[String]) -> Vec<usize> {
     let n = items.len();
     (0..n)
-        .filter(|&i| i < KEEP_HEAD || i >= n - KEEP_TAIL || is_interesting(&items[i]))
+        .filter(|&i| i < KEEP_HEAD || i >= n - KEEP_TAIL || is_interesting(&items[i], keep))
         .collect()
 }
 
 /// Shorten long arrays everywhere in `v`. Returns how many items were dropped.
-fn shorten(v: &mut Value) -> usize {
+fn shorten(v: &mut Value, keep_patterns: &[String]) -> usize {
     match v {
         Value::Array(items) => {
             // Choose items before shortening inside them, so our own markers (whose key
             // list may say "error") never decide what is kept.
             let mut dropped = 0;
             if items.len() > MAX_ITEMS {
-                let keep = keep_indexes(items);
+                let keep = keep_indexes(items, keep_patterns);
                 let keys = keys_of(items);
                 let old = std::mem::take(items);
                 let mut last: Option<usize> = None;
@@ -111,9 +113,13 @@ fn shorten(v: &mut Value) -> usize {
                     last = Some(i);
                 }
             }
-            dropped + items.iter_mut().map(shorten).sum::<usize>()
+            dropped
+                + items
+                    .iter_mut()
+                    .map(|v| shorten(v, keep_patterns))
+                    .sum::<usize>()
         }
-        Value::Object(map) => map.values_mut().map(shorten).sum(),
+        Value::Object(map) => map.values_mut().map(|v| shorten(v, keep_patterns)).sum(),
         _ => 0,
     }
 }
@@ -136,17 +142,17 @@ pub fn compress(text: &str, limits: Limits) -> Option<(String, bool)> {
     let trimmed = text.trim();
     if trimmed.starts_with(['{', '[']) {
         if let Ok(mut v) = serde_json::from_str::<Value>(trimmed) {
-            let dropped = shorten(&mut v);
+            let dropped = shorten(&mut v, limits.keep);
             let mut out = serde_json::to_string(&v).ok()?;
             out.push('\n');
             return Some((out, dropped > 0));
         }
     }
-    json_lines(text)
+    json_lines(text, limits.keep)
 }
 
 /// One JSON value per line (`jq -c`, structured logs).
-fn json_lines(text: &str) -> Option<(String, bool)> {
+fn json_lines(text: &str, keep: &[String]) -> Option<(String, bool)> {
     let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
     let parsed: Vec<Option<Value>> = lines
         .iter()
@@ -173,8 +179,10 @@ fn json_lines(text: &str) -> Option<(String, bool)> {
     let mut out = String::new();
     let (mut last, mut first_marker, mut dropped) = (None::<usize>, true, 0usize);
     for i in 0..n {
-        let keep =
-            i < KEEP_HEAD || i >= n - KEEP_TAIL || parsed[i].is_none() || is_interesting(&items[i]);
+        let keep = i < KEEP_HEAD
+            || i >= n - KEEP_TAIL
+            || parsed[i].is_none()
+            || is_interesting(&items[i], keep);
         if !keep {
             continue;
         }
@@ -265,7 +273,7 @@ mod tests {
             json!({"status": {"phase": "Failed", "reason": "Evicted"}}),
             json!("error: disk full"),
         ] {
-            assert!(is_interesting(&v), "{v}");
+            assert!(is_interesting(&v, &[]), "{v}");
         }
         for v in [
             json!({"error": null}),
@@ -279,7 +287,7 @@ mod tests {
             json!({"reason": "compiler-artifact"}),
             json!(3),
         ] {
-            assert!(!is_interesting(&v), "{v}");
+            assert!(!is_interesting(&v, &[]), "{v}");
         }
     }
 

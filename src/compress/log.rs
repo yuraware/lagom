@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use super::{Limits, is_important};
+use super::Limits;
 
 const MIN_REPEATS: usize = 3;
 /// Bytes at the start of a line where a time must appear.
@@ -83,8 +83,8 @@ fn has_problem_level(line: &str) -> bool {
     })
 }
 
-pub fn is_problem(line: &str) -> bool {
-    has_problem_level(line) || is_server_error(line) || is_important(line)
+pub fn is_problem(line: &str, limits: Limits) -> bool {
+    has_problem_level(line) || is_server_error(line) || limits.important(line)
 }
 
 /// Words that contain a digit become `<n>`; everything else stays.
@@ -117,7 +117,7 @@ pub fn collapse(lines: Vec<String>, limits: Limits, lossy: &mut bool) -> Vec<Str
     if lines.len() <= limits.max_lines || !looks_like_log(&lines) {
         return lines;
     }
-    let problem: Vec<bool> = lines.iter().map(|l| is_problem(l)).collect();
+    let problem: Vec<bool> = lines.iter().map(|l| is_problem(l, limits)).collect();
     let templates: Vec<Option<String>> = lines
         .iter()
         .zip(&problem)

@@ -4,6 +4,7 @@ use std::io::{IsTerminal, Read, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
+use crate::args::{Args, usage_error};
 use crate::hook::Agent;
 use crate::{hook, install, run, store, style};
 
@@ -79,7 +80,7 @@ pub fn main() -> ExitCode {
             }
             run::run(&cmd, session.as_deref())
         }
-        Some("compress") => cmd_compress(),
+        Some("compress") => cmd_compress(&rest(1)),
         Some("recall") => cmd_recall(&rest(1)),
         Some("hook") => {
             hook::run(
@@ -90,19 +91,24 @@ pub fn main() -> ExitCode {
         }
         Some("install") => cmd_install(&rest(1), true),
         Some("uninstall") => cmd_install(&rest(1), false),
-        Some("status") => cmd_status(),
+        Some("status") => cmd_status(&rest(1)),
         Some("style") => cmd_style(&rest(1)),
-        Some("stats") => match args.get(1).map(String::as_str) {
-            Some("--usage") => cmd_usage(&rest(2)),
-            Some("--experiment") => cmd_experiment_report(),
-            None => cmd_stats(),
-            Some(other) => {
-                eprintln!(
-                    "lagom: unknown option `{other}`\nusage: lagom stats [--usage [--days N] | --experiment]"
-                );
-                ExitCode::from(2)
+        Some("stats") => {
+            const USAGE: &str = "lagom stats [--usage [--days N] | --experiment]";
+            let a = match Args::parse(&rest(1), &["--usage", "--experiment", "--days="], 0) {
+                Ok(a) => a,
+                Err(e) => return usage_error(&e, USAGE),
+            };
+            match (a.has("--usage"), a.has("--experiment"), a.value("--days")) {
+                (true, false, days) => cmd_usage(days),
+                (false, true, None) => cmd_experiment_report(),
+                (false, false, None) => cmd_stats(),
+                _ => usage_error(
+                    "use --usage or --experiment; --days goes with --usage",
+                    USAGE,
+                ),
             }
-        },
+        }
         Some("bench") => crate::bench::run(&rest(1)),
         Some("experiment") => cmd_experiment(&rest(1)),
         Some("discover") => cmd_discover(&rest(1)),
@@ -125,7 +131,10 @@ fn cwd() -> std::path::PathBuf {
     std::env::current_dir().unwrap_or_else(|_| ".".into())
 }
 
-fn cmd_compress() -> ExitCode {
+fn cmd_compress(args: &[String]) -> ExitCode {
+    if let Err(e) = Args::parse(args, &[], 0) {
+        return usage_error(&e, "some-command | lagom compress");
+    }
     let mut raw = String::new();
     if std::io::stdin().read_to_string(&mut raw).is_err() {
         eprintln!("lagom: stdin is not valid UTF-8 text");
@@ -143,6 +152,11 @@ fn cmd_recall(args: &[String]) -> ExitCode {
         eprintln!("lagom: {USAGE}");
         return ExitCode::from(2);
     };
+    if matches!(id.as_str(), "--list" | "--clear") {
+        if let Err(e) = Args::parse(rest, &[], 0) {
+            return usage_error(&e, "lagom recall --list | --clear");
+        }
+    }
     match id.as_str() {
         "--list" => {
             let now = std::time::SystemTime::now();
@@ -243,21 +257,29 @@ fn confirm(question: &str, input: &mut impl std::io::BufRead, out: &mut impl Wri
 }
 
 fn cmd_install(args: &[String], installing: bool) -> ExitCode {
-    let (mut dry_run, mut yes, mut purge, mut all, mut names) =
-        (false, false, false, false, Vec::new());
-    for a in args {
-        match a.as_str() {
-            "--dry-run" | "-n" => dry_run = true,
-            "--yes" | "-y" => yes = true,
-            "--all" => all = true, // the default when no agent is named
-            "--purge" if !installing => purge = true,
-            s if s.starts_with('-') => {
-                eprintln!("lagom: unknown option `{s}`");
-                return ExitCode::from(2);
-            }
-            _ => names.push(a.clone()),
-        }
-    }
+    let (spec, usage): (&[&'static str], &str) = if installing {
+        (
+            &["--dry-run|-n", "--yes|-y", "--all"],
+            "lagom install [claude|codex|cursor ...] [--dry-run] [--yes]",
+        )
+    } else {
+        (
+            &["--dry-run|-n", "--yes|-y", "--all", "--purge"],
+            "lagom uninstall [claude|codex|cursor ...] [--all] [--purge] [--dry-run] [--yes]",
+        )
+    };
+    let a = match Args::parse(args, spec, usize::MAX) {
+        Ok(a) => a,
+        Err(e) => return usage_error(&e, usage),
+    };
+    // `--all` is the default when no agent is named.
+    let (dry_run, yes, purge, all) = (
+        a.has("--dry-run"),
+        a.has("--yes"),
+        a.has("--purge"),
+        a.has("--all"),
+    );
+    let names = a.positionals;
     if all && !names.is_empty() {
         eprintln!("lagom: use either --all or agent names, not both");
         return ExitCode::from(2);
@@ -408,7 +430,10 @@ fn cmd_purge(dry_run: bool, yes: bool) -> bool {
     }
 }
 
-fn cmd_status() -> ExitCode {
+fn cmd_status(args: &[String]) -> ExitCode {
+    if let Err(e) = Args::parse(args, &[], 0) {
+        return usage_error(&e, "lagom status");
+    }
     for agent in [Agent::Claude, Agent::Codex, Agent::Cursor] {
         let (hooks, skills) = install::status(agent);
         println!(
@@ -455,28 +480,33 @@ fn cmd_style(args: &[String]) -> ExitCode {
     match args.first().map(String::as_str) {
         None => print_active_styles(&cwd),
         Some("list") => {
+            if let Err(e) = Args::parse(&args[1..], &[], 0) {
+                return usage_error(&e, "lagom style list");
+            }
             for s in style::list(&cwd) {
                 println!("{:<14} {:<8} {}", s.name, s.source, s.description());
             }
         }
-        Some("show") => match args.get(1).and_then(|n| style::load(n, &cwd)) {
-            Some(s) => println!("{}", s.body()),
-            None => {
-                eprintln!("lagom: no such style (see `lagom style list`)");
-                return ExitCode::from(1);
-            }
+        Some("show") => match Args::parse(&args[1..], &[], 1) {
+            Ok(a) if a.positionals.len() == 1 => match style::load(&a.positionals[0], &cwd) {
+                Some(s) => println!("{}", s.body()),
+                None => {
+                    eprintln!("lagom: no such style (see `lagom style list`)");
+                    return ExitCode::from(1);
+                }
+            },
+            Ok(_) => return usage_error("which style?", "lagom style show <name>"),
+            Err(e) => return usage_error(&e, "lagom style show <name>"),
         },
         Some("use") => {
-            let project = args.iter().any(|a| a == "--project");
-            let names: Vec<String> = style::parse_list(
-                &args[1..]
-                    .iter()
-                    .filter(|a| *a != "--project")
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .join(" "),
-            );
-            let wants_off = args[1..].iter().any(|a| a == "off" || a == "none");
+            const USAGE: &str = "lagom style use [--project] <names…|off>";
+            let a = match Args::parse(&args[1..], &["--project"], usize::MAX) {
+                Ok(a) => a,
+                Err(e) => return usage_error(&e, USAGE),
+            };
+            let project = a.has("--project");
+            let names: Vec<String> = style::parse_list(&a.positionals.join(" "));
+            let wants_off = a.positionals.iter().any(|a| a == "off" || a == "none");
             if names.is_empty() && !wants_off {
                 eprintln!("usage: lagom style use [--project] <names…|off>");
                 return ExitCode::from(2);
@@ -513,19 +543,12 @@ fn cmd_style(args: &[String]) -> ExitCode {
 
 /// `lagom stats --usage [--days N]`: real token usage from Claude Code transcripts,
 /// grouped by the styles Lagom injected.
-fn cmd_usage(args: &[String]) -> ExitCode {
-    let days = match args {
-        [] => 30,
-        [flag, n] if flag == "--days" => match n.parse::<u64>() {
-            Ok(n) => n,
-            Err(_) => {
-                eprintln!("lagom: --days needs a number");
-                return ExitCode::from(2);
-            }
-        },
-        _ => {
-            eprintln!("usage: lagom stats --usage [--days N]");
-            return ExitCode::from(2);
+fn cmd_usage(days: Option<&str>) -> ExitCode {
+    let days = match days.map(str::parse::<u64>) {
+        None => 30,
+        Some(Ok(n)) => n,
+        Some(Err(_)) => {
+            return usage_error("--days needs a number", "lagom stats --usage [--days N]");
         }
     };
     let since = std::time::SystemTime::now()
@@ -567,13 +590,15 @@ fn cmd_usage(args: &[String]) -> ExitCode {
 /// `lagom discover [--days N]`: large outputs Lagom didn't compress, and why.
 fn cmd_discover(args: &[String]) -> ExitCode {
     use crate::gain::{claude, codex, discover};
-    let days: u64 = match args {
-        [] => 30,
-        [flag, n] if flag == "--days" && n.parse::<u64>().is_ok() => n.parse().unwrap_or(30),
-        _ => {
-            eprintln!("usage: lagom discover [--days N]");
-            return ExitCode::from(2);
-        }
+    const USAGE: &str = "lagom discover [--days N]";
+    let a = match Args::parse(args, &["--days="], 0) {
+        Ok(a) => a,
+        Err(e) => return usage_error(&e, USAGE),
+    };
+    let days: u64 = match a.value("--days").map(str::parse) {
+        None => 30,
+        Some(Ok(n)) => n,
+        Some(Err(_)) => return usage_error("--days needs a number", USAGE),
     };
     let since = std::time::SystemTime::now()
         .checked_sub(std::time::Duration::from_secs(days.saturating_mul(86_400)));
@@ -667,34 +692,29 @@ fn cmd_discover(args: &[String]) -> ExitCode {
 /// `lagom experiment start --holdout 0.2 [--days 14] | status | stop`.
 fn cmd_experiment(args: &[String]) -> ExitCode {
     use crate::gain::experiment::Experiment;
-    const USAGE: &str = "usage: lagom experiment start [--holdout 0.2] [--days 14] | status | stop";
-    match args.first().map(String::as_str) {
+    const USAGE: &str = "lagom experiment start [--holdout 0.2] [--days 14] | status | stop";
+    let sub = args.first().map(String::as_str);
+    let spec: &[&'static str] = if sub == Some("start") {
+        &["--holdout=", "--days="]
+    } else {
+        &[]
+    };
+    let a = match Args::parse(args.get(1..).unwrap_or(&[]), spec, 0) {
+        Ok(a) => a,
+        Err(e) => return usage_error(&e, USAGE),
+    };
+    match sub {
         Some("start") => {
-            let (mut holdout, mut days) = (0.2_f64, 14_u64);
-            let mut it = args[1..].iter();
-            while let Some(flag) = it.next() {
-                let value = it.next();
-                match (flag.as_str(), value) {
-                    ("--holdout", Some(v)) => match v.parse::<f64>() {
-                        Ok(h) if (0.05..=0.5).contains(&h) => holdout = h,
-                        _ => {
-                            eprintln!("lagom: --holdout must be between 0.05 and 0.5");
-                            return ExitCode::from(2);
-                        }
-                    },
-                    ("--days", Some(v)) => match v.parse::<u64>() {
-                        Ok(d) if (1..=90).contains(&d) => days = d,
-                        _ => {
-                            eprintln!("lagom: --days must be between 1 and 90");
-                            return ExitCode::from(2);
-                        }
-                    },
-                    _ => {
-                        eprintln!("lagom: {USAGE}");
-                        return ExitCode::from(2);
-                    }
-                }
-            }
+            let holdout = match a.value("--holdout").map(str::parse::<f64>) {
+                None => 0.2,
+                Some(Ok(h)) if (0.05..=0.5).contains(&h) => h,
+                Some(_) => return usage_error("--holdout must be between 0.05 and 0.5", USAGE),
+            };
+            let days = match a.value("--days").map(str::parse::<u64>) {
+                None => 14,
+                Some(Ok(d)) if (1..=90).contains(&d) => d,
+                Some(_) => return usage_error("--days must be between 1 and 90", USAGE),
+            };
             match Experiment::start(holdout, days) {
                 Ok(_) => {
                     println!(
@@ -753,10 +773,7 @@ fn cmd_experiment(args: &[String]) -> ExitCode {
                 ExitCode::from(1)
             }
         },
-        _ => {
-            eprintln!("lagom: {USAGE}");
-            ExitCode::from(2)
-        }
+        _ => usage_error("which experiment command?", USAGE),
     }
 }
 

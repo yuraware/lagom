@@ -12,6 +12,7 @@ use std::time::Instant;
 
 use serde_json::{Value, json};
 
+use crate::args::{Args, usage_error};
 use crate::compress::compress;
 
 const DEFAULT_DIRS: [&str; 2] = ["bench/corpus", "tests/fixtures/compress"];
@@ -187,44 +188,29 @@ fn growth_pct(results: &[CaseResult], baseline: &Value) -> Option<f64> {
 
 /// `lagom bench compress [DIR…] [--json FILE] [--compare BASELINE.json [--max-growth PCT]]`.
 pub fn run(args: &[String]) -> ExitCode {
-    const USAGE: &str = "usage: lagom bench compress [DIR…] [--json FILE] [--compare BASELINE.json [--max-growth PCT]]";
+    const USAGE: &str =
+        "lagom bench compress [DIR…] [--json FILE] [--compare BASELINE.json [--max-growth PCT]]";
     let Some(("compress", rest)) = args.split_first().map(|(a, r)| (a.as_str(), r)) else {
-        eprintln!("lagom: {USAGE}");
-        return ExitCode::from(2);
+        return usage_error("which benchmark? only `compress` exists", USAGE);
     };
-    let (mut dirs, mut json_out, mut compare, mut max_growth) = (Vec::new(), None, None, None);
-    let mut it = rest.iter();
-    while let Some(a) = it.next() {
-        match a.as_str() {
-            "--json" | "--compare" => {
-                let Some(v) = it.next().cloned() else {
-                    eprintln!("lagom: {a} needs a file\n{USAGE}");
-                    return ExitCode::from(2);
-                };
-                if a == "--json" {
-                    json_out = Some(v);
-                } else {
-                    compare = Some(v);
-                }
-            }
-            "--max-growth" => match it
-                .next()
-                .and_then(|v| v.parse::<f64>().ok())
-                .filter(|v| v.is_finite() && *v >= 0.0)
-            {
-                Some(v) => max_growth = Some(v),
-                None => {
-                    eprintln!("lagom: --max-growth needs a number (percent)\n{USAGE}");
-                    return ExitCode::from(2);
-                }
-            },
-            s if s.starts_with('-') => {
-                eprintln!("lagom: unknown option `{s}`\n{USAGE}");
-                return ExitCode::from(2);
-            }
-            d => dirs.push(PathBuf::from(d)),
-        }
-    }
+    let a = match Args::parse(
+        rest,
+        &["--json=", "--compare=", "--max-growth="],
+        usize::MAX,
+    ) {
+        Ok(a) => a,
+        Err(e) => return usage_error(&e, USAGE),
+    };
+    let mut dirs: Vec<PathBuf> = a.positionals.iter().map(PathBuf::from).collect();
+    let json_out = a.value("--json").map(String::from);
+    let compare = a.value("--compare").map(String::from);
+    let max_growth = match a.value("--max-growth") {
+        None => None,
+        Some(v) => match v.parse::<f64>().ok().filter(|v| v.is_finite() && *v >= 0.0) {
+            Some(v) => Some(v),
+            None => return usage_error("--max-growth needs a number (percent)", USAGE),
+        },
+    };
     if dirs.is_empty() {
         dirs = DEFAULT_DIRS
             .iter()
@@ -244,8 +230,7 @@ pub fn run(args: &[String]) -> ExitCode {
         }
     }
     if cases.is_empty() {
-        eprintln!("lagom: nothing to run. {USAGE}");
-        return ExitCode::from(2);
+        return usage_error("nothing to run", USAGE);
     }
     let mut results = Vec::new();
     for case in &cases {

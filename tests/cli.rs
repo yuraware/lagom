@@ -1467,3 +1467,49 @@ fn a_malformed_config_file_is_reported_and_never_overwritten() {
         "{status}"
     );
 }
+
+#[test]
+fn every_command_rejects_an_unknown_flag_with_its_usage() {
+    let home = sandbox("unknown-flags");
+    // `hook` never fails (it must not break the agent), and `run` passes everything after
+    // `--` to the command, so neither is here.
+    let cases: &[&[&str]] = &[
+        &["install", "--bogus"],
+        &["uninstall", "--bogus"],
+        &["status", "--bogus"],
+        &["style", "list", "--bogus"],
+        &["style", "show", "terse", "--bogus"],
+        &["style", "use", "--bogus", "terse"],
+        &["compress", "--bogus"],
+        &["recall", "--list", "--bogus"],
+        &["recall", "--clear", "--bogus"],
+        &["recall", "0123456789", "--bogus"],
+        &["stats", "--bogus"],
+        &["stats", "--usage", "--bogus"],
+        &["experiment", "start", "--bogus"],
+        &["experiment", "status", "--bogus"],
+        &["experiment", "stop", "--bogus"],
+        &["discover", "--bogus"],
+        &["bench", "compress", "--bogus"],
+    ];
+    for args in cases {
+        let out = lagom(&home, args, Some(""));
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(2), "{args:?}: {err}");
+        assert!(
+            err.contains("--bogus") && err.contains("usage"),
+            "{args:?}: {err}"
+        );
+    }
+    // Flags that only make sense together are refused too, instead of one being dropped.
+    for args in [
+        &["stats", "--experiment", "--days", "3"][..],
+        &["stats", "--days", "3"],
+    ] {
+        assert_eq!(lagom(&home, args, None).status.code(), Some(2), "{args:?}");
+    }
+    // A refused `uninstall` or `recall --clear` changed nothing.
+    assert!(
+        !home.join(".lagom").exists() || fs::read_dir(home.join(".lagom")).unwrap().count() == 0
+    );
+}

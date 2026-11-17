@@ -2,8 +2,10 @@
 //!
 //! Each test builds release archives in a temp folder, serves them with a tiny
 //! HTTP server that mimics GitHub's `releases/latest` redirect, and runs the
-//! script with a PATH that holds only the tools it needs plus fake `uname` and
-//! `sysctl` commands. Nothing touches the network or the real HOME.
+//! script with a PATH that holds only the tools it needs plus fake `uname`,
+//! `sysctl` and (for the Homebrew tests) `brew` commands. The packed `lagom`
+//! is a script that logs `lagom install` calls to `$HOME/agent-calls`.
+//! Nothing touches the network or the real HOME.
 #![cfg(unix)]
 
 use std::fs;
@@ -18,8 +20,25 @@ const SCRIPT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/install.sh");
 /// Tools the script calls, linked into the test PATH when they exist.
 /// The downloader and the hash tools are added per test.
 const TOOLS: &[&str] = &[
-    "awk", "cat", "chmod", "cp", "gzip", "mkdir", "mktemp", "mv", "rm", "sed", "tail", "tar", "tr",
+    "awk", "cat", "chmod", "cp", "gzip", "ln", "mkdir", "mktemp", "mv", "readlink", "rm", "sed",
+    "tail", "tar", "tr",
 ];
+
+/// A stand-in for the `lagom` binary. `--version` prints the version;
+/// `install` logs its arguments to `$HOME/agent-calls` and fails when
+/// `$HOME/fail-agents` exists, the way a real install fails with no agents.
+fn fake_lagom(version: &str) -> String {
+    format!(
+        "#!/bin/sh\n\
+         case \"$1\" in\n\
+         --version) echo \"lagom {version}\" ;;\n\
+         install) echo \"$*\" >> \"$HOME/agent-calls\"\n\
+           if [ -e \"$HOME/fail-agents\" ]; then echo 'no agents found' >&2; exit 1; fi\n\
+           echo 'claude: installed' ;;\n\
+         *) exit 2 ;;\n\
+         esac\n"
+    )
+}
 
 fn which(name: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
@@ -80,10 +99,7 @@ impl Sandbox {
             let name = format!("lagom-{version}-{target}");
             let stage = dir.join(&name);
             fs::create_dir_all(&stage).unwrap();
-            write_exe(
-                &stage.join("lagom"),
-                &format!("#!/bin/sh\necho \"lagom {version}\"\n"),
-            );
+            write_exe(&stage.join("lagom"), &fake_lagom(version));
             let status = Command::new("tar")
                 .arg("-czf")
                 .arg(format!("{name}.tar.gz"))
@@ -263,7 +279,10 @@ fn installs_latest_release_with_curl_into_install_dir() {
         out.contains("lagom 9.9.9 for x86_64-unknown-linux-musl"),
         "{out}"
     );
-    assert!(out.contains(&format!("{} install", bin.display())), "{out}");
+    assert!(
+        out.contains(&format!("{} install --yes", bin.display())),
+        "{out}"
+    );
     let err = stderr(&o);
     assert!(err.contains("is not on PATH"), "{err}");
     assert!(
@@ -274,12 +293,13 @@ fn installs_latest_release_with_curl_into_install_dir() {
         sb.tmp_is_empty(),
         "the temporary download folder was left behind"
     );
-    // Only the binary lands in the install folder.
-    let names: Vec<_> = fs::read_dir(&dir)
+    // Only the binary and its `lgm` alias land in the install folder.
+    let mut names: Vec<_> = fs::read_dir(&dir)
         .unwrap()
         .map(|e| e.unwrap().file_name())
         .collect();
-    assert_eq!(names, ["lagom"]);
+    names.sort();
+    assert_eq!(names, ["lagom", "lgm"]);
 }
 
 #[test]
@@ -465,7 +485,11 @@ fn replaces_an_existing_binary_and_stays_quiet_when_on_path() {
     assert_ok(&o);
     assert_eq!(installed_version(&dir.join("lagom")), "lagom 1.1.0");
     assert!(!stderr(&o).contains("not on PATH"), "{}", stderr(&o));
-    assert!(stdout(&o).contains("with: lagom install"), "{}", stdout(&o));
+    assert!(
+        stdout(&o).contains("agents: lagom install --yes"),
+        "{}",
+        stdout(&o)
+    );
 }
 
 #[test]
@@ -523,4 +547,303 @@ fn passes_shellcheck() {
         .output()
         .unwrap();
     assert!(o.status.success(), "{}", stdout(&o));
+}
+
+// INST-02: agents, the `lgm` alias, upgrades and Homebrew.
+
+fn agent_calls(sb: &Sandbox) -> String {
+    fs::read_to_string(sb.path("home/agent-calls")).unwrap_or_default()
+}
+
+/// A Linux sandbox with release 1.0.0 published as the latest one.
+fn linux_with_release(name: &str) -> (Sandbox, String) {
+    let sb = Sandbox::new(name);
+    sb.tools(&["curl", hash_tool()], "Linux", "x86_64", false);
+    sb.release("1.0.0", &["x86_64-unknown-linux-musl"]);
+    let url = serve(&sb.root, Some("1.0.0"));
+    (sb, url)
+}
+
+#[test]
+fn adds_lagom_to_the_agents_after_installing() {
+    let (sb, url) = linux_with_release("agents");
+    let o = sb.run(&url, &[], &[]);
+    assert_ok(&o);
+    assert_eq!(agent_calls(&sb), "install --yes\n");
+    let out = stdout(&o);
+    assert!(out.contains("claude: installed"), "{out}");
+    assert!(out.contains("see what is installed with:"), "{out}");
+}
+
+#[test]
+fn no_agents_installs_only_the_binary() {
+    let (sb, url) = linux_with_release("no-agents");
+    let o = sb.run(&url, &["--no-agents"], &[]);
+    assert_ok(&o);
+    assert!(sb.path("home/.local/bin/lagom").is_file());
+    assert_eq!(agent_calls(&sb), "");
+    assert!(
+        stdout(&o).contains("next, add the hooks to your agents with:"),
+        "{}",
+        stdout(&o)
+    );
+
+    let o = sb.run(&url, &[], &[("LAGOM_NO_AGENTS", "1")]);
+    assert_ok(&o);
+    assert_eq!(agent_calls(&sb), "");
+
+    // 0 means "not set", so the agents are added.
+    let o = sb.run(&url, &[], &[("LAGOM_NO_AGENTS", "0")]);
+    assert_ok(&o);
+    assert_eq!(agent_calls(&sb), "install --yes\n");
+}
+
+#[test]
+fn a_failed_agent_step_keeps_the_binary_and_says_how_to_finish() {
+    let (sb, url) = linux_with_release("agents-fail");
+    fs::write(sb.path("home/fail-agents"), "").unwrap();
+    let o = sb.run(&url, &[], &[]);
+    assert_ok(&o);
+    assert_eq!(
+        installed_version(&sb.path("home/.local/bin/lagom")),
+        "lagom 1.0.0"
+    );
+    let err = stderr(&o);
+    assert!(err.contains("no agents found"), "{err}");
+    assert!(err.contains("did not finish"), "{err}");
+    assert!(err.contains("install claude"), "{err}");
+}
+
+#[test]
+fn a_second_run_is_already_up_to_date_and_downloads_nothing() {
+    let (sb, url) = linux_with_release("up-to-date");
+    assert_ok(&sb.run(&url, &[], &[]));
+    // With the archive gone, a second download would fail.
+    fs::remove_file(
+        sb.path("release/download/v1.0.0/lagom-1.0.0-x86_64-unknown-linux-musl.tar.gz"),
+    )
+    .unwrap();
+    let o = sb.run(&url, &[], &[]);
+    assert_ok(&o);
+    let out = stdout(&o);
+    assert!(out.contains("lagom 1.0.0 is already up to date"), "{out}");
+    assert!(!out.contains("downloading"), "{out}");
+    // The agents are checked again; `lagom install` reports them as up to date.
+    assert_eq!(agent_calls(&sb), "install --yes\ninstall --yes\n");
+}
+
+#[test]
+fn a_second_run_upgrades_to_a_newer_release() {
+    let sb = Sandbox::new("upgrade-latest");
+    sb.tools(&["curl", hash_tool()], "Linux", "x86_64", false);
+    sb.release("1.0.0", &["x86_64-unknown-linux-musl"]);
+    sb.release("1.1.0", &["x86_64-unknown-linux-musl"]);
+    let url = serve(&sb.root, Some("1.1.0"));
+    assert_ok(&sb.run(&url, &["--version", "1.0.0"], &[]));
+    let o = sb.run(&url, &[], &[]);
+    assert_ok(&o);
+    assert!(
+        stdout(&o).contains("downloading lagom 1.1.0"),
+        "{}",
+        stdout(&o)
+    );
+    assert_eq!(
+        installed_version(&sb.path("home/.local/bin/lgm")),
+        "lagom 1.1.0"
+    );
+}
+
+#[test]
+fn lgm_is_a_symlink_to_lagom_and_survives_a_rerun() {
+    let (sb, url) = linux_with_release("lgm");
+    assert_ok(&sb.run(&url, &[], &[]));
+    let lgm = sb.path("home/.local/bin/lgm");
+    assert_eq!(fs::read_link(&lgm).unwrap(), Path::new("lagom"));
+    assert_eq!(installed_version(&lgm), "lagom 1.0.0");
+    let o = sb.run(&url, &[], &[]);
+    assert_ok(&o);
+    assert!(!stdout(&o).contains("note:"), "{}", stdout(&o));
+    assert_eq!(fs::read_link(&lgm).unwrap(), Path::new("lagom"));
+}
+
+#[test]
+fn an_existing_lgm_file_is_left_alone() {
+    let (sb, url) = linux_with_release("lgm-file");
+    let dir = sb.path("home/.local/bin");
+    fs::create_dir_all(&dir).unwrap();
+    write_exe(&dir.join("lgm"), "#!/bin/sh\necho pulsar\n");
+    let o = sb.run(&url, &[], &[]);
+    assert_ok(&o);
+    assert_eq!(
+        fs::read_to_string(dir.join("lgm")).unwrap(),
+        "#!/bin/sh\necho pulsar\n"
+    );
+    assert!(
+        stdout(&o).contains("lgm alias was not added"),
+        "{}",
+        stdout(&o)
+    );
+}
+
+#[test]
+fn another_lgm_on_path_means_no_alias() {
+    let (sb, url) = linux_with_release("lgm-path");
+    write_exe(&sb.path("bin/lgm"), "#!/bin/sh\necho pulsar\n");
+    let o = sb.run(&url, &[], &[]);
+    assert_ok(&o);
+    assert!(!sb.path("home/.local/bin/lgm").exists());
+    let out = stdout(&o);
+    assert!(out.contains("another lgm command"), "{out}");
+}
+
+/// Adds a fake `brew` to the sandbox. `brew info --json=v2` reports the
+/// formula at `version` (or fails when `$HOME/brew-no-tap` exists),
+/// `brew install|upgrade` copies a fake lagom into `$HOME/brew/bin` (or fails
+/// when `$HOME/brew-fails` exists), `brew list` succeeds once it is there, and
+/// every call is logged to `$HOME/brew-calls`.
+fn fake_brew(sb: &Sandbox, version: &str) {
+    let src = sb.path("brew-src");
+    fs::create_dir_all(&src).unwrap();
+    write_exe(&src.join("lagom"), &fake_lagom(version));
+    let script = format!(
+        "#!/bin/sh\n\
+         echo \"$*\" >> \"$HOME/brew-calls\"\n\
+         prefix=\"$HOME/brew\"\n\
+         case \"$1\" in\n\
+         --prefix) echo \"$prefix\" ;;\n\
+         list) [ -x \"$prefix/bin/lagom\" ] ;;\n\
+         info)\n\
+           if [ -e \"$HOME/brew-no-tap\" ]; then echo 'Error: No available formula' >&2; exit 1; fi\n\
+           printf '{{\\n  \"formulae\": [{{\\n    \"name\": \"lagom\",\\n    \"versions\": {{\\n      \"stable\": \"{version}\",\\n      \"head\": null\\n    }}\\n  }}]\\n}}\\n' ;;\n\
+         install|upgrade)\n\
+           if [ -e \"$HOME/brew-fails\" ]; then echo 'Error: no tap' >&2; exit 1; fi\n\
+           mkdir -p \"$prefix/bin\" && cp '{}' \"$prefix/bin/lagom\" ;;\n\
+         *) exit 1 ;;\n\
+         esac\n",
+        src.join("lagom").display()
+    );
+    write_exe(&sb.path("bin/brew"), &script);
+}
+
+fn brew_calls(sb: &Sandbox) -> String {
+    fs::read_to_string(sb.path("home/brew-calls")).unwrap_or_default()
+}
+
+#[test]
+fn macos_with_homebrew_installs_and_then_upgrades_through_the_tap() {
+    let sb = Sandbox::new("brew");
+    sb.tools(&["curl", hash_tool()], "Darwin", "arm64", false);
+    fake_brew(&sb, "1.0.0");
+    // The tap is at the latest release, so Homebrew installs it (no archive is served).
+    let url = serve(&sb.root, Some("1.0.0"));
+    let o = sb.run(&url, &[], &[]);
+    assert_ok(&o);
+    assert!(brew_calls(&sb).contains("install yuraware/tap/lagom"));
+    assert!(
+        stdout(&o).contains("is installed with Homebrew"),
+        "{}",
+        stdout(&o)
+    );
+    assert!(!sb.path("home/.local/bin").exists());
+    assert_eq!(agent_calls(&sb), "install --yes\n");
+
+    let o = sb.run(&url, &[], &[]);
+    assert_ok(&o);
+    assert!(brew_calls(&sb).contains("upgrade yuraware/tap/lagom"));
+    assert!(!sb.path("home/.local/bin").exists());
+}
+
+#[test]
+fn homebrew_behind_the_latest_release_or_without_the_tap_is_skipped() {
+    for (name, brew_version, no_tap, says) in [
+        (
+            "brew-behind",
+            "0.9.0",
+            false,
+            "is 0.9.0, not the latest release 1.0.0",
+        ),
+        (
+            "brew-no-tap",
+            "1.0.0",
+            true,
+            "has no yuraware/tap/lagom formula",
+        ),
+    ] {
+        let sb = Sandbox::new(name);
+        sb.tools(&["curl", hash_tool()], "Darwin", "arm64", false);
+        fake_brew(&sb, brew_version);
+        if no_tap {
+            fs::write(sb.path("home/brew-no-tap"), "").unwrap();
+        }
+        sb.release("1.0.0", &["aarch64-apple-darwin"]);
+        let url = serve(&sb.root, Some("1.0.0"));
+        let o = sb.run(&url, &[], &[]);
+        assert_ok(&o);
+        assert!(stdout(&o).contains(says), "{name}: {}", stdout(&o));
+        let calls = brew_calls(&sb);
+        assert!(
+            !calls.contains("install") && !calls.contains("upgrade"),
+            "{name}: {calls}"
+        );
+        assert_eq!(
+            installed_version(&sb.path("home/.local/bin/lagom")),
+            "lagom 1.0.0",
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn homebrew_failure_falls_back_to_the_verified_archive() {
+    let sb = Sandbox::new("brew-fails");
+    sb.tools(&["curl", hash_tool()], "Darwin", "arm64", false);
+    fake_brew(&sb, "1.0.0");
+    fs::write(sb.path("home/brew-fails"), "").unwrap();
+    sb.release("1.0.0", &["aarch64-apple-darwin"]);
+    let url = serve(&sb.root, Some("1.0.0"));
+    let o = sb.run(&url, &[], &[]);
+    assert_ok(&o);
+    assert!(
+        stderr(&o).contains("using the release archive instead"),
+        "{}",
+        stderr(&o)
+    );
+    assert_eq!(
+        installed_version(&sb.path("home/.local/bin/lagom")),
+        "lagom 1.0.0"
+    );
+}
+
+#[test]
+fn pinned_version_install_dir_and_no_brew_skip_homebrew() {
+    type Case<'a> = (&'a str, &'a [&'a str], &'a [(&'a str, &'a str)]);
+    let cases: [Case; 4] = [
+        ("brew-pinned", &["--version", "1.0.0"], &[]),
+        ("brew-dir", &[], &[("LAGOM_INSTALL_DIR", "~/tools")]),
+        ("brew-flag", &["--no-brew"], &[]),
+        ("brew-env", &[], &[("LAGOM_NO_BREW", "1")]),
+    ];
+    for (name, args, env) in cases {
+        let sb = Sandbox::new(name);
+        sb.tools(&["curl", hash_tool()], "Darwin", "arm64", false);
+        fake_brew(&sb, "9.9.9");
+        sb.release("1.0.0", &["aarch64-apple-darwin"]);
+        let url = serve(&sb.root, Some("1.0.0"));
+        let o = sb.run(&url, args, env);
+        assert_ok(&o);
+        assert_eq!(brew_calls(&sb), "", "{name}");
+        assert!(stdout(&o).contains("downloading lagom 1.0.0"), "{name}");
+    }
+}
+
+#[test]
+fn linux_never_uses_homebrew() {
+    let (sb, url) = linux_with_release("brew-linux");
+    fake_brew(&sb, "9.9.9");
+    assert_ok(&sb.run(&url, &[], &[]));
+    assert_eq!(brew_calls(&sb), "");
+    assert_eq!(
+        installed_version(&sb.path("home/.local/bin/lagom")),
+        "lagom 1.0.0"
+    );
 }

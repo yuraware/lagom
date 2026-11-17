@@ -703,7 +703,7 @@ fn cmd_experiment(args: &[String]) -> ExitCode {
                 Some(e) if Experiment::active().is_some() => println!(
                     "Running: {:.0}% holdout, {} days left.",
                     e.holdout * 100.0,
-                    e.ends.saturating_sub(store_now()) / 86_400
+                    e.ends.saturating_sub(store::now_secs()) / 86_400
                 ),
                 Some(_) => println!("Finished. `lagom stats --experiment` shows the results."),
                 None => println!("No experiment. Start one with `lagom experiment start`."),
@@ -731,13 +731,6 @@ fn cmd_experiment(args: &[String]) -> ExitCode {
             ExitCode::from(2)
         }
     }
-}
-
-fn store_now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
 }
 
 /// `lagom stats --experiment`: styled vs holdout output tokens per turn.

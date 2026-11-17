@@ -5,12 +5,12 @@
 use std::fs;
 use std::path::Path;
 
-use super::{Limits, compress, is_error_priority, strip_ansi};
+use super::{compress, is_error_priority, strip_ansi};
 
 /// Error lines of `raw` that are not in `out`, ignoring whitespace (the JSON compressor
 /// re-serializes, repeats get `[×N]`), and how many error lines `out`'s notices count.
 fn check(raw: &str, failed: bool) -> Result<(), String> {
-    let out = compress(raw, failed, Limits::default()).text;
+    let out = compress(raw, failed).text;
     let squeeze = |s: &str| s.chars().filter(|c| !c.is_whitespace()).collect::<String>();
     let out_flat = squeeze(&out);
     let cleaned = strip_ansi(raw);

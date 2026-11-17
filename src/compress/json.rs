@@ -231,7 +231,7 @@ mod tests {
         assert!(kept.len() < 40 && out.contains("\"total\":400"));
         // What the agent sees carries `lagom run`'s recall footer; that is left alone.
         let seen = format!("{out}[lagom: 1 → 1 lines; full output: lagom recall 0123456789]\n");
-        let again = super::super::compress(&seen, false, Limits::default());
+        let again = super::super::compress(&seen, false);
         assert_eq!(again.text, seen, "compressing twice changes nothing");
     }
 

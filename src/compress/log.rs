@@ -196,7 +196,7 @@ mod tests {
             .collect();
         let problem = |l: &str| l.contains("status=503") || l.contains(" CRIT ");
         let total = log.lines().filter(|l| problem(l)).count();
-        let out = super::super::compress(&log, false, Limits::default()).text;
+        let out = super::super::compress(&log, false).text;
         let shown = out.lines().filter(|l| problem(l)).count();
         let counted: usize = out
             .lines()

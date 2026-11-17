@@ -33,16 +33,9 @@ fn path() -> PathBuf {
     store::lagom_dir().join("experiment.json")
 }
 
-fn now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
-}
-
 impl Experiment {
     pub fn start(holdout: f64, days: u64) -> std::io::Result<Experiment> {
-        let started = now();
+        let started = store::now_secs();
         let e = Experiment {
             holdout,
             started,
@@ -70,7 +63,7 @@ impl Experiment {
 
     /// The experiment, if it is running now.
     pub fn active() -> Option<Experiment> {
-        Experiment::load().filter(|e| now() < e.ends)
+        Experiment::load().filter(|e| store::now_secs() < e.ends)
     }
 
     /// End the running experiment now. The record stays, so `lagom stats --experiment`
@@ -79,7 +72,7 @@ impl Experiment {
         let Some(mut e) = Experiment::active() else {
             return Ok(None);
         };
-        e.ends = now();
+        e.ends = store::now_secs();
         e.save()?;
         Ok(Some(e))
     }
@@ -176,23 +169,19 @@ pub fn per_arm(sessions: &[SessionUsage], arms: &HashMap<String, Arm>) -> (Vec<f
 /// Session arms recorded since the experiment started.
 pub fn recorded_arms(since: u64) -> HashMap<String, Arm> {
     let mut out = HashMap::new();
-    let text = store::read_stats();
-    for line in text.lines() {
-        let Ok(v) = serde_json::from_str::<Value>(line) else {
-            continue;
-        };
+    store::for_each_stat(|v| {
         if v["ts"].as_u64().is_none_or(|t| t < since) {
-            continue;
+            return;
         }
         let arm = match v["arm"].as_str() {
             Some("styled") => Arm::Styled,
             Some("holdout") => Arm::Holdout,
-            _ => continue,
+            _ => return,
         };
         if let Some(s) = v["session"].as_str() {
             out.insert(s.to_string(), arm);
         }
-    }
+    });
     out
 }
 

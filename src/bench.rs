@@ -12,7 +12,7 @@ use std::time::Instant;
 
 use serde_json::{Value, json};
 
-use crate::compress::{Limits, compress};
+use crate::compress::compress;
 
 const DEFAULT_DIRS: [&str; 2] = ["bench/corpus", "tests/fixtures/compress"];
 
@@ -51,7 +51,7 @@ pub fn run_case(dir: &Path, root: &Path) -> Result<CaseResult, String> {
         .map_err(|e| format!("{}: {e}", dir.join("meta.json").display()))?;
     let failed = meta["exit_code"].as_i64().unwrap_or(0) != 0;
     let start = Instant::now();
-    let out = compress(&input, failed, Limits::default()).text;
+    let out = compress(&input, failed).text;
     let micros = start.elapsed().as_micros();
     let keep: Vec<&str> = meta["must_keep"]
         .as_array()

@@ -37,6 +37,16 @@ class HomebrewFormulaTest(unittest.TestCase):
         self.assertIn('version "0.2.0"', f)
         self.assertNotIn('"rust" => :build\n  def', f)  # rust only for --HEAD builds
 
+    def test_lgm_alias_caveats_and_test_block(self):
+        f = hf.render("0.2.0", hf.parse_sums(sums()))
+        self.assertIn('bin.install_symlink "lagom" => "lgm"', f)
+        caveats = f[f.index("def caveats") : f.index("test do")]
+        self.assertIn("lagom install", caveats)
+        self.assertIn("lagom uninstall --all", caveats)
+        test = f[f.index("test do") :]
+        self.assertIn("#{bin}/lagom --version", test)
+        self.assertIn("#{bin}/lgm --version", test)
+
     def test_missing_archive_is_refused(self):
         with self.assertRaises(hf.FormulaError):
             hf.render("0.2.0", hf.parse_sums(sums(skip="x86_64-apple-darwin")))

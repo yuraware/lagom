@@ -67,14 +67,28 @@ class Lagom < Formula
 
   def install
     if build.head?
-      system "cargo", "install", *std_cargo_args
+      system "cargo", "install", *std_cargo_args # builds lagom and lgm
     else
       bin.install "lagom"
+      bin.install_symlink "lagom" => "lgm"
     end
   end
 
+  # Homebrew doesn't let a formula write to $HOME, so connecting the agents is a second step.
+  def caveats
+    <<~EOS
+      Connect lagom to your coding agents (Claude Code, Codex, Cursor):
+        lagom install
+      Before `brew uninstall lagom`, remove its hooks and skills:
+        lagom uninstall --all
+    EOS
+  end
+
   test do
-    assert_match "lagom #{{version}}", shell_output("#{{bin}}/lagom --version")
+    # A --HEAD build reports the version in Cargo.toml, not HEAD-<commit>.
+    expected = version.head? ? /^lagom \\d+\\.\\d+\\.\\d+/ : "lagom #{{version}}"
+    assert_match expected, shell_output("#{{bin}}/lagom --version")
+    assert_match expected, shell_output("#{{bin}}/lgm --version")
   end
 end
 '''

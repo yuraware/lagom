@@ -1713,10 +1713,10 @@ fn stats_filters_select_events_and_sessions() {
         )
     };
 
-    assert_eq!(counts(&report(&["--all-time"])), (5, 3));
+    assert_eq!(counts(&report(&["--all-time"])), (5, 4));
     assert_eq!(
         counts(&report(&["--since", "2026-11-22"])),
-        (4, 3),
+        (4, 4),
         "the 11-21 run is out"
     );
     assert_eq!(counts(&report(&["--all-time", "--agent", "codex"])), (1, 1));
@@ -1744,7 +1744,7 @@ fn stats_filters_select_events_and_sessions() {
     assert_eq!(out.status.code(), Some(2));
     let err = String::from_utf8_lossy(&out.stderr);
     assert!(
-        err.contains("known: claude, codex, manual, unknown"),
+        err.contains("known: claude, codex, cursor, manual, unknown"),
         "{err}"
     );
     // Only one window at a time.

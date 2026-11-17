@@ -8,4 +8,5 @@ not json
 {"v":1,"ts":1795392100,"kind":"inject","agent":"codex","event":"session-start","bytes":1000,"styles":["terse"],"session":"b1"}
 {"v":1,"ts":1795392200,"kind":"run","cmd":"cargo","in":120000,"out":9000,"exit":101,"agent":"codex","session":"b1"}
 {"v":1,"ts":1795392300,"kind":"run","cmd":"pytest","in":3000,"out":3000,"exit":0}
+{"v":1,"ts":1795392350,"kind":"inject","agent":"cursor","event":"session-start","bytes":800,"styles":["terse"],"session":"c1"}
 {"v":2,"ts":1795392400,"kind":"run","cmd":"future","in":99999,"out":1}

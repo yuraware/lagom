@@ -472,18 +472,31 @@ fn read_stats() -> String {
     text
 }
 
-/// Calls `f` with each recorded event, oldest first. Lines that aren't JSON, and events
-/// from a newer Lagom (`v` above 1), are skipped. The one parser of `stats.jsonl`.
-pub fn for_each_stat(mut f: impl FnMut(&serde_json::Value)) {
-    for line in read_stats().lines() {
+/// Lines of `stats.jsonl` that [`for_each_stat`] passed over.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Skipped {
+    /// Not JSON, for example a line cut short by a full disk.
+    pub unreadable: u64,
+    /// Written by a newer Lagom (`v` above 1).
+    pub newer: u64,
+}
+
+/// Calls `f` with each recorded event, oldest first, and says how many lines it skipped:
+/// lines that aren't JSON, and events from a newer Lagom. The one parser of `stats.jsonl`.
+pub fn for_each_stat(mut f: impl FnMut(&serde_json::Value)) -> Skipped {
+    let mut skipped = Skipped::default();
+    for line in read_stats().lines().filter(|l| !l.trim().is_empty()) {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+            skipped.unreadable += 1;
             continue;
         };
         if v["v"].as_u64().is_some_and(|ver| ver > 1) {
-            continue; // written by a newer Lagom
+            skipped.newer += 1;
+            continue;
         }
         f(&v);
     }
+    skipped
 }
 
 /// Append one event to `stats.jsonl`, tagged with agent, session and project. Errors are

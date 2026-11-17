@@ -1,11 +1,12 @@
-//! The error rule (D-35), as a property test: every error line of the input is in the
-//! output, or counted in a notice that names `lagom recall`. Checked on the corpus, the
-//! golden fixtures and seeded generated outputs.
+//! Property tests over the corpus, the golden fixtures and seeded generated outputs:
+//! - the error rule (D-35): every error line of the input is in the output, or counted in
+//!   a notice that names `lagom recall`;
+//! - lossless mode (CMP-01): every distinct line of the input is in the output.
 
 use std::fs;
 use std::path::Path;
 
-use super::{compress, is_error_priority, strip_ansi};
+use super::{Options, compress, compress_with, is_error_priority, normalize_lines, strip_ansi};
 
 /// Error lines of `raw` that are not in `out`, ignoring whitespace (the JSON compressor
 /// re-serializes, repeats get `[×N]`), and how many error lines `out`'s notices count.
@@ -176,6 +177,60 @@ fn every_error_line_is_kept_or_counted_on_generated_output() {
         let failed = rng.below(2) == 0;
         if let Err(e) = check(&raw, failed) {
             failures.push(format!("seed {seed} (failed={failed}): {e}"));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Lines of `out` without the `  [×N]` that marks an exact repeat.
+fn lines_without_counts(out: &str) -> std::collections::HashSet<&str> {
+    out.lines()
+        .map(|l| match l.rsplit_once("  [×") {
+            Some((line, n))
+                if n.ends_with(']') && n[..n.len() - 1].bytes().all(|b| b.is_ascii_digit()) =>
+            {
+                line
+            }
+            _ => l,
+        })
+        .collect()
+}
+
+fn lossless_keeps_every_line(raw: &str, failed: bool) -> Result<(), String> {
+    let opts = Options {
+        lossless: true,
+        ..Options::default()
+    };
+    let out = compress_with(raw, failed, &opts);
+    if out.lossy {
+        return Err("marked lossy".into());
+    }
+    let kept = lines_without_counts(&out.text);
+    match normalize_lines(&strip_ansi(raw))
+        .iter()
+        .find(|l| !kept.contains(l.as_str()))
+    {
+        Some(missing) => Err(format!("line missing: {missing:?}")),
+        None => Ok(()),
+    }
+}
+
+#[test]
+fn lossless_mode_keeps_every_distinct_line() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut failures = Vec::new();
+    for dir in ["bench/corpus", "tests/fixtures/compress"] {
+        for (name, raw, failed) in cases(&root.join(dir)) {
+            if let Err(e) = lossless_keeps_every_line(&raw, failed) {
+                failures.push(format!("{name}: {e}"));
+            }
+        }
+    }
+    for seed in 1..=300u64 {
+        let mut rng = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
+        let raw = generate(&mut rng);
+        if let Err(e) = lossless_keeps_every_line(&raw, rng.below(2) == 0) {
+            failures.push(format!("seed {seed}: {e}"));
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));

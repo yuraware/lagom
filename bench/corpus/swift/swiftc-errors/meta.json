@@ -1,1 +1,1 @@
-{"exit_code": 1, "must_keep": ["bad.swift:1", "error:"]}
+{"exit_code": 1, "must_keep": ["bad.swift:1", "error:", "/work/bad.swift:1:14: error: cannot convert value of type 'String' to specified type 'Int'", "/work/bad.swift:2:7: error: cannot find 'y' in scope", "|              `- error: cannot convert value of type 'String' to specified type 'Int'", "|       `- error: cannot find 'y' in scope"]}

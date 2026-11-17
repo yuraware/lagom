@@ -151,4 +151,6 @@ print("error: response truncated at item 400")
 ' | case_ long-json-line 0 '["error: response truncated at item 400"]'
 printf '' | case_ empty-output 0 '[]'
 printf 'Compiling serde v1.0.%s\n' $(seq 100 180) | case_ numbered-run 0 '["Compiling serde v1.0.100", "Compiling serde v1.0.180"]'
+# Every error line of a failing case in must_keep (BEN-19).
+python3 -I "$(dirname "$0")/must_keep_errors.py" "$OUT"
 echo "done"

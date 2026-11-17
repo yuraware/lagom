@@ -116,7 +116,9 @@ jobs:
           path: target/bench/latency-${{ matrix.os }}.json
 
   fidelity:
-    # BEN-04: no must_keep string may be lost, and total output may not grow >5% vs the base.
+    # BEN-04: no must_keep string may be lost, and total output may not grow >5% vs main.
+    # BEN-19: changing a case's must_keep or known_gap needs the bench-meta-ok label.
+    # Both compare against main, not the pull request's base, so a stack can't move them.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -128,10 +130,15 @@ jobs:
       - run: cargo build --release
       - name: No must_keep string lost
         run: ./target/release/lagom bench compress --json target/bench-current.json
-      - name: Output size against the base branch
+      - name: No must_keep or known_gap changed without the bench-meta-ok label
+        if: github.event_name == 'pull_request'
+        run: python3 -I scripts/bench_meta_check.py --base origin/main
+        env:
+          LAGOM_BENCH_META_OK: ${{ contains(github.event.pull_request.labels.*.name, 'bench-meta-ok') && '1' || '0' }}
+      - name: Output size against main
         if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'size-increase-ok')
         run: |
-          git worktree add ../base "origin/${{ github.base_ref }}"
+          git worktree add ../base origin/main
           cargo build --release --manifest-path ../base/Cargo.toml
           set +e
           ../base/target/release/lagom bench compress bench/corpus tests/fixtures/compress \
@@ -141,7 +148,7 @@ jobs:
           if [ "$code" -le 1 ] && [ -f target/bench-base.json ]; then
             ./target/release/lagom bench compress --compare target/bench-base.json --max-growth 5
           else
-            echo "The base branch has no 'lagom bench compress' yet; skipping the size check."
+            echo "main has no 'lagom bench compress' yet; skipping the size check."
           fi
       - name: Size check skipped by the size-increase-ok label
         if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'size-increase-ok')

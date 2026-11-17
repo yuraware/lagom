@@ -1,1 +1,1 @@
-{"exit_code": 1, "must_keep": ["--- FAIL: TestBroken", "Add(2,2) = 4, want 5", "FAIL"]}
+{"exit_code": 1, "must_keep": ["--- FAIL: TestBroken", "Add(2,2) = 4, want 5", "FAIL", "FAIL\texample.com/m\t0.264s"]}

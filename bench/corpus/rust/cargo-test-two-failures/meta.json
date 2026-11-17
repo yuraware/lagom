@@ -1,1 +1,1 @@
-{"exit_code": 101, "must_keep": ["tests::bad_parse", "tests::wrong_sum", "math is off", "test result: FAILED"]}
+{"exit_code": 101, "must_keep": ["tests::bad_parse", "tests::wrong_sum", "math is off", "test result: FAILED", "error: test failed, to rerun pass `--lib`", "test result: FAILED. 120 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s", "test tests::bad_parse ... FAILED", "test tests::wrong_sum ... FAILED", "thread 'tests::bad_parse' (1744848) panicked at src/lib.rs:1:42:", "thread 'tests::wrong_sum' (1744969) panicked at src/lib.rs:127:30:"]}

@@ -52,7 +52,7 @@ Each must print `lagom X.Y.Z` for `lagom --version` and `lgm --version`. The `sm
 ## 5. After
 
 - If a version has a security bug, yank it (`cargo yank lagom@<bad>`) and update `SECURITY.md`.
-- Once GAIN-07 exists, update its price table if the model prices changed.
+- Check the prices in `src/gain/prices.rs` against https://platform.claude.com/docs/en/about-claude/pricing, update any that changed, and set `CHECKED` to the day you checked.
 
 ## When a step fails
 

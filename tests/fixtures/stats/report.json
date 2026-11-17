@@ -1,0 +1,183 @@
+{
+  "source": "~/.lagom/stats.jsonl",
+  "compression": {
+    "method": "tokens ≈ bytes ÷ 4, an estimate",
+    "total": {
+      "runs": 5,
+      "compressed": 3,
+      "bytes_in": 183500,
+      "bytes_out": 19500,
+      "saved_tokens": 41000,
+      "injections": 3,
+      "injected_bytes": 4200,
+      "injected_tokens": 1050,
+      "net_tokens": 39950
+    },
+    "by_command": {
+      "cargo": {
+        "runs": 1,
+        "compressed": 1,
+        "bytes_in": 120000,
+        "bytes_out": 9000,
+        "saved_tokens": 27750,
+        "injections": 0,
+        "injected_bytes": 0,
+        "injected_tokens": 0,
+        "net_tokens": 27750
+      },
+      "git": {
+        "runs": 2,
+        "compressed": 2,
+        "bytes_in": 60000,
+        "bytes_out": 7000,
+        "saved_tokens": 13250,
+        "injections": 0,
+        "injected_bytes": 0,
+        "injected_tokens": 0,
+        "net_tokens": 13250
+      },
+      "ls": {
+        "runs": 1,
+        "compressed": 0,
+        "bytes_in": 500,
+        "bytes_out": 500,
+        "saved_tokens": 0,
+        "injections": 0,
+        "injected_bytes": 0,
+        "injected_tokens": 0,
+        "net_tokens": 0
+      },
+      "pytest": {
+        "runs": 1,
+        "compressed": 0,
+        "bytes_in": 3000,
+        "bytes_out": 3000,
+        "saved_tokens": 0,
+        "injections": 0,
+        "injected_bytes": 0,
+        "injected_tokens": 0,
+        "net_tokens": 0
+      }
+    }
+  },
+  "injection": {
+    "method": "tokens ≈ bytes ÷ 4, an estimate",
+    "by_style": {
+      "terse": {
+        "runs": 0,
+        "compressed": 0,
+        "bytes_in": 0,
+        "bytes_out": 0,
+        "saved_tokens": 0,
+        "injections": 1,
+        "injected_bytes": 1000,
+        "injected_tokens": 250,
+        "net_tokens": -250
+      },
+      "terse+lean-code": {
+        "runs": 0,
+        "compressed": 0,
+        "bytes_in": 0,
+        "bytes_out": 0,
+        "saved_tokens": 0,
+        "injections": 2,
+        "injected_bytes": 3200,
+        "injected_tokens": 800,
+        "net_tokens": -800
+      }
+    }
+  },
+  "output": {
+    "method": "median output tokens per main-conversation turn, from the agents' own logs; observational, so not proof of a style's effect",
+    "days": 30,
+    "by_agent": {
+      "Claude Code": [],
+      "Codex": []
+    }
+  },
+  "net": {
+    "method": "tokens saved by compression minus tokens of injected style rules; a style's effect on answer length is not included",
+    "tokens": 39950,
+    "by_agent": {
+      "claude": {
+        "runs": 2,
+        "compressed": 2,
+        "bytes_in": 60000,
+        "bytes_out": 7000,
+        "saved_tokens": 13250,
+        "injections": 2,
+        "injected_bytes": 3200,
+        "injected_tokens": 800,
+        "net_tokens": 12450
+      },
+      "codex": {
+        "runs": 1,
+        "compressed": 1,
+        "bytes_in": 120000,
+        "bytes_out": 9000,
+        "saved_tokens": 27750,
+        "injections": 1,
+        "injected_bytes": 1000,
+        "injected_tokens": 250,
+        "net_tokens": 27500
+      },
+      "manual": {
+        "runs": 1,
+        "compressed": 0,
+        "bytes_in": 3000,
+        "bytes_out": 3000,
+        "saved_tokens": 0,
+        "injections": 0,
+        "injected_bytes": 0,
+        "injected_tokens": 0,
+        "net_tokens": 0
+      },
+      "unknown": {
+        "runs": 1,
+        "compressed": 0,
+        "bytes_in": 500,
+        "bytes_out": 500,
+        "saved_tokens": 0,
+        "injections": 0,
+        "injected_bytes": 0,
+        "injected_tokens": 0,
+        "net_tokens": 0
+      }
+    },
+    "by_day": {
+      "2026-11-21": {
+        "runs": 1,
+        "compressed": 0,
+        "bytes_in": 500,
+        "bytes_out": 500,
+        "saved_tokens": 0,
+        "injections": 0,
+        "injected_bytes": 0,
+        "injected_tokens": 0,
+        "net_tokens": 0
+      },
+      "2026-11-22": {
+        "runs": 2,
+        "compressed": 2,
+        "bytes_in": 60000,
+        "bytes_out": 7000,
+        "saved_tokens": 13250,
+        "injections": 2,
+        "injected_bytes": 3200,
+        "injected_tokens": 800,
+        "net_tokens": 12450
+      },
+      "2026-11-23": {
+        "runs": 2,
+        "compressed": 1,
+        "bytes_in": 123000,
+        "bytes_out": 12000,
+        "saved_tokens": 27750,
+        "injections": 1,
+        "injected_bytes": 1000,
+        "injected_tokens": 250,
+        "net_tokens": 27500
+      }
+    }
+  }
+}

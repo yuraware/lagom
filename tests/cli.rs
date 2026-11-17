@@ -1641,3 +1641,34 @@ fn lossless_mode_from_the_config_keeps_every_line() {
     let kept = text(&lagom(&home, &["compress"], Some(&input)));
     assert_eq!(kept, input, "every line, no footer");
 }
+
+/// `lagom stats` and `lagom stats --json` on fixture events (GAIN-06). `LAGOM_BLESS=1`
+/// rewrites the expected files after an intended change; then review the diff.
+#[test]
+fn stats_report_matches_its_golden_files() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/stats");
+    let home = sandbox("stats-golden");
+    fs::create_dir_all(home.join(".lagom")).unwrap();
+    fs::copy(
+        fixtures.join("stats.jsonl"),
+        home.join(".lagom/stats.jsonl"),
+    )
+    .unwrap();
+    for (args, golden) in [
+        (&["stats"][..], "report.txt"),
+        (&["stats", "--json"][..], "report.json"),
+    ] {
+        let out = lagom(&home, args, None);
+        assert!(out.status.success(), "{args:?}");
+        let got = String::from_utf8(out.stdout).unwrap();
+        let path = fixtures.join(golden);
+        if std::env::var_os("LAGOM_BLESS").is_some() {
+            fs::write(&path, &got).unwrap();
+        }
+        assert_eq!(
+            got,
+            fs::read_to_string(&path).unwrap(),
+            "{golden} differs (LAGOM_BLESS=1 to update)"
+        );
+    }
+}

@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
-use crate::{rewrite, store, style};
+use crate::{debug, rewrite, store, style};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Agent {
@@ -55,15 +55,31 @@ const HOOK_DEADLINE: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// Entry point used by `main`. Always exits successfully.
 pub fn run(agent: &str, event: &str) {
-    let (agent_name, event) = (agent.to_string(), event.to_string());
+    let (agent_name, event_name) = (agent.to_string(), event.to_string());
     let response = with_deadline(HOOK_DEADLINE, move || {
-        let payload = read_payload(std::io::stdin().lock());
-        payload
-            .as_ref()
-            .zip(Agent::parse(&agent_name))
-            .and_then(|(p, a)| respond(a, &event, p, &lagom_bin()))
-    })
-    .flatten();
+        let Some(a) = Agent::parse(&agent_name) else {
+            debug::log(format_args!(
+                "hook {agent_name} {event_name}: unknown agent"
+            ));
+            return None;
+        };
+        match read_payload(std::io::stdin().lock()) {
+            Ok(p) => respond(a, &event_name, &p, &lagom_bin()),
+            Err(why) => {
+                debug::log(format_args!(
+                    "hook {agent_name} {event_name}: payload ignored: {why}"
+                ));
+                None
+            }
+        }
+    });
+    if response.is_none() {
+        debug::log(format_args!(
+            "hook {agent} {event}: gave up after {} s; the agent continues unchanged",
+            HOOK_DEADLINE.as_secs()
+        ));
+    }
+    let response = response.flatten();
     match (response, Agent::parse(agent)) {
         (Some(out), _) => println!("{out}"),
         (None, Some(Agent::Cursor)) => println!("{{}}"),
@@ -84,16 +100,22 @@ fn with_deadline<T: Send + 'static>(
     rx.recv_timeout(deadline).ok()
 }
 
-/// Parse a hook payload: a JSON object of at most [`MAX_PAYLOAD`] bytes, else `None`.
-fn read_payload(input: impl Read) -> Option<Value> {
+/// Parse a hook payload: a JSON object of at most [`MAX_PAYLOAD`] bytes. The error says
+/// why it was ignored, with its size and never its content.
+fn read_payload(input: impl Read) -> Result<Value, String> {
     let mut bytes = Vec::new();
-    input.take(MAX_PAYLOAD + 1).read_to_end(&mut bytes).ok()?;
-    if bytes.len() as u64 > MAX_PAYLOAD {
-        return None;
+    if input.take(MAX_PAYLOAD + 1).read_to_end(&mut bytes).is_err() {
+        return Err("stdin can't be read".into());
     }
-    serde_json::from_slice::<Value>(&bytes)
-        .ok()
-        .filter(Value::is_object)
+    let n = bytes.len();
+    if n as u64 > MAX_PAYLOAD {
+        return Err(format!("over {} MB", MAX_PAYLOAD >> 20));
+    }
+    match serde_json::from_slice::<Value>(&bytes) {
+        Ok(v) if v.is_object() => Ok(v),
+        Ok(_) => Err(format!("not a JSON object ({n} bytes)")),
+        Err(_) => Err(format!("not JSON ({n} bytes)")),
+    }
 }
 
 /// Path written into hooks: [`choose_bin`] for the running process.
@@ -247,15 +269,30 @@ fn inject(agent: Agent, event: &str, cwd: &Path, payload: &Value) -> Option<Valu
 }
 
 fn pre_tool(agent: Agent, payload: &Value, cwd: &Path, bin: &str) -> Option<Value> {
-    let input = payload.get("tool_input")?;
+    // One debug line per decision: why a command was left alone, or that it was rewritten.
+    let skip = |why: &str| -> Option<Value> {
+        debug::log(format_args!("pre-tool {}: left alone: {why}", agent.name()));
+        None
+    };
+    let Some(input) = payload.get("tool_input") else {
+        return skip("no tool_input");
+    };
     if input.get("run_in_background").and_then(Value::as_bool) == Some(true) {
-        return None;
+        return skip("background command");
     }
-    let command = input.get("command")?.as_str()?;
-    if command.len() > MAX_COMMAND || !crate::config::Config::load(cwd).rewrite {
-        return None;
+    let Some(command) = input.get("command").and_then(Value::as_str) else {
+        return skip("no command");
+    };
+    if command.len() > MAX_COMMAND {
+        return skip("command over 64 KB");
     }
-    let rewritten = rewrite::rewrite(command, bin, session_token(agent, payload).as_deref())?;
+    if !crate::config::Config::load(cwd).rewrite {
+        return skip("rewriting is off (LAGOM_REWRITE or a config file)");
+    }
+    let Some(rewritten) = rewrite::rewrite(command, bin, session_token(agent, payload).as_deref())
+    else {
+        return skip(rewrite::skip_reason(command).unwrap_or("not rewritable"));
+    };
 
     // updatedInput replaces the whole input: keep every original field.
     let mut updated = input.clone();
@@ -264,7 +301,8 @@ fn pre_tool(agent: Agent, payload: &Value, cwd: &Path, bin: &str) -> Option<Valu
     match agent {
         Agent::Claude => {
             if unreadable_claude_policy() {
-                return None; // an org policy we can't read might deny this command
+                // An organization policy we can't read might deny this command.
+                return skip("an organization policy Lagom can't read may apply");
             }
             // Claude Code reads a project's local settings from the folder the session
             // started in (and its repository root), not from wherever Claude has `cd`-ed to.
@@ -277,11 +315,11 @@ fn pre_tool(agent: Agent, payload: &Value, cwd: &Path, bin: &str) -> Option<Valu
             ) else {
                 // A managed settings file or server-managed policy cache we can't read
                 // might deny this command.
-                return None;
+                return skip("a managed settings file can't be read");
             };
             let parts = CommandParts::of(command);
             if parts.any(|p| rules.denies(p) || rules.asks(p)) {
-                return None;
+                return skip("a deny or ask rule matches");
             }
             let mut out = json!({
                 "hookEventName": "PreToolUse",
@@ -290,19 +328,25 @@ fn pre_tool(agent: Agent, payload: &Value, cwd: &Path, bin: &str) -> Option<Valu
             });
             if rules.allows(parts.main) && parts.cd_stays_inside(cwd) {
                 out["permissionDecision"] = json!("allow");
+                debug::log("pre-tool claude: rewritten (an allow rule matches)");
             } else if payload.get("permission_mode").and_then(Value::as_str)
-                != Some("bypassPermissions")
+                == Some("bypassPermissions")
             {
-                return None;
+                debug::log("pre-tool claude: rewritten (bypassPermissions, nothing granted)");
+            } else {
+                return skip("no allow rule matches, or the cd leaves the project");
             }
             Some(json!({"hookSpecificOutput": out}))
         }
-        Agent::Codex => Some(json!({"hookSpecificOutput": {
+        Agent::Codex => {
+            debug::log("pre-tool codex: rewritten (Codex applies its own approval)");
+            Some(json!({"hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "allow",
             "permissionDecisionReason": "lagom: compress output",
             "updatedInput": updated,
-        }})),
+            }}))
+        }
         Agent::Cursor => {
             let mut rules = Rules::new(Syntax::Cursor);
             rules.add_file(&cursor_cli_config(), "Shell", Source::Trusted);
@@ -312,12 +356,13 @@ fn pre_tool(agent: Agent, payload: &Value, cwd: &Path, bin: &str) -> Option<Valu
                 rules.add_file(&dir.join(".cursor/cli.json"), "Shell", Source::RestrictOnly);
             }
             let parts = CommandParts::of(command);
-            if parts.any(|p| rules.denies(p))
-                || !rules.allows(parts.main)
-                || !parts.cd_stays_inside(cwd)
-            {
-                return None;
+            if parts.any(|p| rules.denies(p)) {
+                return skip("a deny rule matches");
             }
+            if !rules.allows(parts.main) || !parts.cd_stays_inside(cwd) {
+                return skip("no allow rule matches, or the cd leaves the project");
+            }
+            debug::log("pre-tool cursor: rewritten (an allow rule matches)");
             Some(json!({"continue": true, "permission": "allow", "updated_input": updated}))
         }
     }
@@ -816,13 +861,23 @@ mod tests {
 
     #[test]
     fn payload_limits() {
-        assert!(read_payload(&b"{\"a\":1}"[..]).is_some());
-        assert!(read_payload(&b"[1,2]"[..]).is_none());
-        assert!(read_payload(&b"\"text\""[..]).is_none());
-        assert!(read_payload(&b"not json"[..]).is_none());
-        assert!(read_payload(&[0xff, 0xfe][..]).is_none());
+        assert!(read_payload(&b"{\"a\":1}"[..]).is_ok());
+        // The reason names the size, never the content.
+        assert_eq!(
+            read_payload(&b"[1,2]"[..]).unwrap_err(),
+            "not a JSON object (5 bytes)"
+        );
+        assert_eq!(
+            read_payload(&b"\"text\""[..]).unwrap_err(),
+            "not a JSON object (6 bytes)"
+        );
+        assert_eq!(
+            read_payload(&b"not json"[..]).unwrap_err(),
+            "not JSON (8 bytes)"
+        );
+        assert!(read_payload(&[0xff, 0xfe][..]).is_err());
         let big = format!("{{\"a\":\"{}\"}}", "x".repeat(MAX_PAYLOAD as usize));
-        assert!(read_payload(big.as_bytes()).is_none());
+        assert_eq!(read_payload(big.as_bytes()).unwrap_err(), "over 8 MB");
     }
 
     #[test]

@@ -13,6 +13,17 @@ Start with `lagom status`: it shows which agents have Lagom's hooks and skills, 
    No output means styles are off (`lagom style`) or `LAGOM_DISABLE` is set.
 4. **The binary moved.** Hooks store the path of the `lagom` that installed them. After moving or reinstalling it some other way, run `lagom install` again.
 
+## See why a hook did nothing
+
+Hooks print nothing on errors, so they never get in the agent's way. Set `LAGOM_DEBUG=1` to see each decision: on stderr, and in `~/.lagom/debug.log` (at most 1 MB, then moved to `debug.1.log`). For example:
+
+```
+lagom: pre-tool claude: left alone: no allow rule matches, or the cd leaves the project
+lagom: hook claude pre-tool: payload ignored: not JSON (25 bytes)
+```
+
+The lines hold sizes and decisions, never a command's text or a payload. An agent passes your shell's environment to its hooks, so start the agent from a shell where `LAGOM_DEBUG=1` is set. In Claude Code you can also put it under `"env"` in `~/.claude/settings.json`.
+
 ## A command isn't compressed
 
 The hook rewrites a command to `lagom run -- …` only when all of these hold:

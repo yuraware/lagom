@@ -494,17 +494,28 @@ pub fn record_for(mut event: serde_json::Value, who: &Attribution) {
         obj.insert("ts".into(), now_secs().into());
         who.apply(obj);
     }
+    append_capped(
+        "stats.jsonl",
+        "stats.1.jsonl",
+        STATS_CAP,
+        &event.to_string(),
+    );
+}
+
+/// Appends `line` to `~/.lagom/<name>`, moving the file to `<rotated>` first once it has
+/// reached `cap` bytes. Errors are ignored: logs never block a command. If two processes
+/// cross the cap at the same moment, the second rename moves only the few lines written
+/// since over the rotated file.
+pub(crate) fn append_capped(name: &str, rotated: &str, cap: u64, line: &str) {
     let Ok(dir) = lagom_home() else {
         return;
     };
-    let path = dir.join("stats.jsonl");
-    // If two commands cross the cap at the same moment, the second rename moves only the
-    // few lines written since over the rotated file. Rare, and stats never block a command.
-    if fs::metadata(&path).is_ok_and(|m| m.len() >= STATS_CAP) {
-        let _ = fs::rename(&path, dir.join("stats.1.jsonl"));
+    let path = dir.join(name);
+    if fs::metadata(&path).is_ok_and(|m| m.len() >= cap) {
+        let _ = fs::rename(&path, dir.join(rotated));
     }
     if let Ok(mut file) = private_file(fs::OpenOptions::new().append(true), &path) {
-        let _ = writeln!(file, "{event}");
+        let _ = writeln!(file, "{line}");
     }
 }
 

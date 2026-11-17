@@ -89,7 +89,7 @@ pub fn run(agent: &str, event: &str) {
 
 /// Run `work` on a thread and wait at most `deadline`. `None` on timeout or panic;
 /// the unfinished thread is abandoned (the process exits right after the hook prints).
-fn with_deadline<T: Send + 'static>(
+pub(crate) fn with_deadline<T: Send + 'static>(
     deadline: std::time::Duration,
     work: impl FnOnce() -> T + Send + 'static,
 ) -> Option<T> {
@@ -517,6 +517,41 @@ pub(crate) fn claude_user_rules(cwd: &Path) -> Option<Rules> {
         &crate::install::claude_dir(),
         &claude_managed_dir(),
     )
+}
+
+/// Claude Code's organization policy as `lagom doctor` reports it (HK-12).
+pub(crate) struct ClaudePolicy {
+    /// A macOS MDM profile, or Windows: a policy Lagom can't read may apply.
+    pub opaque: bool,
+    /// The managed settings files that exist.
+    pub managed_files: Vec<PathBuf>,
+    /// Claude Code's cache of server-managed settings: `None` when there is none,
+    /// otherwise whether Lagom can read it.
+    pub server_managed: Option<bool>,
+    /// Whether Lagom rewrites Claude Code's commands in this folder: only when it can read
+    /// every policy source, because Claude Code checks deny rules on the rewritten command.
+    pub rewrites: bool,
+}
+
+pub(crate) fn claude_policy(cwd: &Path) -> ClaudePolicy {
+    let dir = claude_managed_dir();
+    let mut managed_files = vec![dir.join("managed-settings.json")];
+    if let Ok(entries) = fs::read_dir(dir.join("managed-settings.d")) {
+        managed_files.extend(entries.flatten().map(|e| e.path()));
+    }
+    managed_files.retain(|f| f.is_file());
+    let server_managed = match claude_remote_policy(&crate::install::claude_dir()) {
+        RemotePolicy::Absent => None,
+        RemotePolicy::Unreadable => Some(false),
+        RemotePolicy::Settings(_) => Some(true),
+    };
+    let opaque = unreadable_claude_policy();
+    ClaudePolicy {
+        opaque,
+        managed_files,
+        server_managed,
+        rewrites: !opaque && claude_user_rules(cwd).is_some(),
+    }
 }
 
 /// Collect Claude Code's permission rules the way Claude Code applies them, or `None`

@@ -1824,3 +1824,230 @@ fn permissions_suggest_prints_rules_and_writes_nothing() {
         "never writes a rule"
     );
 }
+
+/// Writes `v` as JSON at `home/rel`, creating folders.
+fn write_json(home: &Path, rel: &str, v: Value) {
+    let p = home.join(rel);
+    fs::create_dir_all(p.parent().unwrap()).unwrap();
+    fs::write(p, v.to_string()).unwrap();
+}
+
+fn doctor(home: &Path) -> (String, Option<i32>) {
+    let out = lagom(home, &["doctor"], None);
+    (text(&out), out.status.code())
+}
+
+#[cfg(unix)]
+#[test]
+fn doctor_checks_the_binary_in_every_hook() {
+    use std::os::unix::fs::PermissionsExt;
+    let home = sandbox("doctor-hooks");
+    let old = home.join("old/lagom");
+    fs::create_dir_all(old.parent().unwrap()).unwrap();
+    fs::write(&old, "#!/bin/sh\necho lagom 0.0.9\n").unwrap();
+    fs::set_permissions(&old, fs::Permissions::from_mode(0o755)).unwrap();
+    let hook = |bin: &str, event: &str| json!([{"hooks": [{"type": "command", "command": format!("'{bin}' hook claude {event}")}]}]);
+    let this = env!("CARGO_BIN_EXE_lagom");
+    let gone = home.join("gone/lagom").display().to_string();
+    write_json(
+        &home,
+        ".claude/settings.json",
+        json!({"hooks": {
+            "SessionStart": hook(this, "session-start"),
+            "SubagentStart": hook(&old.display().to_string(), "subagent-start"),
+            "PreToolUse": hook(&gone, "pre-tool"),
+        }}),
+    );
+    let (said, code) = doctor(&home);
+    let version = env!("CARGO_PKG_VERSION");
+    assert!(
+        said.contains(&format!("ok    claude hooks: {this} (lagom {version})")),
+        "{said}"
+    );
+    assert!(
+        said.contains(&format!(
+            "warn  claude hooks: {} is lagom 0.0.9, this is lagom {version}",
+            old.display()
+        )),
+        "{said}"
+    );
+    assert!(
+        said.contains(&format!("fail  claude hooks: {gone} doesn't exist")),
+        "{said}"
+    );
+    assert!(said.contains("fix: lagom install claude"), "{said}");
+    assert_eq!(code, Some(1), "a failed check exits 1");
+
+    fs::write(home.join(".claude/settings.json"), "{not json").unwrap();
+    let (said, _) = doctor(&home);
+    assert!(said.contains("fail  claude hooks:"), "{said}");
+}
+
+#[test]
+fn doctor_reports_codex_hooks_without_a_trust_record() {
+    let home = sandbox("doctor-codex");
+    fs::create_dir_all(home.join(".codex")).unwrap();
+    assert!(
+        lagom(&home, &["install", "codex", "--yes"], None)
+            .status
+            .success()
+    );
+    let (said, code) = doctor(&home);
+    assert!(said.contains("ok    codex hooks:"), "{said}");
+    assert!(
+        said.contains("warn  codex trust: Codex skips Lagom's SessionStart and PreToolUse hooks until you trust them"),
+        "{said}"
+    );
+    assert!(said.contains("fix: open Codex, run /hooks"), "{said}");
+    assert_eq!(code, Some(0), "a warning isn't a failure");
+
+    let file = home.join(".codex/hooks.json").display().to_string();
+    let record = |event: &str| {
+        format!("[hooks.state.\"{file}:{event}:0:0\"]\ntrusted_hash = \"sha256:00\"\n")
+    };
+    fs::write(
+        home.join(".codex/config.toml"),
+        record("session_start") + &record("pre_tool_use"),
+    )
+    .unwrap();
+    let (said, _) = doctor(&home);
+    assert!(said.contains("ok    codex trust:"), "{said}");
+}
+
+#[test]
+fn doctor_names_other_tools_that_add_rules_or_rewrite_commands() {
+    let home = sandbox("doctor-others");
+    let hook = |cmd: &str| json!({"hooks": [{"type": "command", "command": cmd}]});
+    write_json(
+        &home,
+        ".claude/settings.json",
+        json!({"hooks": {
+            "SessionStart": [hook("'/opt/caveman/bin/caveman-proxy' native-hook claude"), hook("/usr/local/bin/notes-tool start")],
+            "UserPromptSubmit": [hook("'/opt/caveman/bin/caveman-proxy' native-hook claude")],
+            "PreToolUse": [
+                {"matcher": "Bash", "hooks": [{"type": "command", "command": "rtk hook claude"}]},
+                {"matcher": "Bash", "hooks": [{"type": "command", "command": "guard-tool check"}]},
+                {"matcher": "Read", "hooks": [{"type": "command", "command": "graphify hook-guard"}]},
+                {"matcher": "Edit", "hooks": [{"type": "command", "command": "formatter run"}]}
+            ]
+        }}),
+    );
+    fs::write(
+        home.join("CLAUDE.md"),
+        "# Project\n\n## graphify\nUse the graph.\n",
+    )
+    .unwrap();
+    let (said, _) = doctor(&home);
+    for expected in [
+        "warn  stacked styles: caveman-proxy (Claude Code hook, SessionStart, UserPromptSubmit) adds its own answer rules",
+        "fix: keep one: remove its hooks, or run `lagom style use off`",
+        "info  session-start text: notes-tool (Claude Code hook, SessionStart)",
+        "warn  second rewriter: rtk (Claude Code hook, PreToolUse) rewrites shell commands too",
+        "info  shell hook: guard-tool (Claude Code hook, PreToolUse)",
+        "info  graphify: Graphify (graphify (Claude Code hook, PreToolUse);",
+    ] {
+        assert!(said.contains(expected), "missing {expected:?} in:\n{said}");
+    }
+    assert!(
+        said.contains(&format!("{}", home.join("CLAUDE.md").display())),
+        "{said}"
+    );
+    assert!(!said.contains("formatter"), "{said}");
+}
+
+#[cfg(unix)]
+#[test]
+fn doctor_checks_that_only_the_user_can_read_the_data_folder() {
+    use std::os::unix::fs::PermissionsExt;
+    let home = sandbox("doctor-data");
+    let (said, _) = doctor(&home);
+    assert!(
+        said.contains("ok    data folder:") && said.contains("doesn't exist yet"),
+        "{said}"
+    );
+
+    let dir = home.join(".lagom");
+    fs::create_dir_all(dir.join("recall")).unwrap();
+    fs::set_permissions(&dir, fs::Permissions::from_mode(0o700)).unwrap();
+    fs::set_permissions(dir.join("recall"), fs::Permissions::from_mode(0o700)).unwrap();
+    fs::write(dir.join(".lagom-dir"), "marker").unwrap();
+    fs::set_permissions(dir.join(".lagom-dir"), fs::Permissions::from_mode(0o644)).unwrap();
+    let (said, _) = doctor(&home);
+    assert!(
+        said.contains("ok    data folder: only you can read"),
+        "{said}"
+    );
+
+    fs::write(dir.join("recall/abc.txt"), "secret").unwrap();
+    fs::set_permissions(
+        dir.join("recall/abc.txt"),
+        fs::Permissions::from_mode(0o644),
+    )
+    .unwrap();
+    let (said, code) = doctor(&home);
+    assert!(
+        said.contains("warn  data folder: other users can open 1 item in"),
+        "{said}"
+    );
+    assert!(said.contains("fix: chmod -R go-rwx"), "{said}");
+    assert_eq!(code, Some(0));
+}
+
+#[test]
+fn doctor_reports_claude_codes_server_managed_policy() {
+    let home = sandbox("doctor-policy");
+    fs::create_dir_all(home.join(".claude")).unwrap();
+    let (said, _) = doctor(&home);
+    if said.contains("an MDM profile") {
+        return; // this machine has a policy Lagom can't read; nothing below applies
+    }
+    assert!(
+        said.contains("ok    claude policy:") && said.contains("no server-managed settings"),
+        "{said}"
+    );
+
+    fs::write(
+        home.join(".claude/remote-settings.json"),
+        "{\"permissions\": {\"deny\": [",
+    )
+    .unwrap();
+    let (said, _) = doctor(&home);
+    assert!(
+        said.contains("warn  claude policy: Lagom can't read")
+            && said.contains("remote-settings.json"),
+        "{said}"
+    );
+    assert!(said.contains("uncompressed"), "{said}");
+
+    write_json(
+        &home,
+        ".claude/remote-settings.json",
+        json!({"permissions": {"deny": ["Bash(rm:*)"]}}),
+    );
+    let (said, _) = doctor(&home);
+    assert!(
+        said.contains("server-managed settings cached; Lagom rewrites"),
+        "{said}"
+    );
+}
+
+#[test]
+fn doctor_json_has_the_same_checks() {
+    let home = sandbox("doctor-json");
+    fs::create_dir_all(home.join(".codex")).unwrap();
+    let out = lagom(&home, &["doctor", "--json"], None);
+    let v: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["lagom"], env!("CARGO_PKG_VERSION"));
+    let codex = v["checks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["check"] == "codex hooks")
+        .unwrap();
+    assert_eq!(codex["mark"], "info");
+    assert_eq!(codex["fix"], "lagom install codex");
+    assert_eq!(
+        lagom(&home, &["doctor", "--fix"], None).status.code(),
+        Some(2)
+    );
+}

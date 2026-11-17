@@ -11,6 +11,7 @@ pub mod cli;
 pub mod compress;
 pub mod config;
 mod debug;
+pub mod doctor;
 pub mod gain;
 pub mod hook;
 pub mod install;

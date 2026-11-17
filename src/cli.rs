@@ -16,6 +16,7 @@ Usage:
   lagom uninstall [claude|codex|cursor ...] Remove Lagom's hooks and skills [--dry-run]
                   [--all] [--purge] [--yes]  --purge also deletes ~/.lagom and ~/.config/lagom
   lagom status                              Show what is installed and which styles are active
+  lagom doctor [--json]                     Check the hooks, other tools' hooks, ~/.lagom and policy
   lagom style                               Show active styles
   lagom style list                          List built-in, user and project styles
   lagom style show <name>                   Print a style
@@ -94,6 +95,7 @@ pub fn main() -> ExitCode {
         Some("install") => cmd_install(&rest(1), true),
         Some("uninstall") => cmd_install(&rest(1), false),
         Some("status") => cmd_status(&rest(1)),
+        Some("doctor") => cmd_doctor(&rest(1)),
         Some("style") => cmd_style(&rest(1)),
         Some("stats") => {
             let spec = [
@@ -479,6 +481,25 @@ fn cmd_status(args: &[String]) -> ExitCode {
         println!("project languages: {}", langs.names().join(", "));
     }
     ExitCode::SUCCESS
+}
+
+/// `lagom doctor [--json]`: exit 1 when a check fails.
+fn cmd_doctor(args: &[String]) -> ExitCode {
+    let a = match Args::parse(args, &["--json"], 0) {
+        Ok(a) => a,
+        Err(e) => return usage_error(&e, "lagom doctor [--json]"),
+    };
+    let checks = crate::doctor::checks(&cwd());
+    if a.has("--json") {
+        println!("{}", crate::doctor::json(&checks));
+    } else {
+        print!("{}", crate::doctor::text(&checks));
+    }
+    if checks.iter().any(|c| c.mark == crate::doctor::Mark::Fail) {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
+    }
 }
 
 fn print_active_styles(cwd: &Path) {

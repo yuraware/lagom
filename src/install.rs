@@ -140,18 +140,30 @@ fn hook_command(bin: &str, agent: Agent, event: &str) -> String {
     format!("{} hook {} {event}", shell_quote(bin), agent.name())
 }
 
+/// The first shell word of `cmd`, unquoted, and the rest. Reads the single quoting that
+/// [`shell_quote`] writes, including its `'\''` for a quote inside a path.
+pub(crate) fn first_word(cmd: &str) -> (String, &str) {
+    let mut word = String::new();
+    let mut quoted = false;
+    let mut chars = cmd.char_indices().peekable();
+    while let Some((i, c)) = chars.next() {
+        match c {
+            '\'' => quoted = !quoted,
+            '\\' if !quoted && chars.peek().is_some_and(|(_, n)| *n == '\'') => {
+                chars.next();
+                word.push('\'');
+            }
+            c if c.is_whitespace() && !quoted => return (word, &cmd[i..]),
+            c => word.push(c),
+        }
+    }
+    (word, "")
+}
+
 /// True for commands we wrote: first word is a path ending in `lagom` (or the `lgm` alias), second is `hook`.
 pub fn is_lagom_command(cmd: &str) -> bool {
-    let cmd = cmd.trim();
-    let (first, rest) = if let Some(stripped) = cmd.strip_prefix('\'') {
-        match stripped.find('\'') {
-            Some(end) => (&stripped[..end], &stripped[end + 1..]),
-            None => return false,
-        }
-    } else {
-        cmd.split_once(' ').unwrap_or((cmd, ""))
-    };
-    let base = Path::new(first)
+    let (first, rest) = first_word(cmd.trim());
+    let base = Path::new(&first)
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("");
@@ -159,20 +171,89 @@ pub fn is_lagom_command(cmd: &str) -> bool {
         && rest.trim_start().starts_with("hook ")
 }
 
+/// One command in a hooks file: Claude Code and Codex nest commands in matcher groups,
+/// Cursor lists them directly (group = its index, handler 0).
+struct HookCommand<'a> {
+    event: &'a str,
+    group: usize,
+    handler: usize,
+    matcher: Option<&'a str>,
+    command: &'a str,
+}
+
+fn hook_commands(config: &Map<String, Value>) -> Vec<HookCommand<'_>> {
+    let mut out = Vec::new();
+    let events = config.get("hooks").and_then(Value::as_object);
+    for (event, items) in events.into_iter().flatten() {
+        for (group, item) in items.as_array().into_iter().flatten().enumerate() {
+            let matcher = item.get("matcher").and_then(Value::as_str);
+            let handlers: Vec<&Value> = match item.get("hooks").and_then(Value::as_array) {
+                Some(hooks) => hooks.iter().collect(),
+                None => vec![item],
+            };
+            for (handler, h) in handlers.into_iter().enumerate() {
+                out.push(HookCommand {
+                    event,
+                    group,
+                    handler,
+                    matcher,
+                    command: h.get("command").and_then(Value::as_str).unwrap_or(""),
+                });
+            }
+        }
+    }
+    out
+}
+
+/// One of Lagom's hooks in an agent's hooks file, and the binary it runs.
+#[derive(Debug, PartialEq)]
+pub struct LagomHook {
+    pub event: String,
+    pub group: usize,
+    pub handler: usize,
+    pub bin: String,
+}
+
+/// Lagom's hooks in `agent`'s hooks file; an error when the file can't be read.
+pub fn lagom_hooks(agent: Agent) -> Result<Vec<LagomHook>, String> {
+    let config = read_json_object(&target(agent).hooks_file)?;
+    Ok(hook_commands(&config)
+        .into_iter()
+        .filter(|c| is_lagom_command(c.command))
+        .map(|c| LagomHook {
+            event: c.event.to_string(),
+            group: c.group,
+            handler: c.handler,
+            bin: first_word(c.command.trim()).0,
+        })
+        .collect())
+}
+
 /// Hook events whose output reaches the model as text at the start of a session, a
 /// subagent or a prompt. Another tool's hook there changes answers in both groups of a
 /// holdout experiment, so the result is blurred (D-38).
-const CONTEXT_EVENTS: [&str; 4] = [
+pub const CONTEXT_EVENTS: [&str; 4] = [
     "SessionStart",
     "UserPromptSubmit",
     "SubagentStart",
     "sessionStart",
 ];
 
-/// Other tools' hooks on context events, one line each: `Claude Code SessionStart: <command>`
-/// from the agents' user hook files, and `Claude Code plugin <name>: SessionStart` for
-/// enabled Claude Code plugins. Anything unreadable is skipped: this only feeds a warning.
-pub fn other_context_hooks() -> Vec<String> {
+/// Another tool's hook: in an agent's user hooks file, or in an enabled Claude Code plugin.
+#[derive(Debug)]
+pub struct ForeignHook {
+    /// `Claude Code`, `Codex` or `Cursor`.
+    pub agent: &'static str,
+    /// The Claude Code plugin it comes from.
+    pub plugin: Option<String>,
+    pub event: String,
+    pub matcher: Option<String>,
+    pub command: String,
+}
+
+/// Every hook that isn't Lagom's, from the agents' user hook files and enabled Claude Code
+/// plugins. Anything unreadable is skipped: this only feeds warnings.
+pub fn foreign_hooks() -> Vec<ForeignHook> {
     let mut found = Vec::new();
     for (agent, label) in [
         (Agent::Claude, "Claude Code"),
@@ -182,36 +263,62 @@ pub fn other_context_hooks() -> Vec<String> {
         let Ok(config) = read_json_object(&target(agent).hooks_file) else {
             continue;
         };
-        for event in CONTEXT_EVENTS {
-            let items = config
-                .get("hooks")
-                .and_then(|h| h.get(event))
-                .and_then(Value::as_array);
-            for item in items.into_iter().flatten() {
-                // Cursor lists commands directly; Claude Code and Codex nest them in groups.
-                let commands: Vec<&Value> = match item.get("hooks").and_then(Value::as_array) {
-                    Some(hooks) => hooks.iter().collect(),
-                    None => vec![item],
-                };
-                for cmd in commands.iter().filter_map(|h| h.get("command")?.as_str()) {
-                    if !is_lagom_command(cmd) {
-                        let short: String = cmd.chars().take(100).collect();
-                        found.push(format!("{label} {event}: {short}"));
-                    }
-                }
-            }
-        }
+        add_foreign(&mut found, label, None, &config);
         if agent == Agent::Claude {
-            found.extend(claude_plugin_context_hooks(&config));
+            for (name, hooks) in claude_plugin_hooks(&config) {
+                add_foreign(&mut found, label, Some(name), &hooks);
+            }
         }
     }
     found
 }
 
-/// Enabled Claude Code plugins whose `hooks/hooks.json` uses a context event. The install
-/// folders come from `plugins/installed_plugins.json`, which Claude Code writes but doesn't
+fn add_foreign(
+    found: &mut Vec<ForeignHook>,
+    agent: &'static str,
+    plugin: Option<String>,
+    config: &Map<String, Value>,
+) {
+    for c in hook_commands(config) {
+        if !is_lagom_command(c.command) {
+            found.push(ForeignHook {
+                agent,
+                plugin: plugin.clone(),
+                event: c.event.to_string(),
+                matcher: c.matcher.map(str::to_string),
+                command: c.command.to_string(),
+            });
+        }
+    }
+}
+
+/// Other tools' hooks on context events, one line each: `Claude Code SessionStart: <command>`
+/// from the agents' user hook files, and `Claude Code plugin <name>: SessionStart` for
+/// enabled Claude Code plugins.
+pub fn other_context_hooks() -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    for h in foreign_hooks() {
+        if !CONTEXT_EVENTS.contains(&h.event.as_str()) {
+            continue;
+        }
+        let line = match &h.plugin {
+            Some(name) => format!("{} plugin {name}: {}", h.agent, h.event),
+            None => {
+                let short: String = h.command.chars().take(100).collect();
+                format!("{} {}: {short}", h.agent, h.event)
+            }
+        };
+        if !lines.contains(&line) {
+            lines.push(line);
+        }
+    }
+    lines
+}
+
+/// The hooks files of enabled Claude Code plugins, by plugin name. The install folders
+/// come from `plugins/installed_plugins.json`, which Claude Code writes but doesn't
 /// document, so a plugin that can't be read is left out.
-fn claude_plugin_context_hooks(settings: &Map<String, Value>) -> Vec<String> {
+fn claude_plugin_hooks(settings: &Map<String, Value>) -> Vec<(String, Map<String, Value>)> {
     let Some(enabled) = settings.get("enabledPlugins").and_then(Value::as_object) else {
         return Vec::new();
     };
@@ -226,22 +333,14 @@ fn claude_plugin_context_hooks(settings: &Map<String, Value>) -> Vec<String> {
             .get("plugins")
             .and_then(|p| p.get(name))
             .and_then(Value::as_array);
-        let hook_files: Vec<Map<String, Value>> = paths
+        for dir in paths
             .into_iter()
             .flatten()
             .filter_map(|e| e.get("installPath")?.as_str())
-            .filter_map(|dir| read_json_object(&Path::new(dir).join("hooks/hooks.json")).ok())
-            .collect();
-        let events: Vec<&str> = CONTEXT_EVENTS
-            .into_iter()
-            .filter(|e| {
-                hook_files
-                    .iter()
-                    .any(|h| h.get("hooks").and_then(|x| x.get(*e)).is_some())
-            })
-            .collect();
-        if !events.is_empty() {
-            found.push(format!("Claude Code plugin {name}: {}", events.join(", ")));
+        {
+            if let Ok(hooks) = read_json_object(&Path::new(dir).join("hooks/hooks.json")) {
+                found.push((name.clone(), hooks));
+            }
         }
     }
     found

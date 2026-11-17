@@ -2,6 +2,14 @@
 
 Start with `lagom status`: it shows which agents have Lagom's hooks and skills, and the active styles.
 
+`lagom doctor` checks more, one line each with a fix (`--json` for scripts; it exits 1 when a check fails):
+
+- the binary in every hook exists and is this version;
+- Codex has a trust record for each of Lagom's hooks;
+- other tools' hooks in the same files: a second set of answer rules at session start (Caveman, Ponytail), a second shell-command rewriter (rtk, Caveman), and Graphify, which blur a [style experiment](styles.md#measure-a-style);
+- only you can read `~/.lagom`;
+- Claude Code's managed and server-managed policy, and whether it stops Lagom from rewriting commands.
+
 ## Nothing happens in my agent
 
 1. **Start a new session.** Hooks and skills load when a session starts.

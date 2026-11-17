@@ -1,11 +1,11 @@
 {"ts":1795219200,"kind":"run","cmd":"ls","in":500,"out":500}
-{"v":1,"ts":1795305600,"kind":"inject","agent":"claude","event":"session-start","bytes":1600,"styles":["terse","lean-code"],"session":"claude:a1"}
-{"v":1,"ts":1795305700,"kind":"run","cmd":"git","in":40000,"out":4000,"exit":0,"agent":"claude","session":"claude:a1"}
-{"v":1,"ts":1795305800,"kind":"run","cmd":"git","in":20000,"out":3000,"exit":0,"agent":"claude","session":"claude:a1"}
-{"v":1,"ts":1795309000,"kind":"inject","agent":"claude","event":"session-start","bytes":1600,"styles":["terse","lean-code"],"session":"claude:a2"}
-{"v":1,"ts":1795309100,"kind":"holdout","arm":"holdout","event":"session-start","agent":"claude","session":"claude:a3"}
+{"v":1,"ts":1795305600,"kind":"inject","agent":"claude","event":"session-start","bytes":1600,"styles":["terse","lean-code"],"session":"a1"}
+{"v":1,"ts":1795305700,"kind":"run","cmd":"git","in":40000,"out":4000,"exit":0,"agent":"claude","session":"a1","project":"p1"}
+{"v":1,"ts":1795305800,"kind":"run","cmd":"git","in":20000,"out":3000,"exit":0,"agent":"claude","session":"a1","project":"p1"}
+{"v":1,"ts":1795309000,"kind":"inject","agent":"claude","event":"session-start","bytes":1600,"styles":["terse","lean-code"],"session":"a2"}
+{"v":1,"ts":1795309100,"kind":"holdout","arm":"holdout","event":"session-start","agent":"claude","session":"a3"}
 not json
-{"v":1,"ts":1795392100,"kind":"inject","agent":"codex","event":"session-start","bytes":1000,"styles":["terse"],"session":"codex:b1"}
-{"v":1,"ts":1795392200,"kind":"run","cmd":"cargo","in":120000,"out":9000,"exit":101,"agent":"codex","session":"codex:b1"}
+{"v":1,"ts":1795392100,"kind":"inject","agent":"codex","event":"session-start","bytes":1000,"styles":["terse"],"session":"b1"}
+{"v":1,"ts":1795392200,"kind":"run","cmd":"cargo","in":120000,"out":9000,"exit":101,"agent":"codex","session":"b1"}
 {"v":1,"ts":1795392300,"kind":"run","cmd":"pytest","in":3000,"out":3000,"exit":0}
 {"v":2,"ts":1795392400,"kind":"run","cmd":"future","in":99999,"out":1}

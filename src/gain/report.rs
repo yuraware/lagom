@@ -2,12 +2,12 @@
 //! rules cost, output tokens per style, and the net, by agent and by day. Each section
 //! says how its numbers were made.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt::Write as _;
 
 use serde_json::{Value, json};
 
-use super::StyleUsage;
+use super::{SessionUsage, StyleUsage};
 
 /// Bytes per estimated token. A rough rule for English text and code (CMP-10 calibrates it).
 pub const BYTES_PER_TOKEN: u64 = 4;
@@ -65,29 +65,230 @@ impl Bucket {
     }
 }
 
+/// Which events and sessions count (GAIN-10). Dates are UTC; a session counts when its
+/// last message falls in the window.
+#[derive(Debug, Default)]
+pub struct Filter {
+    /// Unix seconds; `None` for all time.
+    pub since: Option<u64>,
+    pub agent: Option<String>,
+    pub model: Option<String>,
+    pub style: Option<String>,
+    pub project: Option<String>,
+    pub session: Option<String>,
+}
+
+/// What events don't say themselves, joined by session id: the style set injected into
+/// the session (see [`crate::store::session_styles`]) and the model its transcript names.
+#[derive(Debug, Default)]
+pub struct Context {
+    pub styles: HashMap<String, String>,
+    pub models: HashMap<String, String>,
+}
+
+/// Every value seen, so an unknown filter value can be answered with the known ones.
+#[derive(Debug, Default)]
+pub struct Known {
+    agents: BTreeSet<String>,
+    models: BTreeSet<String>,
+    styles: BTreeSet<String>,
+    projects: BTreeSet<String>,
+    sessions: BTreeSet<String>,
+}
+
+fn event_agent(v: &Value) -> &str {
+    match v.get("agent").and_then(Value::as_str) {
+        Some(a) => a,
+        // `lagom run` typed by hand, or an event from before Lagom recorded agents.
+        None if v.get("v").is_some() => "manual",
+        None => "unknown",
+    }
+}
+
+/// The style set of an `inject` event, or of the event's session.
+fn event_style(v: &Value, ctx: &Context) -> Option<String> {
+    if v.get("kind").and_then(Value::as_str) == Some("inject") {
+        let styles: Vec<&str> = v
+            .get("styles")
+            .and_then(Value::as_array)
+            .map(|a| a.iter().filter_map(Value::as_str).collect())
+            .unwrap_or_default();
+        return Some(if styles.is_empty() {
+            "unknown".into()
+        } else {
+            styles.join("+")
+        });
+    }
+    let session = v.get("session").and_then(Value::as_str)?;
+    ctx.styles.get(session).cloned()
+}
+
+impl Filter {
+    fn event_matches(&self, v: &Value, ctx: &Context) -> bool {
+        let field = |k: &str| v.get(k).and_then(Value::as_str);
+        let session = field("session");
+        self.since.is_none_or(|t| {
+            v.get("ts")
+                .and_then(Value::as_u64)
+                .is_some_and(|ts| ts >= t)
+        }) && self.agent.as_deref().is_none_or(|a| event_agent(v) == a)
+            && self
+                .project
+                .as_deref()
+                .is_none_or(|p| field("project") == Some(p))
+            && self.session.as_deref().is_none_or(|id| session == Some(id))
+            && self
+                .style
+                .as_deref()
+                .is_none_or(|st| event_style(v, ctx).as_deref() == Some(st))
+            && self.model.as_deref().is_none_or(|m| {
+                session
+                    .and_then(|id| ctx.models.get(id))
+                    .map(String::as_str)
+                    == Some(m)
+            })
+    }
+
+    fn session_matches(
+        &self,
+        s: &SessionUsage,
+        ctx: &Context,
+        project_sessions: &HashSet<String>,
+    ) -> bool {
+        let last = s.last_ts.as_deref().and_then(super::iso_to_unix);
+        self.since.is_none_or(|t| last.is_some_and(|l| l >= t))
+            && self.agent.as_deref().is_none_or(|a| s.agent == a)
+            && self
+                .model
+                .as_deref()
+                .is_none_or(|m| s.model.as_deref() == Some(m))
+            && self.session.as_deref().is_none_or(|id| s.session_id == id)
+            && self
+                .style
+                .as_deref()
+                .is_none_or(|st| ctx.styles.get(&s.session_id).map(String::as_str) == Some(st))
+            && (self.project.is_none() || project_sessions.contains(&s.session_id))
+    }
+
+    /// An error naming the known values when a filter value never occurs.
+    pub fn check(&self, known: &Known) -> Result<(), String> {
+        for (flag, value, seen) in [
+            ("--agent", &self.agent, &known.agents),
+            ("--model", &self.model, &known.models),
+            ("--style", &self.style, &known.styles),
+            ("--project", &self.project, &known.projects),
+            ("--session", &self.session, &known.sessions),
+        ] {
+            if let Some(v) = value.as_deref().filter(|v| !seen.contains(*v)) {
+                let list: Vec<&str> = seen.iter().map(String::as_str).collect();
+                let list = if list.is_empty() {
+                    "none recorded".to_string()
+                } else {
+                    list.join(", ")
+                };
+                return Err(format!(
+                    "no {flag} `{v}` in the stats or the agents' logs; known: {list}"
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// The header text for this window and these filters.
+    pub fn scope(&self, days: Option<u64>) -> String {
+        let window = match (self.since, days) {
+            (None, _) => "all time".to_string(),
+            (Some(t), Some(d)) => format!("UTC, since {} (last {d} days)", utc_day(t)),
+            (Some(t), None) => format!("UTC, since {}", utc_day(t)),
+        };
+        let filters = self.describe();
+        if filters.is_empty() {
+            window
+        } else {
+            format!("{window}, {}", filters.join(", "))
+        }
+    }
+
+    /// The filters that are set, as `name=value`.
+    fn describe(&self) -> Vec<String> {
+        [
+            ("agent", &self.agent),
+            ("model", &self.model),
+            ("style", &self.style),
+            ("project", &self.project),
+            ("session", &self.session),
+        ]
+        .into_iter()
+        .filter_map(|(k, v)| v.as_ref().map(|v| format!("{k}={v}")))
+        .collect()
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct Report {
+    /// The window and filters, for the header: `UTC, since 2026-10-18 (last 30 days)`.
+    pub scope: String,
+    pub known: Known,
+    /// Sessions seen in events of the `--project` filter, to filter the output section.
+    project_sessions: HashSet<String>,
     pub total: Bucket,
     pub by_command: BTreeMap<String, Bucket>,
     pub by_style: BTreeMap<String, Bucket>,
     pub by_agent: BTreeMap<String, Bucket>,
     /// UTC days, `YYYY-MM-DD`.
     pub by_day: BTreeMap<String, Bucket>,
-    /// Output tokens per style, per agent, over `output_days`.
+    /// Output tokens per style, per agent, for the sessions in the window.
     pub output: Vec<(String, Vec<StyleUsage>)>,
-    pub output_days: u64,
 }
 
 impl Report {
-    /// Adds one `stats.jsonl` event (see [`crate::store::for_each_stat`]).
+    /// Adds a `stats.jsonl` event when it passes `filter`, and notes its values.
+    pub fn add_filtered(&mut self, v: &Value, filter: &Filter, ctx: &Context) {
+        let field = |k: &str| v.get(k).and_then(Value::as_str).map(String::from);
+        self.known.agents.insert(event_agent(v).to_string());
+        self.known.projects.extend(field("project"));
+        self.known.sessions.extend(field("session"));
+        self.known.styles.extend(event_style(v, ctx));
+        self.known
+            .models
+            .extend(field("session").and_then(|id| ctx.models.get(&id).cloned()));
+        if filter.event_matches(v, ctx) {
+            if filter.project.is_some() {
+                self.project_sessions.extend(field("session"));
+            }
+            self.add(v);
+        }
+    }
+
+    /// Adds an agent's sessions that pass `filter` to the output section.
+    pub fn add_sessions(
+        &mut self,
+        agent: &str,
+        sessions: Vec<SessionUsage>,
+        filter: &Filter,
+        ctx: &Context,
+        tracked_since: Option<u64>,
+    ) {
+        for s in &sessions {
+            self.known.agents.insert(s.agent.clone());
+            self.known.models.extend(s.model.clone());
+            self.known.sessions.insert(s.session_id.clone());
+            self.known
+                .styles
+                .extend(ctx.styles.get(&s.session_id).cloned());
+        }
+        let kept: Vec<SessionUsage> = sessions
+            .into_iter()
+            .filter(|s| filter.session_matches(s, ctx, &self.project_sessions))
+            .collect();
+        let rows = super::by_style(&kept, &ctx.styles, tracked_since);
+        self.output.push((agent.to_string(), rows));
+    }
+
+    /// Adds one `stats.jsonl` event, unfiltered.
     pub fn add(&mut self, v: &Value) {
         let n = |k: &str| v.get(k).and_then(Value::as_u64).unwrap_or(0);
-        let agent = match v.get("agent").and_then(Value::as_str) {
-            Some(a) => a,
-            // `lagom run` typed by hand, or an event from before Lagom recorded agents.
-            None if v.get("v").is_some() => "manual",
-            None => "unknown",
-        };
+        let agent = event_agent(v);
         let day = v.get("ts").and_then(Value::as_u64).map(utc_day);
         let mut groups: Vec<&mut Bucket> = vec![&mut self.total];
         groups.push(self.by_agent.entry(agent.to_string()).or_default());
@@ -125,7 +326,11 @@ impl Report {
     pub fn text(&self) -> String {
         let t = &self.total;
         let mut s = String::new();
-        let _ = writeln!(s, "lagom stats, from ~/.lagom/stats.jsonl ({TOKENS})");
+        let _ = writeln!(
+            s,
+            "lagom stats, {}, from ~/.lagom/stats.jsonl ({TOKENS})",
+            self.scope
+        );
         let _ = writeln!(s, "\nCompression");
         let _ = writeln!(
             s,
@@ -178,7 +383,7 @@ impl Report {
             }
         }
 
-        let _ = writeln!(s, "\nOutput, last {} days ({OUTPUT})", self.output_days);
+        let _ = writeln!(s, "\nOutput ({OUTPUT})");
         if self.output.iter().all(|(_, rows)| rows.is_empty()) {
             let _ = writeln!(s, "no Claude Code or Codex sessions found");
         }
@@ -210,7 +415,7 @@ impl Report {
             }
         }
         if !self.by_day.is_empty() {
-            let _ = writeln!(s, "by day (last {TEXT_DAYS} with activity, UTC):");
+            let _ = writeln!(s, "by day (the last {TEXT_DAYS} with activity, UTC):");
             for (day, b) in self.by_day.iter().rev().take(TEXT_DAYS).rev() {
                 let _ = writeln!(s, "  {day}  net ~{} tokens", b.net_tokens());
             }
@@ -242,9 +447,10 @@ impl Report {
             .collect();
         json!({
             "source": "~/.lagom/stats.jsonl",
+            "scope": self.scope,
             "compression": {"method": TOKENS, "total": self.total.json(), "by_command": map(&self.by_command)},
             "injection": {"method": TOKENS, "by_style": map(&self.by_style)},
-            "output": {"method": OUTPUT, "days": self.output_days, "by_agent": output},
+            "output": {"method": OUTPUT, "by_agent": output},
             "net": {"method": NET, "tokens": self.total.net_tokens(),
                     "by_agent": map(&self.by_agent), "by_day": map(&self.by_day)},
         })
@@ -305,10 +511,7 @@ mod tests {
 
     #[test]
     fn output_rows_are_shown_with_their_method() {
-        let mut r = Report {
-            output_days: 30,
-            ..Report::default()
-        };
+        let mut r = Report::default();
         let text = r.text();
         assert!(text.contains("no Claude Code or Codex sessions found"));
         r.output.push((

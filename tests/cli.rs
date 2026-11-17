@@ -1049,7 +1049,7 @@ fn stats_are_attributed_to_agent_session_style_and_project() {
     log.push_str("{\"kind\":\"run\",\"cmd\":\"git\",\"in\":100,\"out\":10,\"exit\":0,\"ts\":1}\n");
     fs::write(home.join(".lagom/stats.jsonl"), log).unwrap();
 
-    let stats = text(&lagom(&home, &["stats"], None));
+    let stats = text(&lagom(&home, &["stats", "--all-time"], None));
     assert!(
         stats.contains("by agent:") && stats.contains("claude") && stats.contains("manual"),
         "{stats}"
@@ -1383,7 +1383,7 @@ fn stats_file_is_rotated_at_its_size_cap_and_both_files_are_read() {
         "the new event starts a fresh file: {current} bytes"
     );
     assert!(rotated >= 16 * 1024 * 1024, "{rotated}");
-    let said = text(&lagom(&home, &["stats"], None));
+    let said = text(&lagom(&home, &["stats", "--all-time"], None));
     assert!(
         said.contains(&format!("commands run through lagom: {}", n + 1)),
         "both files are counted:\n{said}"
@@ -1504,7 +1504,7 @@ fn every_command_rejects_an_unknown_flag_with_its_usage() {
     // Flags that only make sense together are refused too, instead of one being dropped.
     for args in [
         &["stats", "--experiment", "--days", "3"][..],
-        &["stats", "--days", "3"],
+        &["stats", "--usage", "--json"],
     ] {
         assert_eq!(lagom(&home, args, None).status.code(), Some(2), "{args:?}");
     }
@@ -1655,8 +1655,8 @@ fn stats_report_matches_its_golden_files() {
     )
     .unwrap();
     for (args, golden) in [
-        (&["stats"][..], "report.txt"),
-        (&["stats", "--json"][..], "report.json"),
+        (&["stats", "--all-time"][..], "report.txt"),
+        (&["stats", "--all-time", "--json"][..], "report.json"),
     ] {
         let out = lagom(&home, args, None);
         assert!(out.status.success(), "{args:?}");
@@ -1671,4 +1671,111 @@ fn stats_report_matches_its_golden_files() {
             "{golden} differs (LAGOM_BLESS=1 to update)"
         );
     }
+}
+
+#[test]
+fn stats_filters_select_events_and_sessions() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/stats");
+    let home = sandbox("stats-filters");
+    fs::create_dir_all(home.join(".lagom")).unwrap();
+    fs::copy(
+        fixtures.join("stats.jsonl"),
+        home.join(".lagom/stats.jsonl"),
+    )
+    .unwrap();
+    // Session a1's transcript names its model, which `--model` joins to a1's events.
+    let transcript = home.join(".claude/projects/p/a1.jsonl");
+    fs::create_dir_all(transcript.parent().unwrap()).unwrap();
+    fs::write(
+        &transcript,
+        concat!(
+            r#"{"type":"user","sessionId":"a1","timestamp":"2026-11-22T10:00:00Z","message":{"role":"user","content":"hi"}}"#, "\n",
+            r#"{"type":"assistant","sessionId":"a1","timestamp":"2026-11-22T10:00:01Z","isSidechain":false,"message":{"id":"m1","model":"claude-test-model","role":"assistant","usage":{"input_tokens":10,"output_tokens":50}}}"#, "\n",
+        ),
+    )
+    .unwrap();
+    let report = |args: &[&str]| -> Value {
+        let mut all = vec!["stats", "--json"];
+        all.extend_from_slice(args);
+        let out = lagom(&home, &all, None);
+        assert!(
+            out.status.success(),
+            "{args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        serde_json::from_slice(&out.stdout).unwrap()
+    };
+    let counts = |v: &Value| {
+        let t = &v["compression"]["total"];
+        (
+            t["runs"].as_u64().unwrap(),
+            t["injections"].as_u64().unwrap(),
+        )
+    };
+
+    assert_eq!(counts(&report(&["--all-time"])), (5, 3));
+    assert_eq!(
+        counts(&report(&["--since", "2026-11-22"])),
+        (4, 3),
+        "the 11-21 run is out"
+    );
+    assert_eq!(counts(&report(&["--all-time", "--agent", "codex"])), (1, 1));
+    assert_eq!(
+        counts(&report(&["--all-time", "--style", "terse+lean-code"])),
+        (2, 2)
+    );
+    assert_eq!(counts(&report(&["--all-time", "--project", "p1"])), (2, 0));
+    assert_eq!(counts(&report(&["--all-time", "--session", "b1"])), (1, 1));
+    let by_model = report(&["--all-time", "--model", "claude-test-model"]);
+    assert_eq!(counts(&by_model), (2, 1), "session a1's runs and injection");
+    assert_eq!(
+        by_model["output"]["by_agent"]["Claude Code"][0]["median_output_per_turn"],
+        50
+    );
+    assert!(
+        by_model["scope"]
+            .as_str()
+            .unwrap()
+            .contains("model=claude-test-model")
+    );
+
+    // An unknown value lists the known ones.
+    let out = lagom(&home, &["stats", "--all-time", "--agent", "nope"], None);
+    assert_eq!(out.status.code(), Some(2));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("known: claude, codex, manual, unknown"),
+        "{err}"
+    );
+    // Only one window at a time.
+    assert_eq!(
+        lagom(&home, &["stats", "--days", "3", "--all-time"], None)
+            .status
+            .code(),
+        Some(2)
+    );
+
+    // `--days` counts back from now, by each event's own time; 30 is the default.
+    let recent = sandbox("stats-days");
+    fs::create_dir_all(recent.join(".lagom")).unwrap();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let event = |days_ago: u64| json!({"v": 1, "ts": now - days_ago * 86_400, "kind": "run", "cmd": "git", "in": 400, "out": 40});
+    fs::write(
+        recent.join(".lagom/stats.jsonl"),
+        format!("{}\n{}\n", event(10), event(40)),
+    )
+    .unwrap();
+    let runs = |args: &[&str]| {
+        let mut all = vec!["stats", "--json"];
+        all.extend_from_slice(args);
+        let v: Value = serde_json::from_slice(&lagom(&recent, &all, None).stdout).unwrap();
+        v["compression"]["total"]["runs"].as_u64().unwrap()
+    };
+    assert_eq!(runs(&[]), 1, "default: the last 30 days");
+    assert_eq!(runs(&["--days", "60"]), 2);
+    assert_eq!(runs(&["--days", "5"]), 0);
+    assert_eq!(runs(&["--all-time"]), 2);
 }

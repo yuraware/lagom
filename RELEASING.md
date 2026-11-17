@@ -44,7 +44,7 @@ pip install lagom-ai                 # in a fresh venv
 cargo binstall lagom
 ```
 
-Each must print `lagom X.Y.Z` for `lagom --version` and `lgm --version`. REL-12 automates this check once it exists. Also check:
+Each must print `lagom X.Y.Z` for `lagom --version` and `lgm --version`. The `smoke` workflow does this on both systems, plus `lagom install claude`, `lagom status` and `lagom uninstall` in a temporary home: `release` already ran it for `install.sh` and Homebrew, and after `cargo publish` you run it for all four channels with `gh workflow run smoke.yml -f version=X.Y.Z`. Also check:
 - the tap's latest commit is `lagom X.Y.Z`;
 - `https://pypi.org/project/lagom-ai/` and `https://crates.io/crates/lagom` show X.Y.Z;
 - `gh attestation verify lagom-X.Y.Z-<target>.tar.gz --repo yuraware/lagom` passes for one archive.

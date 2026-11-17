@@ -1,6 +1,11 @@
-//! Property tests over the corpus, the golden fixtures and seeded generated outputs:
+//! Property tests over the corpus, the golden fixtures and 10,000 seeded generated outputs
+//! (QA-06):
 //! - the error rule (D-35): every error line of the input is in the output, or counted in
 //!   a notice that names `lagom recall`;
+//! - the output is never longer than the input (`lagom run` adds only its footer);
+//! - compressing the output again changes nothing: output that dropped nothing is a fixed
+//!   point, and output that dropped lines carries `lagom run`'s footer, which
+//!   [`super::is_compressed`] recognizes;
 //! - lossless mode (CMP-01): every distinct line of the input is in the output.
 
 use std::fs;
@@ -10,16 +15,22 @@ use super::{Options, compress, compress_with, is_error_priority, normalize_lines
 
 /// Error lines of `raw` that are not in `out`, ignoring whitespace (the JSON compressor
 /// re-serializes, repeats get `[×N]`), and how many error lines `out`'s notices count.
-fn check(raw: &str, failed: bool) -> Result<(), String> {
-    let out = compress(raw, failed).text;
+fn errors_kept_or_counted(raw: &str, out: &str) -> Result<(), String> {
     let squeeze = |s: &str| s.chars().filter(|c| !c.is_whitespace()).collect::<String>();
-    let out_flat = squeeze(&out);
+    // Most error lines are an output line as they are: look those up first, and search
+    // the whole output only for the rest.
+    let out_lines = lines_without_counts(out);
+    let out_flat = std::cell::OnceCell::new();
     let cleaned = strip_ansi(raw);
     let missing: Vec<&str> = cleaned
         .lines()
         // The last `\r` segment is what a terminal shows, and what Lagom keeps.
         .map(|l| l.rsplit('\r').next().unwrap_or(l))
-        .filter(|l| is_error_priority(l) && !out_flat.contains(&squeeze(l)))
+        .filter(|l| {
+            is_error_priority(l)
+                && !out_lines.contains(l)
+                && !out_flat.get_or_init(|| squeeze(out)).contains(&squeeze(l))
+        })
         .collect();
     if missing.is_empty() {
         return Ok(());
@@ -76,7 +87,7 @@ fn every_error_line_is_kept_or_counted_on_the_corpus() {
         .flat_map(|(name, raw, failed)| {
             // Each case both as it ran and with the other exit status.
             [*failed, !*failed].into_iter().filter_map(move |f| {
-                check(raw, f)
+                errors_kept_or_counted(raw, &compress(raw, f).text)
                     .err()
                     .map(|e| format!("{name} (failed={f}): {e}"))
             })
@@ -101,8 +112,14 @@ impl Rng {
 
 /// One generated output: a mix of the shapes real commands print, or, one time in four,
 /// JSON Lines as `go test -json` prints them, so the JSON compressor is checked too.
+/// Most are short; one in 25 has up to 600 lines, past the line limits (120, or 240
+/// for a failed command).
 fn generate(rng: &mut Rng) -> String {
-    let n = rng.below(1500);
+    let n = if rng.below(25) == 0 {
+        rng.below(600)
+    } else {
+        rng.below(80)
+    };
     if rng.below(4) == 0 {
         return (0..n)
             .map(|i| match rng.below(12) {
@@ -160,26 +177,13 @@ fn generate(rng: &mut Rng) -> String {
             14 => format!("step {i} of {n} done"),
             15 => String::new(),
             16 => format!("npm ERR! code E{}", 400 + rng.below(100)),
+            17 => ".".to_string(),
             _ => format!("ok {i}"),
         };
         out.push_str(&line);
         out.push('\n');
     }
     out
-}
-
-#[test]
-fn every_error_line_is_kept_or_counted_on_generated_output() {
-    let mut failures = Vec::new();
-    for seed in 1..=300u64 {
-        let mut rng = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
-        let raw = generate(&mut rng);
-        let failed = rng.below(2) == 0;
-        if let Err(e) = check(&raw, failed) {
-            failures.push(format!("seed {seed} (failed={failed}): {e}"));
-        }
-    }
-    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
 /// Lines of `out` without the `  [×N]` that marks an exact repeat.
@@ -216,7 +220,7 @@ fn lossless_keeps_every_line(raw: &str, failed: bool) -> Result<(), String> {
 }
 
 #[test]
-fn lossless_mode_keeps_every_distinct_line() {
+fn lossless_mode_keeps_every_distinct_line_on_the_corpus() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut failures = Vec::new();
     for dir in ["bench/corpus", "tests/fixtures/compress"] {
@@ -226,12 +230,67 @@ fn lossless_mode_keeps_every_distinct_line() {
             }
         }
     }
-    for seed in 1..=300u64 {
-        let mut rng = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
-        let raw = generate(&mut rng);
-        if let Err(e) = lossless_keeps_every_line(&raw, rng.below(2) == 0) {
-            failures.push(format!("seed {seed}: {e}"));
-        }
-    }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Every property on one generated output.
+fn properties(raw: &str, failed: bool) -> Result<(), String> {
+    let c = compress(raw, failed);
+    let once = c.text;
+    errors_kept_or_counted(raw, &once)?;
+    if once.len() > raw.len() {
+        return Err(format!("{} bytes in, {} out", raw.len(), once.len()));
+    }
+    let shown = if c.lossy {
+        // As `lagom run` shows it.
+        format!("{once}[lagom: 9 → 3 lines; full output: lagom recall 3fa9c01d2e]\n")
+    } else {
+        once
+    };
+    let twice = compress(&shown, failed).text;
+    let once = shown;
+    if twice != once {
+        let first = once
+            .lines()
+            .zip(twice.lines())
+            .find(|(a, b)| a != b)
+            .map_or_else(
+                || "line counts differ".to_string(),
+                |(a, b)| format!("{a:?} became {b:?}"),
+            );
+        return Err(format!("compressing again changed the output: {first}"));
+    }
+    lossless_keeps_every_line(raw, failed)
+}
+
+/// The failures among `seeds`, one line each with the seed that reproduces it.
+fn failing_seeds(seeds: std::ops::RangeInclusive<u64>) -> Vec<String> {
+    seeds
+        .filter_map(|seed| {
+            let mut rng = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
+            let raw = generate(&mut rng);
+            let failed = rng.below(2) == 0;
+            let e = properties(&raw, failed).err()?;
+            Some(format!("seed {seed} (failed={failed}): {e}"))
+        })
+        .collect()
+}
+
+#[test]
+fn properties_hold_on_10000_generated_outputs() {
+    // Spread over the cores: the run must stay under 2 seconds in CI (QA-06).
+    let threads = std::thread::available_parallelism().map_or(1, |n| n.get()) as u64;
+    let per = 10_000u64.div_ceil(threads);
+    let failures: Vec<String> = std::thread::scope(|s| {
+        let runs: Vec<_> = (0..threads)
+            .map(|t| s.spawn(move || failing_seeds(t * per + 1..=((t + 1) * per).min(10_000))))
+            .collect();
+        runs.into_iter().flat_map(|r| r.join().unwrap()).collect()
+    });
+    let shown: Vec<&String> = failures.iter().take(10).collect();
+    assert!(
+        failures.is_empty(),
+        "{} failing seeds, first ones:\n{shown:#?}",
+        failures.len()
+    );
 }

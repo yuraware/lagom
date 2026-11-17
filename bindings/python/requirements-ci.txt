@@ -1,0 +1,4 @@
+# The exact Python tools CI uses (SEC-07), here so Dependabot updates them.
+# python.yml passes maturin's version to maturin-action and installs with `-c` this file.
+maturin==1.16.0
+pytest==8.4.2

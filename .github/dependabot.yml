@@ -1,0 +1,38 @@
+# SEC-07: weekly pull requests that update the crates, the Python CI tools and the GitHub
+# Actions (their commit SHA pins and the version comments next to them). A new release
+# waits 7 days before Dependabot proposes it, so a hijacked release has time to be
+# pulled. Security updates don't wait. A crate update that adds a crate fails the
+# cargo-deny job until deny.toml allows it (QA-09).
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+
+  # bindings/python/requirements-ci.txt: Dependabot can't update the build-system
+  # requirement in pyproject.toml, so CI's exact versions live there.
+  - package-ecosystem: pip
+    directory: /bindings/python
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci

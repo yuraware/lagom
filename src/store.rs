@@ -504,6 +504,8 @@ pub fn for_each_stat(mut f: impl FnMut(&serde_json::Value)) -> Skipped {
 pub fn record_for(mut event: serde_json::Value, who: &Attribution) {
     if let Some(obj) = event.as_object_mut() {
         obj.insert("v".into(), 1.into());
+        // The version that wrote it, so a report can tell when Lagom changed (GAIN-12).
+        obj.insert("lagom".into(), env!("CARGO_PKG_VERSION").into());
         obj.insert("ts".into(), now_secs().into());
         who.apply(obj);
     }

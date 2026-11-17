@@ -13,7 +13,7 @@ cargo install lagom                # or crates.io (needs Rust 1.87+)
 | Unreleased `main` | `brew install --HEAD yuraware/tap/lagom` | `cargo install --git https://github.com/yuraware/lagom` |
 | Remove the binary | `brew uninstall lagom` | `cargo uninstall lagom` |
 
-Homebrew builds from source, so the first install also downloads Rust as a build dependency. The formula lives in [yuraware/homebrew-tap](https://github.com/yuraware/homebrew-tap). From a local checkout, use `cargo install --path .`. An install script for macOS and Linux and `pip install lagom-ai` are planned.
+Homebrew installs the prebuilt binary for your machine and checks its SHA-256; only `brew install --HEAD` builds `main` from source, with Rust. Each release updates the formula in [yuraware/homebrew-tap](https://github.com/yuraware/homebrew-tap). From a local checkout, use `cargo install --path .`. An install script for macOS and Linux and `pip install lagom-ai` are planned.
 
 `lgm` is a short alias: `lgm <command>` does exactly what `lagom <command>` does. If you already have the unrelated `lgm` crate installed, use `cargo install lagom --bin lagom`.
 

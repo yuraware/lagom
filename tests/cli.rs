@@ -1269,3 +1269,123 @@ fn stats_usage_groups_real_usage_by_style() {
         Some(2)
     );
 }
+
+#[test]
+fn experiment_start_names_other_tools_that_add_text_at_session_start() {
+    let home = sandbox("experiment-other-hooks");
+    let write = |rel: &str, v: serde_json::Value| {
+        let p = home.join(rel);
+        fs::create_dir_all(p.parent().unwrap()).unwrap();
+        fs::write(p, v.to_string()).unwrap();
+    };
+    let plugin = |name: &str| {
+        home.join(".claude/plugins/cache/mkt")
+            .join(name)
+            .join("1.0")
+            .display()
+            .to_string()
+    };
+    write(
+        ".claude/settings.json",
+        json!({
+            "hooks": {
+                "SessionStart": [
+                    {"hooks": [{"type": "command", "command": "'/opt/caveman/bin/caveman-proxy' native-hook claude"}]},
+                    {"matcher": "startup", "hooks": [{"type": "command", "command": "/usr/local/bin/lagom hook claude session-start"}]}
+                ],
+                "PreToolUse": [{"hooks": [{"type": "command", "command": "guard-tool check"}]}]
+            },
+            "enabledPlugins": {"style-plugin@mkt": true, "quiet@mkt": true, "off@mkt": false}
+        }),
+    );
+    write(
+        ".claude/plugins/installed_plugins.json",
+        json!({"version": 2, "plugins": {
+            "style-plugin@mkt": [{"scope": "user", "installPath": plugin("style-plugin")}],
+            "quiet@mkt": [{"scope": "user", "installPath": plugin("quiet")}],
+            "off@mkt": [{"scope": "user", "installPath": plugin("off")}]
+        }}),
+    );
+    let hooks = |events: &[&str]| {
+        let mut h = serde_json::Map::new();
+        for e in events {
+            h.insert(
+                e.to_string(),
+                json!([{"hooks": [{"type": "command", "command": "x"}]}]),
+            );
+        }
+        json!({"hooks": h})
+    };
+    write(
+        ".claude/plugins/cache/mkt/style-plugin/1.0/hooks/hooks.json",
+        hooks(&["SessionStart"]),
+    );
+    write(
+        ".claude/plugins/cache/mkt/quiet/1.0/hooks/hooks.json",
+        hooks(&["PreToolUse"]),
+    );
+    write(
+        ".claude/plugins/cache/mkt/off/1.0/hooks/hooks.json",
+        hooks(&["SessionStart"]),
+    );
+    write(
+        ".codex/hooks.json",
+        json!({"hooks": {"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "prompt-tool add"}]}]}}),
+    );
+    write(
+        ".cursor/hooks.json",
+        json!({"version": 1, "hooks": {"sessionStart": [{"command": "cursor-tool start"}]}}),
+    );
+
+    let out = lagom(&home, &["experiment", "start", "--days", "3"], None);
+    assert!(out.status.success());
+    let said = text(&out);
+    for expected in [
+        "Claude Code SessionStart: '/opt/caveman/bin/caveman-proxy' native-hook claude",
+        "Claude Code plugin style-plugin@mkt: SessionStart",
+        "Codex UserPromptSubmit: prompt-tool add",
+        "Cursor sessionStart: cursor-tool start",
+    ] {
+        assert!(said.contains(expected), "missing {expected:?} in:\n{said}");
+    }
+    for unexpected in ["lagom hook", "guard-tool", "quiet@mkt", "off@mkt"] {
+        assert!(
+            !said.contains(unexpected),
+            "{unexpected:?} listed in:\n{said}"
+        );
+    }
+
+    // With no other hook, the start says nothing about other tools' hooks.
+    let clean = sandbox("experiment-no-other-hooks");
+    let said = text(&lagom(
+        &clean,
+        &["experiment", "start", "--days", "3"],
+        None,
+    ));
+    assert!(!said.contains("Claude Code"), "{said}");
+}
+
+#[test]
+fn stats_file_is_rotated_at_its_size_cap_and_both_files_are_read() {
+    let home = sandbox("stats-rotation");
+    let data = home.join(".lagom");
+    fs::create_dir_all(&data).unwrap();
+    let line = "{\"v\":1,\"ts\":1,\"kind\":\"run\",\"in\":100,\"out\":10}\n";
+    let n = 16 * 1024 * 1024 / line.len() + 1; // just over the 16 MiB cap
+    fs::write(data.join("stats.jsonl"), line.repeat(n)).unwrap();
+
+    assert!(lagom(&home, &["run", "--", "true"], None).status.success());
+
+    let current = fs::metadata(data.join("stats.jsonl")).unwrap().len();
+    let rotated = fs::metadata(data.join("stats.1.jsonl")).unwrap().len();
+    assert!(
+        current < 4096,
+        "the new event starts a fresh file: {current} bytes"
+    );
+    assert!(rotated >= 16 * 1024 * 1024, "{rotated}");
+    let said = text(&lagom(&home, &["stats"], None));
+    assert!(
+        said.contains(&format!("commands run through lagom: {}", n + 1)),
+        "both files are counted:\n{said}"
+    );
+}

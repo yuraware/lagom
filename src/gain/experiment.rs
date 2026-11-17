@@ -176,9 +176,7 @@ pub fn per_arm(sessions: &[SessionUsage], arms: &HashMap<String, Arm>) -> (Vec<f
 /// Session arms recorded since the experiment started.
 pub fn recorded_arms(since: u64) -> HashMap<String, Arm> {
     let mut out = HashMap::new();
-    let Ok(text) = fs::read_to_string(store::lagom_dir().join("stats.jsonl")) else {
-        return out;
-    };
+    let text = store::read_stats();
     for line in text.lines() {
         let Ok(v) = serde_json::from_str::<Value>(line) else {
             continue;

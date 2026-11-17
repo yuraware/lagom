@@ -1,0 +1,7 @@
+{
+  "name": "ash",
+  "tool_input": {
+    "command": "git l                                            -3a"
+},
+ "": "R a com"
+}

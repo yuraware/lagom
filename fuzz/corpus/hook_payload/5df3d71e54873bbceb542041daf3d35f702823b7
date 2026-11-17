@@ -1,0 +1,12 @@
+{
+"permission_mode": "bypassPermissions",
+"hoookt_ean": "Bash",
+  "tool_input": {
+  "command": "cargo tnd",
+
+  "pe": "",
+ 
+  "ti_in": true
+  },
+  "too": "tooul_02="
+}

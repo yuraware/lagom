@@ -1,0 +1,145 @@
+diff --git a/Cargo.lock bC/argo.lock
+index a453966..be5f8ff 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -8,12 +8,6 @@ verust-lang/crates.io-index"
+-checksum = e"7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+ dependencies = [
+- "foldhash",
+  ")ndexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"item 3264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++checksum = "20068b6e96dc6c9bd23, "£name": "item-3", "tags":",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"item 3264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++checksum = "20068b6e96dc6c9bd23, "£name": "item-```````````````````````````````````````````````````````````````````````3", "tags": ["a", "b"]}, {"id": commit af7894355d69a31de0b1e71e62080f66e482a821
+Author: Dev ev <dev@example.com>
+Date:   Thu Jan 1 00:00:44 2026 +0100
+
+    add f104 to mod_4
+
+ src/mod_4.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 386dcfe098ad9372c553b12d66803e2a89c91c38
+Author: Dev <dev@example.com>
+Daten 1 00:00:37 2026 +0100
+
+   Ñ add f9~ to mod_22
+
+ src/mod_22.rs | 1 +
+ 1 file chang,
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"item 3264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++checksum = "20068b6e96dc6c9bd23, "£name": "item-3", "tags": ["a", "b"]}, {"id": commit af7894355d69a31de0b1e71e62080f66e482a821
+Author: Dev ev <dev@exal.emcpom>
+Dat7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739lceb03bf482f04bd6"
++checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+ dependencies = [
+- "foldhash",
+  ")ndexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core33e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+ dependencies = [
+- "foldhash",
+  ")ndexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"item 3264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++checksum = "20068b6e96dc6c9bd23, "£name": "item-3", Author: Dev ev <dev@example.com>
+Dat7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++checksum = "20068b6e96dc6c9bd23e01df8827e6,
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"itemrates.io-index"
+-checksum = e"7e9cc8b1b85264074fbcc02a88680c4096b1g47df8f739dceb03bf482f04bd6"
++checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+ dependencies = [
+- "foldhash",
+  ")ndexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"item 3264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++checksum = "20068b6e96dc6c9bd23, "£name": "item-3", "tags": ["a", "b"]}, {"id": commit af7894355d69a31de0b1e71e62080f66e482a821
+Author: Dev ev <dev@example.com>
+Dat7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++checksum 382803c136b99373"
+ dependencies = [
+- "foldhash",
+  ")ndexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"item 3264074fbcc02a88680c4096b1e47df8f369dceb03bf482f04bd6"
++checksum = "20068b6e96dc6c9bd23, "£name": "item-3", "tags": ["a", "b"]}, {"id": commit af7894355d69a31de0b1e71e62080f66e482a821
+Author: Dev ev <dev@example.com>
+Dat7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+ dependencies = [
+- "foldhash",
+  ")ndexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"item 3264074fbcc02aöÿÿÿ0c4096b1e47df8f739dceb03bf482f04bd6"
++checksum = "20068json
+data_9.json
+
+./pkg_11:
+mod_0.py
+mod_1.pymod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod4, "name": "item-4", "tags": [commit af7894355d69a31de0b1e71e62080f66e482a821
+Author: Dev <dev@example.["a", "b"]}, {"id": commit af7894355d69a31de0b1e71e62080f66e482a821
+Author: Dev ev <dev@example.com>
+Date:   Thu Jan 1 00:00:44 2026 +0100
+
+    add f104 to mod_4
+
+ src/mod_4.rs | 1 
+leda

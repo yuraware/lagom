@@ -1,0 +1,31 @@
+   Compiling crate_ok v0.1.0 (/work/crate_ok)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.19­ÿÿÿ   Running unittests src/lib.rs (target/debug/deps/crate_ok-8764b4af8dda6207)
+
+running 60 tests
+test tests::adds_0 ... ok
+test tests::adds_1 ... ok
+test tests::adds_10 ... ok
+test tests::adds_11 ... ok
+test testsest tests::adds_30 ... ok
+test tests::adds_31 ... ok
+test tests::adds_32 ... ok
+test tests::adds_33 ... ok
+test tests::adds_34 ... ok
+test tests::adds_35 ... ok
+test tests::adds_36 ... ok
+. ok
+test tests::adds_59 ... ok
+test tests::adds_6 ... ok
+test tests::adds_7 ... ok
+test tests::adds_8 ... ok
+test tests::adds_9 ... ok
+
+failures:
+
+---- tests::adds_17 stdout ----
+
+thread 'tests::adds__42
+
+test result: FAILED. 58 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`

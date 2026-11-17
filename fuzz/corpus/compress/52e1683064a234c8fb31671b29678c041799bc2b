@@ -1,0 +1,135 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index a453966..be5f8ff 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -8,12 +8,6 @@ version = "1.0.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112a4546bd826"
+ 
+-[[package]]
+-name = "foldhash"
+-version = "0.2.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+-
+ [[package]]
+ name = "hashbrown"
+ version = "0.17.1"
+@@ -67,6 +61,12 @@ dependencies = [
+  "proc-macro2",
+ ]
+ 
+«[[package]]
++name = "ryu"
++version = "1.0.23"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
++
+ [[package]]
+ name = "serde"
+ version = "1.0.229"
+@@ -98,17 +98,15 @@ dependencies = [
+ 
+ [[package]]
+ name = "serde_json"
+-version = "1.0.154"
++version = "1.0.140"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ 
+ [[package]]
+@@ -127,9 +125,3 @@ name = "unicode-ident"
+ version = "1.0.27"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
+-
+-[[package]]
+-name = "zmij"
+-version = "1.0.23"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+diff --git a/src/install.rs b/src/tes and whether anything changed.
++fn install_skills(dir: &Path, dry_run: bool) -> Result<(Vec<String>, bool), String> {
+     let mut notes = Vec::new();
++    let mut changed = false;
+     for (name, text) in SKILLS {
+         let skill_dir = dir.join(name);
+-        if skill_dir.exists(). ok
+test tests::adds_31 ... ok
+test tests::adds_32 ... ok
+test tests::adds_33 ... ok
+test tests::adds_34 ... ok
+test tests::adds_35 ... ok
+test tests::adds_36 ... ok
+test tests::adds_37 ... ok
+test tests::adds_38 ... ok
+test tests::adds_39 ... ok
+test tests::adds_4 ... ok
+test tests::adds_40 ... ok
+test tests::adds_41 ... ok
+test tests::adds_41 ... ok
+test tests::adds_43 ... ok
+test tests::adds_44 ... ok
+test tests::adds_45 ... ok
+test tests::adds_46 ... ok
+test tests::adds_47 ... ok
+test tests::adds_48 ... ok
+test tests::adds_49 ... ok
+test tests::adds_5 ... ok
+test tests::adds_50 ... ok
+test tests::adds_51 ... ok
+test tests::adds_52 ... ok
+test tests::adds_53 .building target 1 ... ok
+building target 2 ... ok
+building target 3 ... ok
+building target 4 ... ok
+building target 5 ... ok
+building target 6 ... ok
+building target 7 ... ok
+building target 8 ... ok
+building target 9 ... ok
+building target 10 ... ok
+building target 11 ... ok
+building target 12 ... ok
+building target 13 ... ok
+building target 14 ... ok
+building target 15 ... ok
+building target 16 ... ok
+building target 17 ... ok
+building target 18 ... ok
+building target 19 ... ok
+building target 20 ... ok
+building target 21 ... ok
+building target 22 ... ok
+building targtarget 50 ... ok
+building target 51 ... ok
+building target 52 ... ok
+building target 53 ... ok
+building target 54 ... ok
+building target 55 ... ok
+building targbuilding target.. ok
+test tests::adds_54 ... ok
+test tests::adds_55 ... ok
+test tests::adds_56 ... ok
+test tests::adds_57 ... ok
+test tests::adds_58 ... ok
+test tests::adds_59 ... ok
+test tests::adds_6 ... ok
+test tests::adds_7 ... ok
+test tests::adds_8 ... ok
+test tests::adds_9 ... ok
+
+test result: ok. 60 passed; 0 failed; 0 ignor 66 ... ok
+buildined; 0 measured; 0 fig target 67 ... ok
+lte

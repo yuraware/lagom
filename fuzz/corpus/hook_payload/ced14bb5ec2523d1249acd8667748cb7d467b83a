@@ -1,0 +1,10 @@
+{
+  "session_id": "0b6f1c2e-0800-4000-8000-00repo",
+  "permisskon_mode": "b/ypassPermissions",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": true
+  },
+  "tool_use_id": "tool_01"
+}

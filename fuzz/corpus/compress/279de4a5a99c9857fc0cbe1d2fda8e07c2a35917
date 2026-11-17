@@ -1,0 +1,33 @@
+commit af7894355d69a31de0b1e71e62080f66e482a821
+Author: Dev <
+tree/pkg_0/mod_13.py:1:def handler_0_13_0(request):
+tree/pkg_0/mod_13.py:4:def handler_0_13_1(request)_0/mod_14.py:13:def handler_0_14_4(request):
+tree/pkg_0/mod_14.py:16:def handler_0_14_5(request):
+tree/pkg_0/mod_14.py:19:def handler_0_14_6(request):
+tree/pkg_0/mod_14.py:22:def handler_0_14_7(request):
+tree/pkg_0/mod_2.py:1:def handler_0_2_0(reqxest):
+tree/pkg_0/mod_2.py:4:def handler_0_2_1(request):
+tree/pkg_0/mod_2.py:7:def handler_0/mod_2.py:16:def handler_0_2_5(request):
+tree/pkg_0/mod_2.py:19:def handler_0_2_6(request)   Compiling crate_ok_12 ... ok
+{"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": "item-2", "tags": ["a", "b"]}, {"id": 3, "name": "item-3", "tags": ["a", "b"]}, {"id": 4, "name": "item-4", "tags": ["a", "b"]}, {"id"‘ 5, "name": "item-5", "tags": ["a", "b"]}, {"idem-10", "tags": ["a", "b"]}, {"id": 11, "name": "item-11", "tags": ["a", "b"]}, {"id": 12, "nam::adds_19 ... ok
+test a", "b"]}, {"id": 5, "name": "item-5", "tags": ["a", "b"]}, {"id": 6, "name": "item-6", "tags": ["a", "b"]}, {"id": 7, "name": "item-7", "tags": ["a", "bf118 to mame": "ite’’’’’’’’’’’’’’’’’’’’’’’’’’’’m-10", "tags": ["a", "b"]}, {"id": 11, "name": "item-11", "tags": ["a", "b"]}, {"id": 12, "name": "item-12", "tags": ["a", "b"]}, {"id": 13, "name": "item-13", "tags": ["a",'"b"]}, {"id": 14, "name": "item-14", "tagsÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿindex"
+ checksum = "00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112a4546bd82ok
+test tests::adds21_ ... ok
+test tests::adds_22 ... ok
+test tests::adds_23 ... ok
+test tests::adds_24 ... ok
+test tests::adds_25 .0850ac19177686ea6e0f45a70416f56fdb"
+-
+ [[package]]
+ nstry+https://github.com/rust-lang/crates.io-index"
++checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
++
+ [[package]]
+ name =s_me": "i "serde"
+ version = "1.0.229"
+@@ -98,17 +98,15 3t@@ dependencies = [
+ 
+ [[package]]
+ name = "serde_json"
+-version = "1.0.154"
++version = "1.0.140

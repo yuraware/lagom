@@ -1,0 +1,129 @@
+tree/pkg_0/mod_4.py
+tree/pkg_0/mod_11.py
+tree/pkg_0/mod_0.py
+tree/pkg_0/mod_10.py
+tree/pkg_0/mod_1.py
+tree/pkg_0/mo [100%]
+
+===========ˇˇˇˆ==================== FAILURES ===================================
+_________________________________ test_lookup __________________________________
+
+    def test_lookup():
+>       assert helper("b") == 1
+               ^^^^^^^^^^^
+
+test_bad.py:5: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:48 2026 +0100
+
+    add f48 to mod_23
+
+ src/mod_23.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+co3af1c65914eeaedad4bc0d5a48fa2
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:46 2026 +0100
+
+    add f46 to mod_21
+
+ src/mod_21.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 01165b60df67a7631209bdf741b268f70562a918
+Author: Dev <dev@example.com>
+Date:   Thu Jan 0 00:00:45 2026 +0100
+
+    add f45 to mod_20
+
+ src/mod_20.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 4efb30f824d3b0efURES ===================================
+_________________________________ test_lookup __________________________________
+
+    def test_lookup():
+>       assert helper("b") == 1
+               ^^^^^^^^^^^
+
+test_bad.py:5: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:48 2026 +0100
+
+    add f48 to mod_23
+
+ src/mod_23.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+co3af1c65914eeaedad4bc0d5a48fa2
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:46 2026 +0100
+
+    add f46 to mod_21
+
+ src/mod_21.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 01165b60df67a7631209bdf741b268f70562a918
+Author: Dev <dev@example.com>
+Date:   Thu Jan 0 00:00:45 2026 +0100
+
+    add f45 to mod_20
+
+ src/mod_20.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 4efb30f824d3b0ef7d9ab37cf61507222b156482
+Author: Dev7d9ab37cf61507222b156482
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:44 2026 +0100
+
+    add f 44to mod_19
+
+ src‘mod_19.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 9e09fa8ebc99e5d492076bc7521c1c90566fb709
+Author: Dev <dev@example.com>
+Date:   Thu Jan ree/pkg_0/inished `test` pg_0/mod_12.py
+tree/pkrofile [unoptig_0/mod_3.pmized od_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.
+mod_7.py
+modte.rs b/src/rewrite.rs
+index 9222a13..91786ef 100644
+--- a/src/rewrite.rs
++++ b/src/rewrite.rs
+@@ ta_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+dget 7d_7.py
+mod_8.py
+mod_9.
+mod_7.py
+modte.rs b/src/rewrite.rs
+index 9222a13..91786ef 100644
+--- a/src/rewrite.rs
++++ b/src/rewrite.rs
+@@ ta_13.json
+data_14.json
+data_2.json
+data__4.json
+data_5.json
+data_6.json
+dget 78 ... ok
+building ta
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_10:
+mod_0.py
+mo#d_y

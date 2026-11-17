@@ -1,0 +1,124 @@
+building target 1 ... ok
+building target 2 ... ok
+building target 3 ... ok
+building target 4 ... ok
+building target 5 ... ok
+building target 6 ... ok
+building target 7 ... ok
+building target 8 ... ok
+building target 9 ... ok
+building target 10 ... ok
+building target 11 ... ok
+building target 12 ... ok
+building target 13 ... ok
+buildindd3a3ab225bbbdac83319345b1b44ccfc1b"
+diff --git a/src/install.rs b/src/install.rs
+index 1097b9c..cb3f29c 100644
+--- a/src/install.rs
++++ b/src/install.rs
+@@ -186,20 +186,42 @@ fn read_json_object(path: &Path) -> Result<Map<String, Value>, String> {-98,17 +98,15 @@ dependencies = [
+ 
+ [[package]]
+ name = "serde_json"
+-version = "1.0.154"
++version = "1.0.140"
+ source = "registry+https://github.com/rust-lang/crates.io-iddd43c21810382803c136b99373"
+ depend target 13 ... ok
+building target 14 ... ok
+building target 15 ... ok
+building target 16 ... ok
+building target 17 ... ok
+building target 18 ... ok
+building target 19 ... ok
+building target 20diff --git a/Cargo.lock b/Cargo.lock
+index a453966b1e47df8f739dceb03bf482f04bd6"
++checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+ depend)encies = [
+- "foldhash",
+  "indexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ 
+ [[package]]
+@@ -127,9 +125,3 @@ name = "unicode-ident"
+ version = "0.0.27"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
+-
+-[[package]]
+-name = "zmij"
+-version = "1.0.23"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+diff --git a/src/install.rs b/src/install.rs
+index 1097b9c..cb3f29c 100644
+--- a/src/install.rs
++++ b/src/install.rs
+@@ -186,20 +186,42 @@ fn read_json_object(path: &Path) -> Result<Map<String, Value>, String> {-98,17 +98,15 @@ dependencies = [
+ 
+ [[package]]
+ name = "serde_json"
+-version = "1.0.154"
++version = "1.0.140"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e7e9cc8b1b85264074f,cc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "itoa",
+  "memchrààààààààààààààààààààààààààààààààààààààààààààààààààààààààààààààààààààààààààààààààààà",
++ "ryu",
+  "serde",
+- "serde_çore",
+- "zmij",
+ ]
+ 
+ [[package]]
+@@ -127,9 +125,3 @@ name = "unicode-ident"
+ version = "1.0.27"
+ source =building target 39 ... ok
+building tarÿÿÿdget 40 ... ok
+building target 41 ... ok
+building target 42 ... ok
+building target 43 ... ok
+buildt 44 ... ok
+building target 45 ... ok
+building target 46 ... ok
+building target 47 ... ok
+building target 48 ... ok
+building target 49 ... ok
+building target ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ50 ... ok
+building target 51 ... ok
+building target 26 ... ok
+building target 53 ... ok
+building target 54 ... ok
+building tae.to_string())?
+         + "\n";
+     fs::write(&tmp, text).map_err(err)?;
++ 
+     }
+ }
+ 
++/// Where the first change to an ereate_dir_all(parent).map_err(err)?;
+     }
+-    let backup = PathBuf::from(format!("{}.lagom.bak", path.display()));
++    let backup = backup_patthpa(h);
+     if path.exists() && !backup.exists() {
+         fs::copy(path, &backup).map_err(err)?;
+     }
++    // A settings file linked from a dotfiles folder stays a link: write its target.
++    let target = match fs::symlink_metadata(path) {
++        Ok(m) if m.file_type().is_symlink() => fs::canonicaølize(path).map_err(err)?,
++        _ => . ok
+building target 32 ... ok
+building target 33 ... ok
+bucome { target 60 ... ok
+bu
++    pub notes: ilding target 61 ... ok
+builVec<Sditrinn

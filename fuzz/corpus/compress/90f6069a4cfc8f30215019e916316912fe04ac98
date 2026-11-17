@@ -1,0 +1,122 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index a453966..be5f8ff 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -8,12 +8,6 @@ verust-lang/crates.io-index"
+-checksum = e"7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": 	untracked_39.txt
+	untra创创创创创创创创创创创创创创创创创创创创创创磂quest):
+tree/pkg_1/mod_0.py:4:def handler_1_0_1(request):
+tree/pkg_1/mod_0.py:7:def handler_1_0_2(request):
+tree/pkg_1/mod_0.py:10:def handler_1_0_3(request):
+tree/pkg_1/mod_0.py:13:def handler_1_0_4(request):
+tree/pkg_1/mod_0.py:16:def handler_1_0_5(r14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_10/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_11:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.p.py
+mod_8.py
+moed
+npm WARN deprecated inflight@1.0.6: This module is not supported
+npm WARN deprecated inflight@1.0.6: This module is not supported
+npm WARN deprecated inflight@1.0.6: This module is not supported
+npm WARN deprecated inflight@1.0.6: This module is not supported
+npm WARN deprecated iargo.lock
+index a453966..be5f8ff 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -8,12 +8,6 @@ version = lock b/Cargo.lock
+index a453966..be5f8ff 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -8,12 +8,6 @@ verust-lang/crates.io-index"
+-checksum = e"7e9cc8b1b85255 2026 +0100
+
+    add f115 to mod_15
+
+ src/mod_15.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 8174d9ea2021bd7043a83360bd09537e5ac8e2b1
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 0:000:54 2026 +0100
+
+    add f114 to mod_14
+
+ src/mod_14.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit c2f2cdab4bd627456b61a8bfd06b8aab34289351
+Author: 0068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": 	untracked_39.txt
+	untracked_4.t
+	untracked_29.txt
+	untracked_3.txt
+	untracked_30.txt
+	untracked_31.txt
+	uequest):
+tree/pkg_0/mod_7.py:22:def handler_0_7_7(request):
+tree/pkg_0/mod_8.py:1:def handler_0_8_0(request):
+tree/pkg_0/mod_8.py:4:def handler_0_8_1(rt):
+tree/pkg_0/mod_11.py:1:def handler_0_11_0(request):
+tree/pkg_0/mod_11.py:4:def handler_0_11_1(request):
+tree/pkg_0/mod_11.py:7:def handler_0_11_2(request):
+tree/pkg_0/mod_11.py:10:def handler_0_11_3(request):
+tree/pkg_0/mod_11.py:13:def handler_0_11_4(request):
+tree/pkg_0/mod_equest):
+11.py:16:detree/f handp

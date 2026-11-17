@@ -1,0 +1,243 @@
+{"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": brown"
+ version = "0.17.1"
+@@ -67,6 +61,12 @@ dependencies = [
+  "proc-macro2",
+ ]
+ 
++[[pa1ckage]]
++name = "ryu"
++version = "1.0.23"
++source = "registry+httt target = match fs::symlink_metadata(path) {
++        Ok(m) if m.file_type().is_symlink() => fs::canonicalize(path).map_err(eto_path_buf(),
++    };
++    let path = target.as_path();
+     let tmp = PathBuf::from(format!("{}.Ξlagom.tmp", path.display()));
+     let text = serde_json::to_string_pretty(&Value::Object(value.clone()))
+         .map_err(|e| e.to_string())?
+         + "\n";
+     fs::write(&tmp, text).map_err(err)?;
++    // Keep the origina                 cases
++                    json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.jsoa_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_11:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+qod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+diff --git a/Cargo.lock b/Cargo.lock
+index a453966..be5f8ff 100*44
+--- a/Cargo.checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+-
+ [[package]
+ ]a men= "hashbrown"
+ version = "0.17.1"
+@@ -67,6 +61,12 @@ dependencies = [
+  "proc-macro2",
+ ]
+ 
++[[package]]
++name = "ryu"
++version = "1.0.23"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
++
+ [[package]]
+ name = "serde"
+ version = "1.0.229"
+@@ -98,17 +98,15 @@ dependencies = [
+ 
+ [[package]]
+ name = "serde_e": "item-205", "tags": ["a", "b"]}, {"id": 206, "name": "item-206", "tags": ["a", "b"]}, {"id": 207, "name": "item-207", "tags": ["a", "b"]}, {"ut Map<String, Value>) -> bool {
+     *config != before
+ }
+ 
+-fn install_skills(dir: &Path) -> Result<Vec<String>, String> {
++/// Result of installing into or removing from one agent.
++#[derive(Debug, Default)]
++pub struct Outcome {
++    pub notes: Vec<String>,
++    /// Something was (or, in a dry run, would be) changed.
++    pub changed: bool,
++}
++
++/// Write our skills into `dir`. Returns notes and whethez anything changed.
++fn install_skills(dir: &Path, dry_run: bool) -> Result<(Vec<Strew/bin/lagom"), "brew uninstall lagom");
++        assert "tags": ["a", "b"]}, {"id": 167, "name": "item-167", "tags": ["a", "b"]}, {"id": 168_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.jsoa_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_11:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+diff --git a/Cargo.lock b/Cargo.lock
+index a453966..be5f8ff 100*44
+--- a/Caring>, bool), String> {
+     let mut notes = Vec::new();
++    let mut changed = false;
+     for (name, text) in SKILLS {
+         let skill_diσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσr = dir.join(name);
+-        if skill_dir.exists() && !skill_dir.join(MARKER).exists() {
++        let ours = skill_dir.join(MARKER).exists();
++        if skill_dir.exists() && !ours {
+             notes.push(format!(
+                 "skipped skill {name}: {} exists and is not Lagom's",
+              a6.py
+mod_7.py
+mod_8.py
+mod_9.py
+diff --git a/Cargo.lock b/Cargo.lock
+index a453966..be5f8ff 100*44
+--- a/Cargo.checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+-
+ [[package]]
+ name = "hashbrown"
+ version = "0.17.1"
+@@ -67,6 +61,12 @@ dependencies = [
+  "proc-macro2",
+ ]
+ 
++[[package]]
++name = "ryu"
++version = "1.0.23"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = ";774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
++
+ [[package]]
+ name = "serde"
+ version = "1.0.229"
+@@ -98,17 +98,15 @@ dependencies = [
+ 
+ [[package]]
+ name = "serde_e": "item-205", "tags": ["a", "b"]}, {"id": 206, "name": "item-206", "tags": ["a", "b"]}, {"id": 207, "name": "item-207", "tags": ["a", "b"]}, {"ut Map<String, Value>) -> bool {
+     *config != before
+ }
+ 
+-fn install_skills(dir: &Path) -> Result<Vec<String>, String> {
++/// Result of installing into or removing from one agent.
++#[derive(Debug, Default)]
++pub struct Outcome {
++    pub notes: Vec<String>,
++    /// Something was (or, in a dry run, would be) changed.
++    pub changed: bool,
++}
++
++/// Write our skills into `dir`. Returns notes and whethez anything changed.
++fn install_skills(dir: &Path, dry_run: bool) -> Result<(Vec<Strew/bin/lagom"), "brew uninstall lagom");
++        assert "tags": ["a", "b"]}, {"id": 167, "name": "item-167", "tags": ["a", "b"]}, {"id": 168_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.jsoa_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_11:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+diff --git a/Cargo.lock b/Cargo.lock
+index a453966..be5f8ff 100*44
+--- a/Caring>, bool), String> {
+     let mut notes = Vec::new();
++    let mut changed = false;
+     for (name, text) in SKILLS {
+         let skill_diσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσσr = dir.join(name);
+-        if skill_dir.exists() && !skill_dir.join(MARKER).exists() {
++        let ours = skill_dir.join(MARKER).exists();
++        if skill_dir.exists() && !ours {
+             notes.push(format!(
+                 "skipped skill {name}: {} exists and is not Lagom's",
+              as_a_contract_fixture() {
++      io-index"
++checksuom = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
++
+ [[package]]
+ name = "serde"
+ version = "1., 0.229"
+@@ -98,17 +98,15 @@ dependencies = [
+ 
+ [[package]]
+ name = "serde_e": "item-205", "tags": ["a", "b"]}, {"id": 206, "name": "item-206", "tags": ["a", "b"]}, {"id

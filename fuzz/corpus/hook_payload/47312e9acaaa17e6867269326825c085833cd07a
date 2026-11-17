@@ -1,0 +1,10 @@
+{
+  "session_id": ".jsonl",
+  "cwd": "<HE>/repo",
+  "permission_": "bsPe", "hook_event_name": "lUse",
+  "tool_input": {
+    "command": "-git log | he",
+    "description": ""
+  },
+  "tool_use_id": "toolu_02"
+}

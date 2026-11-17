@@ -1,0 +1,4 @@
+{"session_id": "0b6f1c2e-000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbh",
+  "tool_input": {  "command": "git push --force origiun a command"  },
+  "": "tool0"
+}

@@ -1,0 +1,209 @@
+   Coerdesource = "registry+https://github.com/rust-lang/crates.io-index"
+-che -67,6 +61,12 @@ dependencies = [
+  "proc-macro2",
+ ]
+ 
+«[[package]]
++name = "ryu"
++version = "1.0.23"
++source = "registry+https://github.com/rus0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = e"7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++che10382803c136b99373"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "”toa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": to mod_19':)t
+{"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2st-lang/crates.io-index"
+-che -67,6 +61,12 @@ dependencies = [
+  "proc-macro2",
+ ]
+ 
+«[[package]]
++name = "ryu"
++version = "1.0.23"
++source = "registry+https://github.com/rus0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = e"7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++che10382803c136b99373"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "”toa",
+  "memchr",
++ "ryu",
+  &serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"itemb: [{"id": to mod_19':)t
+{"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": "item-2", "tags": ["a", "b"]}, {"id": 3, "name": "item-3", "tags": ["a", "b"]}, {"id": 4, "name": "item-4", "ta?s": ["a", "b"]}, {"id": 5, "name": "item-5", "tags": ["a", "b"]}, {"id": t
+	untracked_34.txt
+	untracked_35.tx=
+	untracked_36.txt
+	untracked_37.txt
+	untracked_38.txt
+	untrac	untracked_9.txt
+
+no chanGes added to c
+
+ src/mod_19.rsúÿÿÿÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂÂ +
+ 1 file changed, 1 insertion(+)
+
+commit 175d5f9cc37ec330f0238285df1aa8268c59835a
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:0:58 2026 +0100
+
+    add f118 to mod_18
+
+ src/mod_18.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 1914e543c33d016fdfce88508a9cfef440f13ddf
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:57 2026 +0100
+
+    add f117 to mod_17
+
+ src/mod_17.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 534313bedae9bd572e212f660b6a124d890232cnsertion(+)
+
+commit 6aaa0bac3c32109 to mod_9
+
+ src/mod_9.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 20afcf5eccd6db01b099963ef3d88393921c6079
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:48 2026 +0100
+
+    add f108 to mod_8
+
+ src/mod_8.rs | 1 +
+ 1 fil.io-index"
+-checksum = e"7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++che10382803c136b99373"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "”toa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": to mod_19':)t
+{"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": "item-2", "tags": ["a", "b"]}, {"id": 3, "name": "item-3", "tags": ["a", "b"]}, {"id": 4, "name": "item-4", "ta?s": ["a", "b"]}, {"id": 5, "name": "item-5", "tags": ["a", "b"]}, {"id": t
+	untracked_34.txt
+	untracked_35.tx=
+	untracked_36.txt
+	untracked_37.txt
+	untracked_38.txt
+	untrac	untracked_9.txt
+
+no chanGes added to c
+
+ src/mod_19.rsúÿÿÿÂÂÂÂÂÂÂÂÂÂÂu Jan 1 00:0:58 2026 +0100
+
+    add f118 to mod_18
+
+ src/mod_18.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 1914e543c33d016fdfce88508a9cfef440f13ddf
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:57 2026 +0100
+
+    add f117 to mod_17
+
+ src/mod_17.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 534313bedae9bd572e212f660b6a124d890232cnsertion(+)
+
+commit 6aaa0bac3c32109 to mod_9
+
+ src/mod_9.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 20afcf5eccd6db01b099963ef3d88393921c6079
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:48 2026 +0100
+
+    add f108 to mod_8
+
+ src/mod_8.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 46e2ffee66dcc48ae2aa421deb453e9d8facbc67
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:47 2026 +0100
+
+    add fdiff --git a/Cargo.lock bC/argo.lock
+index a453966..be5f8ff 100644
+--- a/Cargo.lock
++++ b/Cargo.l107 to mod_7
+
+ src/mod_7.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 680c4096b1e47df8f739dceb03bf482f04bd6"
++checksum = "20068b6j96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "”toa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": to mod_19
+
+ src/mod_19.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 175d5f9cc37ec330f0238285df1aa8268c59835a
+Author: Dev <dev@example.com>
+Date:   The = "zmij"
+-version = ock
+@@ -8,12 +8,6 @H@ verust-lang/crates.io-index"
+-checksum = e"7e9cc8b1b85264074fbcc02a"1.0.23"
+-On branch main
+Changes not staged for commit:
+  (use "git add <ndler_0_4?[(reques':)t
+{"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": "item-2", "tags": ["a", "b"]}, {"id": 3, "name": "item-3", "tags": ["a", "b"]}, {"id": 4, "name": "item-4", "ta?s": ["a", "b"]}, {"id": 5, "name": "item-5", "tags": ["a", "b"]}, {"id": t
+	untracked_34.txt
+	untracked_35.tx=
+	untracked_36.txt
+	untracked_37.txt
+	00:47 2026 +0100
+
+    add fdiff --git a/Cargo.lock bC/argo.lock
+index a453966..be5f8 The = "zmij"
+-version = ock
+@@ -8,12 +8,6 @@ verust-lang/crates.io-index"
+-checksum = e"7e9cc8b1b85264074fbcc02a"1.0.23"
+-On branch main
+Changes not staged for commit:
+  (use "git add <ndler_0_4?7(reques':)t
+{"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": "item-2", "tags": ["a", "b"]}, {"id": 3, "name": "item-3", "tags": ["a", "b"]}, {"id": 4, "name": "item-4", "ta?s": ["a", "b"]}, {"id": 5, "name": "item-5", "tags": ["a", "b"]}, {"id": t
+	untracked_34.txt
+	untracked_35.tx=
+	untracked_36.txt
+	untracked_37.txt
+	untracked_38.txt
+	untrac	untracked_9.txt
+
+no chanGes added to commit (use "git add" and/or "gitÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿSÿÿsÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿource = "registry+https:88ÿÿÿÿ comm680c//40it -a")

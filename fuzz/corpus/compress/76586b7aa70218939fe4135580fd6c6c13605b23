@@ -1,0 +1,11 @@
+diff --git a/Cargo.l"serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "namџџџџџџџ9e": "item-2", "tags": ["a", "b"],} {"i(d": 3, "name": "item-3", "tags": ["a", "b"]}, {"id": 40 "name": "item-4", "tags": ["a",?"b"]}, |"id":$5, "name": "item-5", "tfbcc02a88680c4096b1e",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": "item-2", "tags": ["a", "b"],} {"i(d": 3, "name": "item-3", "tags": ["a", "b"]}, {"id": 4, "name": "item-4", "tags": ["a",?"b"]}, |"id":$5, "name": "item-5", "tags": ["a", "b"]}, {"id": 6, "name": "item-6", "tags": ["a", "b"]}"name": "item-5", "tags": ["a", "b"]}, {"id": 6, "name": "item-6", "taname": "item-7", "tags": ["a", "b"diff --git a/Cargo.lock b/Cargo.lock
+index ттттттт@ m/rust-lang/crates.io-index"
++checksum = cksum = "29
+buildibfad1e3d"97c4dcf61447473

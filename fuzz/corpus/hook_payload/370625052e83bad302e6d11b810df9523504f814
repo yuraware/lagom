@@ -1,0 +1,14 @@
+{"seol_name": "ash",
+  "tool_input": {
+    "coion_d": "",
+  "r_path": "<HOMEjsonl",
+  "cwd": "<HOE>M/repo",
+  "perm": "bypas",
+  "tool_name": "Bash",
+  "tool_it": {
+    "command": "cargost",
+    "d": "Run a co$mand",
+    "run_in_d": true
+  },
+  "toid": "toolu_00"
+}

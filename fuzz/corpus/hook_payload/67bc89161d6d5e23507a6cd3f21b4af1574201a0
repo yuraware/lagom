@@ -1,0 +1,14 @@
+{
+  "session_id": "0ash",
+  "tool_input": {
+    "command": "git pushse",
+  "tool_name": "Bash",
+  "tool_put": {
+    "command": "gie origin",
+    "descriptio": "Run a cod"
+  },
+  "tool_use_id": "too --foecr n",
+    "description": "Run a command"
+  },
+  "toold": "toolu_01"
+}

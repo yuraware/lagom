@@ -1,0 +1,9 @@
+{
+  "session_id": "0b6f1c2e-080NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNassPermissions",
+  "hook_evetool_input": {
+    "command": "ca[rggo test",
+    "description": "Run a command",
+    "run_in_background": true
+  },
+  "tool_use_id": "tool_02"
+}

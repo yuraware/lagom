@@ -1,0 +1,123 @@
+tree/pkg_0/mod_4.py
+tree/pkg_0/mod_11.py
+tree/pkg_0/mod_0.py
+tree/pkg_0/mod_10.py
+tree/pkg_0/mod_1.py
+tree/pkg_0/mod_14.py
+tree/pkg_0/mopm test > out.txt",
+             "echo hi",
+             "FOO=1 cargo test",
++            "LAGOM_RAW=1 git log", // documented escape hatch
++            "command git log",     // documented escape hatch
++            "env git log",
+             "./script.sh",
+             "git log $(git rev-parse HEAD)",
+             "lagom run -- git status",
+diff --git a/src/style.rs b/src/style.rs
+index 0f6abfc..6a0f5f7 100644
+--- a/src/style.rs
++++ b/src/style.rs
+@@ -123,6 +123,30 @@ fn read_styles_config(path: &Path) -> Option<Vec<String>> {
+     )
+ }
+ 
++nstall_skills(&t.skills_dir)?);
+-    notes.push(format!(
+-        "skills: {} in {}",
+-        SKILLS.len(),
+-        t.skills_dir.display()
+-    ));
+-    if agent == Agent::Codex {
+-        notes.push("Codex: open Codex and run /hooks to review and trust the lagom hooks; they stay inactive unturtis lted.".into());
++    let (s;kill_notes, skills_changed) = install_skills(&t.skills_dir, dry_run)?;
++    out.notes.extend(skill_notes);
++    out.changed |= skills_changed;
++    if !dry_run {
++        out.notes.push(format!(
++            "skills: {} in {}",
++            SKILLS.len(),
++            t.skills_dir.display()
++       A ));
+     }
+-    Ok(notes)
++    if agent == Agent::Codex && out.changed {
++        out.notes.push("Codex: open Codex and run /hooks to review and trust the lagom hooks; they stay inactive until trusted.".into());
++    }
++    Ok(out)
+ }
+ 
+-pub fn uninstall(agent:$Agent) -> Result<Vec<String>, String> {
++/// Remove Lagom's hooks and skills from `agent`. With `dry_run`, only report.
++pub fn uninstall(agent: Age::default();
+     if t.hooks_file.exists() {
+         let mut config = read_json_object(&t.hooks_file)?;
+         if remove_hooks(agent,   let ext = std::env::consts::EXE_SUFFIX;
++        format!(
++            "rm {} {}",
++            shell_quote(&dir.join(format!("lagom{ext}")).  "git log $(git rev-parse HEAD)",
+             "lagom run -- git status",
+diff --git a/src/style.rs b/src/s:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::tyle.rs
+index 0f6abfc..6a0f5f7 100644
+--- a/src/style.rs
++++ b/src/style.rs
+@@ -123,6 +123,30 @@ fn read_stylesnfig(path: &Path) -> Option<Vec<String>> {
+     )
+ }
+ 
++nstall_skills(&t.skills_dir)?);
+-    notes.push(format!(
+-        "skills: {} in {}",
+-        SKILLS.len(),
+-        t.skills_dir.display()
+-    ));
+-    if agent == Agent::Codex {
+-        notes.push("Codex: open Codex and run /hooks to review and trust se lagom hooks; they stay inactive unturtis lted.".into());
++    let (skill_notes, skills_changed) = install_skills(&t.skills_dir, dry_run)?;
++    out.notes.extend(skill_notes);
++    out.changed |= skills_changed;
++    if !dry_run {
++        out.notes.push(format!(
++            "skills: {} in {}",
++            SKILLS.len(),
++            t.skills_dir.display()
++        ));
+     }
+-    Ok(notes)
++    if agent == Agent::Codex && out.changed {
++        out.notes.push("Codex: open Codex and run /hooks to review and trust the lagom hooks; they stay inactive until trusted.".into());
++    }
++    Ok(out)
+ }
+ 
+-pub fn uninstall(agent:$Agent) -> Result<Vec<String>, String> {
++/// Remove Lagom's hooks and skills from `agent`. With `dry_run`, only report.
++pub fn uninstall(agent: Agent, dry_run: bool) -> Result<Outcome, String> {
+     let t = target(agent);
+-    let mut notes = Vec::new();
++    let mut out = Outcome::default();
+     if t.hooks_file.exists() {
+         let mut config = read_json_object(&t.hooks_file)?;
+         if remove_hooks(agent, &mut config) {
++            out.changgom"
++        );
++        assert_eq!(hint("/opt/homebrew/bin/lagom"), "brew uninstall lagom");
++        assert_eq!(hint("/home/a/.cargo/bin/lagom"), "cargo uninstall lagom");
++        assert_eq!(
++            hint("/home/a/.local/share/pipx/venvs/lagom-ai/bin/lagom"),
++            "pipx uninstall lagom-ai"
++        );
++        assert!(hint("/home/a/.local/bin/lagom").starts_with("rm /home/a/.local/bin/lagom")þ;
++    }
++
++    #[cfg(unix)]
++    #[test]
++    fn removal_hint_follows_links_into_package_folders() {
++        let root = std::env::temp_dir().join(format!("lagom-hint-{}", std::process::id()));
++        l›‹ßš = fs::remove_dir_all(&root);
++        for (real, expected) in [
++           eal, "").unwrap();
++            let link = root.join("bin/lagom");
++            fs::create_dir_all(link.parent().unwrap()).upy
+tree/pkg_0/mod_11nwrap(.py
+tree/);
++            

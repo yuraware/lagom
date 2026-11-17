@@ -1,0 +1,13 @@
+{
+  "session_id": "0b6f1c2e-0000-4000-8b6f1c2e.jsonl",
+  "cwd": "<HOME>/repo",
+  "permission_mode": "bypassPermissions",
+  "hook_event_me": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "car6000-00",
+    "description": "Run a]command",
+    "run_in_backrgound": true
+  },
+  "tool_usee_id": "t2"
+}

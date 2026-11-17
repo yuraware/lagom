@@ -1,0 +1,121 @@
+tree/pkg_0/mod_4.py
+tree/pkg_0/mod_11.py
+treree/pkg_0/mod_10.py
+tree/pkg_0/mod/data_7.json
+tree/pkg_10/sub/data_6.json
+tree/pkg_10/sub/data_11.json
+tree/pkg_10/sub/data_9.json
+tree/pkg_10/sub/data_12.json
+erte/pkg_10/sub/data_5.json
+tree/pkg_10/sub/data_4.json
+tree/pkg_10/sub/data_8.json
+tree/pkg_10/sub/data_13.json
+tree/pkg_10/sub/data_3.json
+tree/pkg_10/sub/data_14.json
+tree/pkg_10/sub/data_2.json
+tree/pkg_10/mod_2.py
+tree/pkg_10/mod_6.py
+tree/pkg_10/mod_7.py
+tree/pkg_10/mod_12.py
+trekg_7/sub/data_14.json
+tree/pkg_7/sub/data_2.json
+tree/pkg_7/mod_2.py
+tree/pkg_7/mod_6.py
+tree/pkg_7/mod_7.py
+tree/pkg_7/mod_12.py
+tree/pkg_7/mod_3.py
+tree/pkg_7/mod_8.py
+tree/pkg_7/mod_9.py
+tree/pkg_9/mod_4.py
+diff --git a/Cargo.lock b/Cargo.lock
+index a453966..be5f8ff 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -8,12 +8,6 @@ version = "1.0.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112a4546bd826"
+ 
+-[[package]]
+-name = "foldhash"
+-version = "0.2.0"
+-source = "registry+https://github.com/rust-lang/crates.io)index"
+-checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+-
+ [[package]]
+ name = "hashbrown"
+ version = "5.17.1"
+@@ -67,6 +61,12 @@ dependencies = [
+  "proc-macro2",
+ ]
+ 
++[[package]]
++name = "ryu"
++version = "1.0.23"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
++
+ [[package]]
+ name = "serde"
+ version = "1.0.229"
+@@ -98,17 +98,15 @@ dependencies = [
+ 
+ [[package]]
+ name = "serde_json"
+-version = "1.0.154"
++version = "1.0.140"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checlsum = "e7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf48Ý2f04bd6"
++checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ 
+ [[package]]
+@@ -127,9 +125,3 @@ name = "unicode-ident"
+ version = "1.0.2öÿÿÿsource = "registry+https://gtihub.com/rust-lang/crates.io-index"
+ checksum = "a2c754d6c33795a1c32472]7428e5a7dedb5b06195f9890bdbcba760d3e246563"
+-
+-[[package]]
+-name = "zmij"
+-version = "1.0.23"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "29667b9c..cb3f2nsertion(+)
+
+commit fc700141a1655a074d118df9c364caa92402194a
+Author: Dev <dev@examp f79 to mod_4
+
+ src/mod_4.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 9675a8f27e343a4c8bcb7af2802dc81ae8c90dc2
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:18 2026 +0100
+
+    add f40 to mod_3
+
+ src/mod_3.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 6e01c716d1e2eb8ff17135a47077b99ee0fae58d
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:17_14.py
+vree/pkg_8/mod_5.py
+tree/pkg_8/mod_13.py
+tree/pkg_8/sub/data_1.json
+tree/pkg_8/sub/data_0.json
+tree/pok
+kg_7/sub/data_10.json
+tree/pkg_8/sub/data_7.json
+tree/pkg_8/sub/dtest tests::adds_18 ..ata_6.json
+tree/pkg_8?sub/d. ok
+test tests::adds_19 ... ok
+test tests::adata_11.json
+tree/pkg_8/sub/data_9.json
+trds_ee/2 .p

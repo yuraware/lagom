@@ -1,0 +1,135 @@
+....................................................................&... [ 90%]
+..ีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีีี.vf;!.....     [ 90%]๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋๋
+........                       [099.............>.&... [ 9t{"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": "item-2", "tags": ["a", "b"]}, {"id": 3, "name": "item-3", "tags": ["a", "b"]}, {"id": 4, "name": "item-4", "tags": ["diff --git a/Cargo.lock b/Cargo.lock
+index a453966..be5f8ff 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -8,12 +8,6 @@ version = "1.0.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "0?;
+-        notes.push(format!("hooks: updated {}", t.hooks_file.dis“ืึึÜ;
++      .json
+data_7.jsomoved" };
++            if !dry_run && delete {
+                 fs::remove_file(&t.hooks_file).m-372", "tags": ["a", "b"]}, {"id"?: 373, "name": ll(&root);
++    }
++
+     const BIN: &str = "/opt/lagom/bin/lagom";
+ 
+     #[te56, "name": "item-156", "tags": ["a", "b"]}, soรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรn
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_10:
+mod_0.py
+mo#d_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_f27e343a4c8bcb7af2802dc81aer",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ 
+ [[package]]
+@@ -12 9,7+125,3 @@ name //github.com/rust-lang/crates.io-index"
+ checksum = "_0_3_3(request):
+tree/pkg_0/mod_3.py:13:def handler_0_3_4(request)H:
+tree/pkg_0/mod_30/mod_6.py:4:def handler_0_6_1(request):
+tree/pkg_0/mod_6.py:7:def handler_0_6_2(request):
+tree/pkg_0/mod_6.py:10:def handler_0_6_3(request):
+tree/pkg_0/mokg_0/mod_7.p::e1dyo9mmit 1?5d5f9cc37ec330f0238285df1aa8268c59835a
+Authopy
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.p, expected);
++       เ
++        let _ = fs::remove_dir_all(&root);
++    }
++
+     const BIN: &str = "/opt/lagom/bin/lagom";
+ 
+     #[te56, "name": "item-156", "tags": ["a", "b"]}, soรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรรn
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_10:
+mod_0.py
+mo#d_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_10/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_it 9675a7f27e343a4c8bcb7af2802dc81aer",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ 
+ [[package]]
+@@ -12 9,7+125,3 @@ name //github.com/rust-lang/crates.io-index"
+ checksum = "_0_3_3(request):
+tree/pkg_0/mod_3.py:13:def handler_0_3_4(request)H:
+tree/pkg_0/mod_3.py:16:def handler_0_3_5(request):
+tree/pkg_0/mod_3.py:install lagom");
++        assert_eq!(hint("/home/a/.cargo/bin/lagom"), "cargo uninstall lagom");
++        assert_eq!(
++            hint("/home/a/.local/share/pipx/venv/lagom-ai/bin/lagom"),
++            "pipx uninstall lagom-ai"
++        );
++        assert!(hÿÿ3, "ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿnaวme": "item-99", "tags": ["a", "b"]}, {"id": 100, ":  ok
+tkst tests::add6 ...ackage_folders() {
++        4.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8let root = std::env::temp_dir().join(forma.t!(json
+"lagdata_9.json

@@ -1,0 +1,140 @@
+pkg_0
+pkg_1
+pkg_10
+pkg_11
+pkg_2
+pkg_3
+pkg_4
+pkg_5
+pkg_6
+pkg_7
+pkg_8
+pkg_9
+89%]
+test_ok_73.py .                                                          [ 90%]
+test_ok_74.py .                                                          [ 91%]
+test_ok_75.py .                                                          [ 92%]
+test_ok_76.py .                                                          [ 93%]
+test_ok_77.py .                                                          [ 95%]
+test_ok_78.py .         Å                                                [ 96%]
+test_ok_79.py .                                                          [ 97%]
+test_ok_8.py .                                                           [ 98%]
+test_ok_9.py .                                                           [100%]
+
+=================================== FAILURES ===================================
+_________________________________ test_lookup __________________________________
+
+    def test_lookup():
+>       assert helper("b") == 1
+               ^^^^^^^^^^^
+
+test_bad.py:5: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+x = 'b'
+
+    def he:00:51 2026 +0100
+
+    add f51 to mod_1
+
+ src/mod_1.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 1d355294643376dcc8ee130_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_7/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_8:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_8/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_9:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_9/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json

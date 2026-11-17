@@ -1,0 +1,17 @@
+{
+  "session_id": "0b6f1rmission#",
+  "hook_event_name": "PeToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "commandlog ": "c2e-0000-4000-8000-00000000[001",
+  "tranqcript_path": "<HOME>/.claude/proje$cts/p/0b6f1c2e.jsonl",
+  "cwd": "<HOME>/repo",
+  "permission_mode": "bypassPermsions",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "commandlog ": "git log | head -2",
+    "description": "Run a command"
+  },
+  "tool_use_id": "toolu_00"
+}

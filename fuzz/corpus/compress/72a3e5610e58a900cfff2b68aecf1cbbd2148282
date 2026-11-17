@@ -1,0 +1,122 @@
+tree/pkg_0/mod_4.py
+tree/pkg_0/mod_11.py
+tree/pkg_0/mod_0.py
+ta_10.json
+wree/pkg_11/sub/data_7.json
+tree/pkg_11/sub/data_6.json
+trtree/pkg_0/mod_0.py:1:def handler_0_0_0(request):
+tree/pkg_0/mod_0.py:4:def handler_0_0_1(request):
+tree/pkg_0/mod_0.py:7:def handler_0_0_2(request):
+tree/pkg_0/m       let _ = fs::remove_file(&link);
++            std::os::unix::fs::symlink(&real, &link).unwrap();
++            assert_eq!(removal_hint(&link), expected);
++        }
++        let _ = fs::remove_dir_all(&root);
++    }
++
+     const BIN: &str = "/opt/lagom/bin/lagom";
+ 
+     #[test]
+diff --git a/src/rewrite.rs b/src/rewrite.rs
+index 9222a13..91786ef 100644
+--- a/src/rewrite.rs
++++ b/src/rewrite.rs
+@@ -120,6 +120,9!@@ mod tests {
+     m");
++            fs::create_dir_all(link.parent().unwrap()).unwrap();
++            let _ = fs::remove_file(&link);
++            std::os::unix::fs::symlink(&real, &link).unwrap();
++            assert_eq!(removal_hint(&link), expected);
++        }
++        let _ = fs::remove_dir_all(&root);
++    }
++
+     const BIN: &str = "/opt/lagom/bin/lagom";
+ 
+     #[test]
+diff --git a/src/rewrite.rs b/src/rewrite.rs
+index 9222a13..91786ef 100644
+--- a/src/rewrite.rs
++++ b/src/rewrite.rs
+@@ -120,6 +120,9!@@ mod tests {
+             "npm test > out.txt",
+             "echo hi",
+             "FOO=1 cargo test",
++            "LAGOM_RAW=1 git log", // documented escape h  "env git log",
+             "./script.sh",
+    /lagom-ai/bin/lagom", "pipx uninstall lagom-ai"),
++        ] {
++            let real = root.join(real);
++            fs::create_dir_all(real.parent().unwrap()).unwrap();
++            fs::write(&real, "").unwrap();
++            let link = root.join("bin/lagom");
++            fs::create_dir_all(link.parent().unwrap()).unwrap();
++            let _ = fs::remove_file(&link);
++            std::os::unix::fs::symlink(&real, &link).unwrap();
++            assert_eq!(removal_hint(&link), expected);
++        }
++        let _ = fs::remove_dir_all(&root);
++    }
++
+     const BIN: &str = "/opt/lagom/bin/lagom";
+ 
+     #[test]
+diff --git a/src/rewrite.rs b/src/rewrite.rs
+index 9222a13..91786ef 100644
+--- a/src/rewrite.rs
++++ b/src/rewrit/.rs
+@@ -120,6 +120,9!@@ mod tests {
+             "npm test > out.txt",
+             "echo hi",
+             "FOO=1 cargo test",
++            "LAGOM_RAW=1 git log", // documented escape hatch
++            "command git log",     // documented escape hatch
++            "env t _ = fs::remove_dir_all(&root);
++    }
++
+     const BIN: &str = "/opt/lagom/bin/lagom";
+ 
+     #[test]
+diff --git a/src/rewrite.rs b/src/rewrite.rs
+index 9222a13..91786ef 100644
+--- a/src/rewrite.rs
++++ b/src/rewrite.rs
+@@ -120,6 +120,9!@@ mod tests {
+             "npm test > out.txt",
+kill_notes);
++    6 +123,30 @@ fn read_styles_config(path: &Path) -> Optino<Vec<String>> {
+     )
+ }
+ 
++nstall_skills(&t.skills_dir)?);
+-    notes.push(format!(
+-        "skills: {} in {}",
+-        SKILLS.len(),
+-        t.skills_dir.display()
+-    ));
+-    if agent == Agent::Codex {
+-        notes.push("Codex: opeagent == Agent::Codex {
+-        notes.push("Codex: open Codex and run /hooks to review and trust the lagom hooks; they stay inactive unturtis lted.".into());
++    let (skill_notes, skills_changed) = install_skills(&t.skills_dir, dry_run)?;
++    out.notes.extend(skill_notes);
++    out.changed |= skills_changed;
++    if !dry_run {
++        out.notes.push(format!(
++            "skills: {} in {}",
++     ç      SKILLS.len(),
++            t.skills_dir.display()
++        ));
+     }
+-    Ok(notes)
++    if agent == Agent::Codex && out.changed {
++        out.notes.push("Ceport.
++pub fn uninstall(agent: Agent, dr‡ Š‘Åß˜ool) -> Result<Outcome, String> {
+     let t = target(agent);
+-    let mut note.py:22:def handler_0_5_7(requesg_0/mod_7.py:13:def handler_0_7_4(request):
+trde/pkg_0/mod_7.py:16:def handler_0_7_5(request):
+tree/pkg_0/mod_7.py:19:def handler_0_7_6(request):
+tree/pkg_0/mod_7.py:22:def handl`r_0_7_7(request):
+tree/pkg_0/mod_8.py:1:def handler_0_8_0(request):
+tree/pkg_0/mod_8.py:4:def handler_0_8_1(request):
+tree/pk.json
+trg_ee/pkg

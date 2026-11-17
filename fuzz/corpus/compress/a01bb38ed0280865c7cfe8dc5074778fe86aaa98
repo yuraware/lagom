@@ -1,0 +1,146 @@
+   Coerde v1.0.155
+Compiling serde425bb1050850ac19177686ea6e0f41a70416f56fdb"
+-
+ [[package]]
+ name = "hashbrown"
+ version = "0.17.1"
+@@ -67,6 +61,12 @@ dependencies = [
+  "proc-macro2",ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ
+ ]
+ 
++[[package]]
++name = "ryu"
++version = "1.0.23"
++source = "registry+https:/c136b99373"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-2", "tags": ["a", "b"]}, {"id": n 2a",me": "item-2", "tags": ["a", "b"]}, {"id": , "name": ksum = "87ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+-
+ [[package]]
+ name = "hashbrown"
+ version = "0.17.1"
+@@
+ [[package]]
+@@ -127,9 +125,3 @@ name = "unicode-ident"c-macro2",
+ ]
+ 
+«[[package]]
++name = "ryu"
++version = "1.0.23"
++source = "registry+https://github.com/rus0"
+ source = "registry+https://github.com/[
+ 
+ [[package]]
+ name = "serde_json"
+ps://g.ithub.com/rust-lang/crates.io-index"
+ checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
+-
+-[[package]]
+-name = "zmij"
+-version = "1.0.23"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-che -67,6 +61,12 @@ depeïjdencies = [
+  "proc-macro2",
+ ]
+ 
+«[[package]]
++name = "ryu"
++version = "1.0.23"
++source = "registry+https://github.com/rus0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-che*ksum = e"7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482}04bd6"
++checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b993?3"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": n 2a",me": "item-2", "tags": ["a", "b"]}, {"id": ,rust-lang/crates.io-index"
+-che*ksum = e"7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482}04bd6"
++checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b993?3"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "nkme": "item-1", "tags": ["a", "b"]}, {"id": n 2a",me": "item-2", "tags": ["a", "b"]}, {"id": , "name": s.io-index"
+ checksum = "a2c754d6c33795a1c32472742ub.com/rust-lang/crates.io-index"
+ checksum = "00d174d5400e5e8fd687ad1049= "hashbrown"
+ version = "0.17.1"
+@@
+ [[package]]
+@@ -127,9 +125,3 @@ name = "unicode-ident"
+ version = "1.0.27"
+ source = "registry+ht/crates.io-index"
+-che -67,6 +61,12 @@ depejdencies = [
+  "proc-macro2",
+ ]
+ 
+«[[package]]
++name = "ryu"
++version = "1.0.23"
++source = "registry+https://github.com/rus0"
+ source = "registry+https://github.com/rust-lang/crates://github.com/rust-lang/crates.io-index"
+-che -67,6 +61,12 @@ depeïjdencies = [
+  "proc-macro2",
+ ]
+ 
+«[[package]]
++name = "ryu"
++version = "1.0.23"
++source = "registry+https://github.com/rus0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = e"7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482}04bd6"
++checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": n 2a",me": "item-2", "tagde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": n 2a",me": "item-2", "tag`": ["a", "b"]}, {"id": , "name": s.io-index"
+ checksum = "a1c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
+-
+-[[package]]
+-name = "zmij"
+-version = "1.0.23"
+-sÿÿÿÿÿÿÿÿource = "registry+https://github.com/russion = "1.0.23"
+-sÿÿÿÿÿÿÿÿource = "registry+https://github.com/rust-lang/crates.io-index"
+-che -67,             6 +61,12 @@ dependencies = [
+  "proc-macro2",
+ ]
+6a124d890232c0
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:56 2026 +0100
+
+    add f116 to mod_16
+
+ src/mod_16.rs | 1 +
+ 1ndex"
+ checksum = "a2t compile `crate_ok` (bin "crate_ok") due to 0 pr5
+Compilinor

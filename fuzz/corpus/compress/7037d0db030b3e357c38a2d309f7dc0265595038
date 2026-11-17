@@ -1,0 +1,11 @@
+   Compiling crate_ok v0.1. 0(/work/crate_ok)
+    Finished `t setr`pofile [unoptimized + debuginfo] unittests src/lib.rs (taoder.JSONDecodeError: Expect2 (d 44
+pocessing record 45
+processing record 46
+pïê
+test tests::adds_26 ... ok
+test tests::adds_27 ... ok
+test tests::adds_28 ... ok
+test tests::adds_2 "tags": ["name": "item-355", "tags": ["a", "b"]}, {"id": 356, "name": "item-356", "tags": ["a", "b"]}, {"id": 357, "name": "ite: ["a", "b"]}, {"id": 359, "name": "item-359", "tags": ["a", "b"]}, {"id": 360, "name": "item-360", "tags": ["a", "b"]}, {"id": 361, "name": "item-361", "tags": ["a", "b"]}, {"id": 362, "name": "item-362", "tags": ["a", "b"]}, {"id": 363, "name": "item-363", "tags": ["a", "b"]}, {"id": 364, "name": "item-364", "tags": ["a", "b"]}, {"id": 365, "name": "item-365", char 1)
+
+The above ex tests::addsult: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

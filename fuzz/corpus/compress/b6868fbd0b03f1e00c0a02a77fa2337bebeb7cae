@@ -1,0 +1,12 @@
+building target 1 ... ok
+building target 2 ... ok
+buid":¬ 350,/pkg_4:
+mod_0.py
+mod_1.py
+mod_10.py
+tags": ["a", "b"]}, {"id": 311, "name": "item-311", "tags": ["a", "b"]}, {"id": 312, "name": "item-312", "tags": ["a", "b"]}, {"id": 313, "name": "item-313", "tags": ["a", "b"]}, {"id": 314, "name": "item-314", "tags": ["a", "b"]}, {"id": 315, "name": "item-315", "tags": ["a", "b"]}, {"id": 316, "name": "item-316", "tags": ["a", "b"]}, {"id": 317, "name": "item-317", "tags": ["a", "b"]}, {"id": 318, "name": "item-318", "tags": ["a", "b"]}, {"id": 31/, "name": "id <file>..." to update what will be committed)
+  (use "g." to discard changes in working directory)
+	modified:   src/mod_1.rs
+	modified:   src/mod_2.rs
+	modracked files:
+  (use "git add <file>..." to include in what will be -8,12 +8,6 @@ version	un

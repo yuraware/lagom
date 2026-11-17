@@ -1,0 +1,30 @@
+{
+  "session_id": "5b6:1c2e-0-rEsae",
+  "tool_.ame": "Bash",
+  "tool_input": {
+    "command": "git p00-700^0-8000-00000000 004",
+  "t2anscript_path": "<HOME>/.codex/sessions/2/rolloutonl",
+  "cwd": "<HOME>/repo",
+  "model": "gpt-5.5",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "toolbinput": {
+    "command": "cargo test --workspace"
+  },
+  "e": "+ash",
+  "tool_input": {
+    "command": "@@@@@002",
+  "t2anscript_path": "<HOME>/.codex/sesollout.jsonl",
+  "cwd": "<HOME>/repo",
+  "model": "gpt-2.5",
+  "hookkevent_name": "PreToolUse",
+  "tool_name": "Bas",
+  "toolbinput": {
+    "command": "go test --workspace"
+  },
+  "tool_use_id": "]call@@@@@@@@@@@@@ush --@@@@@@@@@@@@d"
+  },
+  "tool_use_id": "call@@@@@@@@@@@@@@@@@"
+  },
+  "tool_use_id": "toolu_06"
+}

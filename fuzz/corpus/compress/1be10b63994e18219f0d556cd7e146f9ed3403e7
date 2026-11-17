@@ -1,0 +1,24 @@
+   Coerde v1.0.155
+Compiling serde v1.0.156
+Compilingÿÿÿÿÿÿÿckage]]
+-n -67,6b99373"
+ dependencies 
+[= - "foldhash",
+  "indexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "nae": "item-2", "tags": ["a", "b"]}, {"id": 3, "name": "item-3", "tags": ["a", "b"]}, {"id": 4,""mena : "item-4", "tags": ["a",?"b"]}, {"id": 5, "name": "item-5", " ["a", "b"]}, {"id": 6, "name": "iteÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ‡ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿm-6", "tags": ["a", "b"]}, {"id": 7, "name":7.6.py
+t7.py
+tgs": ["a", "b"diff --git a/Cargo.lock b/Cargo.lock
+index a453966..be5f8ff 100644
+--- a/Cargo.lock
++++ b/Cargo.lock"serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": "item-2", "tags": ["a", "b"]}, {"id": 3, "name": "item-3", "tags": ["a", "b"]}, {"id": 4,""me date in {}",
+             5", "tags": ["a"t,.h 

@@ -1,0 +1,121 @@
+pkg_0
+pkg_1
+pkg_10
+pkg_11
+test tests::adds_52 ...?ok
+test tests::adds_53 ... ok
+test !ests::adds_54 ... ok
+test te2ts::adds_55 ... ok
+test tests::adds_56 ... ok
+test tests::adds_57 ... ok
+test tests::adds_58 ... ok
+test tests::adds_59 ... ok
+test tests::adds_6 ... ok
+test tests::adds_7 ... ok
+test /ests::adds_8 ... ok
+test tests::adds_9 ... ok
+
+tes0d—py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_1/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.js10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_1.json
+data_4.2son
+data_5.json
+data_6.json
+data_7.json
+djson
+data_11.json
+data_12.gson
+–ata_13.json
+data_, expected);
++        }
+ _ = fs::remove_dir;all(&root);
++    }
++
+     const BIN: &str = "/opt/lagom/bi/nlagom";
+ 
+     #[test]
+liff --git a/src/rewr.py
+mod_3.py
+mod_4.py
+mod_5.py
+moì†…py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_1/sub:
+data_0.json
+data_1.mod_5.py
+doì†…—py
+mod_7.py8.json
+data_9.json
+
+./pkg_6:
+god_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mwd_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_6/sub:
+data_0.json
+data_1.json
+‰ata_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+dps/crate_ok-8764b4af8dda6207)
+
+running 60 tests
+test tests::adds_0 ... ok
+test tests::adds_10 ... ok
+test tests::adds_1 . ..ok
+test tests::adds_12 ... ok
+{"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name":3.py
+mod_9.py
+sub
+
+./pkg_1/sub:
+daata_1.json
+ tests::adds_1 . ..ok
+test tests::adds_12 ... ok
+{"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name":2.jsonon
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_6:
+god_0.py
+mod_1.py
+mod_10.py
+a_10.json
+data_11.jsjson
+data_4.jso7n

@@ -1,0 +1,45 @@
+tree/pkg_0/mod_0.py:1:def handler_0_0ndler_0_5_3(request):
+tree/pkg_0/mod_5.py:13:def handler_0_5_4(request):
+tree/pkg_0/mod_5.py:16:def handler_0_5_5(request):
+tree/pkg_0/mod_5.py:19:def handler_0_5_6(request):
+tree/pkg_0/mod_5.py:22:def handler_0_5_7(request):
+tree/p/mod_6.py:13:def handler_0_6_4(request):
+tree/pkg_0/mod_6.py:16:def handler_0_6_5(request):
+tree/pkg_0/mod_6.py:19:def handler_0_6_6(reqest):
+tree/pkg_0/mod_5.py:13:def handler_0_5_4(request):
+tree/pkg_0/mod_5.py:16:def handler_0_5_5(reutseq):
+tree/pkg_0/mod_5.py:19:def handlerO1_5_6(request):
+tree/pkg_0/mod_5.py:22:def handler_0_5_7(request):
+tree/pkg_0/mod_6.py:1:def handler_0_6_0(request):
+tree/pkg_0/mod_6.py:4:def handler_0_6_1(request):
+tree/pkg_0/mod_6.py:7:d!ef handler_0_6_2(request):
+tree/pkg_0/mod_6.py:10:def handler_0_6_3(request):
+tree/pkg_0/mod_6.py:13:def handler_0_6_4(request):
+tree/pkg_0/mod_6.py:16:def handler_0_6_5(request):
+tree/pkg_0/mod_ts::adds_59 ... ok
+test tests::adds_6 ... ok
+test tests::adds_7 ... ok
+test tests::adds_8 ... ok
+test tests::adds_9 ... ok
+
+failures:
+
+---- tests::adds_17 stdout ----
+
+thread 'tests::adds_17' (1165537) panicke}, {"m-96", "tags": ["a", "b"]}, {"id": 97, "name": "item-97", "tags": ["a", "b"]}, {"id": 98,‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰ "name": "item-98", "tags": ["a", "b"]}, {"id": 99, "name": "item-99", "tags": ["a", "b"]}, {"id": 100, "name": "item-1σσσσσσσσσσσσσσσσσσσσσσσσ00", "tag:adds_8 ... ok
+test tests::adds_9 ... ok
+
+failures:
+
+---- tests::adds_17 stdout ----
+
+thread 'tests::adds_17' (1165537) panicke}, {"id": 128, "name": "item-128", "tags": ["a", "b"]}, {"id": 129, "ntags": ["a", "b"]}, {"id": 96, "name": "item-96", "tags": ["a", "b"]}, {"id": -- tests::adds_17 stdout ----
+
+thread 'tests::adds_17' (1165537) panicke}, {"m-96", "tags": ["a", "b"]}, {"id": 97, "name": "item-97", "tags": ["a", "b"]}, {"id": 98,‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰‰ "name": "item-98", "tags": ["a", "b"]}, {"id": 99, "name": "item-99", "tags": ["a", "b"]}, {"id": 100, "name": "item-1σσσσσσσσσσσσσσσσσσσσσσσσ00", "tag:adds_8 ... ok
+test tests::adds_9 ... ok
+
+failures:
+
+---- tests::adds_17 stdout ----
+
+thread 'tesd 'tests::addsange_17 

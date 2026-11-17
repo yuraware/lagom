@@ -1,0 +1,6 @@
+{
+"tool_input":{
+   "command": "cargo ''''z'2'' ''ma",
+    "tiout": 5},
+  "_": "to_01"
+}

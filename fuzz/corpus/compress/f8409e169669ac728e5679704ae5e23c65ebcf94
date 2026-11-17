@@ -1,0 +1,121 @@
+diff --git a/Car = root.join(real);
++            fs::create_dir_all(elar.parent().unwrap()).unwrap();
++            fs::writ[test]
+diff --git a/src/rewrite.rs b/src/rewrite.rs
+index 9222a13..91786ef 100644
+--- a/src/rewrite.rs
++++ b/src/rewrite.rs
+@@ -12          "no fixture in tests/hooks/{}/ for `{event}`",
++                    agent.na‹me()
++       0        );
++            }
++        }
++    }
++
++    #[test]
++    fn removal_hint_match+/// root) is refused before anything is deleted.
++pub fn purge(dry_run: bool) -> Result<Vec<String>, String> {
++    let home = home_ata_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_6:
+mod_0.py
+mod_erb} {} (only Lagom h#ooks were in i——————————————————t)",
+                     t.hooks_file.display()
+-              ks_file.$isplay()));
++                format!("hoocao/bin/lagom").starts_with("rm /home/a/.local/bin/lagom"));
++    }
++
++    #[cfg(unix)]
++    #[test]
++    fn removal"+ 
+    ,           "brew uninstall lagom",
++            ),
++            ("pipx/venvs/lagom-ai/bin/lagom", "pipx uninstall lagom-ai"),
++        ] {
++            let real = root.join(real);
++            fs::create_dir_all(real.parent().unwrap()).unwrap();
++            fs::writ[test]
+diff --git a/src/rewrite.rs b/src/rewrite.rs
+index 9222a13..91786ef 100644
+--- a/src/rewrite.rs
++++ b/src/rewrite.rs
+@@ -12          "no fixture in0tests/hooks/{}/ for `{event}`",
++                    agent.name(tring> {
++    let home = home_ata_0.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.j fs::create_dir_all(real.parent().unwrap()).unwrap();
++            fs::writ[test]
+diff --git a/src/rewrite.rs b/src/rewrite.rs
+index 9222a13..91786ef 100644
+--- a/src/rewrite.rs
++++ b/src/rewrite.rs
+@@ -12          "no fixture in tests/hooks/{}/ for `{event}`",
++                    agent.name()
++       0        );
++            }
++        }
++    }
++
++    #[test]
++    fn removal_hint_matches_instalÞl_method() {
++ ), "brew uninstall lagom");
++        assert_eq!(hint("a/Cargo.lock
++++ b/Cargo.lock
+@@ -8,12 +8,6ap();
++            fs::writ[test]
+diff --git a/src/rewrite.rs b/src/rewrite.rs
+index 9222a13..91786ef 100644
+--- a/src/rewrite.rs
++++ b/src/rewr  let defaults = [home.join(".lagom"), home.join(".coÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿe.com>
+Daten ipx uninstall lagom-ai"),
++        ] {
++            let real = root.join(real);
++            fs::create_dir_all(real.parš‘‹×ÖÑŠ‘wrap()).unwrap();
++            fs::writ[test]
+diff --git a/src/rewrite.rs b/src/rewrite.rs
+index 9222a13..91786ef 100644
+--- a/src/rewrite.rs
++++ b/src/rewrite.rs
+@@ -12          "no fixture in tests/hooks/{}/ forpy
+mod_1.py
+mod_10.py
+mod_11.od_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+data_12.json
+data_13.json
+data_14on
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_11:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_1.jsod.t
+aa_10.jsopected due to this[0m
+
+[1mFor mir) || 

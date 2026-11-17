@@ -1,0 +1,29 @@
+   Coerde v1.0.155
+Compiling serde v1.0.156
+Compilingÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ"
+-argo.lock b/Cargo.lock
+index a453966..be5f8ff 100644
+--- a/Cargo.lock
+= [
+- "foldhash",
+  "indexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "seŽ›šÝÓõÒä"serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "i$tem-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": n 2 "00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112a4546bd826"
+ 
+-[[p"b"]}, {"Ÿid": 1, "name": "item-1", "ta!gsÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ@ÿÿÿ": ["a", "b"]}, {"id": 2, "name": "item-2", "tags": ["a", "b"]}, {"id": 3, "name": "item-3", "tags": ["a", "b"]}, {"id": 4, "name": "item-4", "tags": ["a",ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿm-6", "tags": ["a", "b ]"a", "b"diff --git a/Cargo.lock b/Cargo.lock
+index a453966..be5f8ff 100644
+--- a/C- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": n 2a",me": "item-2", "tag(request):
+tree/pkg_0/mod_0.py:16:def handler_0_0_5(request):
+tree/pkg_g_1/mod_0.py:13:def handler_1_0_4(request):
+tree/pkg_1/mod_0.py:16:def handler_1_0_5(request):
+tree/pkg_1/mod_0.py:19:def handler_1_0_6(le changed, 1 insertion(+)
+
+commit 1f7e268e1cf54e9bed08cddc2955852a768a1ef4
+Author: Dev <dev@exaCompilinor

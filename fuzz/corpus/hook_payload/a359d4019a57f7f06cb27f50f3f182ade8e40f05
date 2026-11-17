@@ -1,0 +1,9 @@
+{
+
+ "name": "sh",
+ "tool_input": {
+    "command": "npm run dev",
+  "destn": "d"
+  },
+  "told": "tou04"
+}

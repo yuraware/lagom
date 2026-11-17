@@ -1,0 +1,62 @@
+{
+  "sessi_iond": "0b6f1c2e-0000-40ons",
+  "": "",
+  "tool_input": {
+"command": "cargo '''' 'E'''''''''",
+  "tool_na": {
+    "coo000": "",
+  "tool_input": {
+    "coimmand":"",
+  "tooliond": "0b6f1c2e-0000-40ons",
+  "": "",
+  "tool_input": {
+"command": "cargo '''' 'E'''''''''",
+  "tool_na": {
+    "coo000": "",
+  "tool_input": {
+    "coimmand":"",
+  "tool_input": {
+    "comman0000000e": "",
+  "tool_input": {
+    "comm": "",
+  "t": {
+    "nd": "car'''''''''''''''''test",
+    "descriptiotimeout": 200000
+  },
+  "tn": "Run nd",
+    "timout": 600000
+  },
+  "tool_us": "tg''''''''''''''''''''''''''''and",
+    "timeout": 600000
+  },
+  "tn": "Run a command",
+    "timeout": 300000
+  },
+  "tool_use_rdtool_id": "toolu_1ommand",
+    "timout": 600000
+  },
+  "tool_usn": "Run command",
+    "t000e": "",
+  "tool_input": {
+    "comm": "",
+  "t": {
+    "nd": "car'''''test",
+    "descriptiotimeout": 200000
+  },
+  "tn": "Run nd",
+    "timout": 600000
+  },
+  "tool_us": "tg''''''''''''''''''''''''''''and",
+    "t": 600000
+  },
+  "tn": "Run a command",
+    "timeout": 300000
+  },
+  "tool_use_rdtool_inid": "toolu_1o#mmand",
+    "timout": 600000
+ },
+  "tool_usn": "Run command",
+    "timeout": 600000
+  },
+  "tool_use_idtool_inid": "toolu_00"
+}

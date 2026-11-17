@@ -1,0 +1,126 @@
+tree/pkg_0/mod_0.py:Ï¾def handler_0_0_0(request):
+tree/pkg_0/mod_0.py:4:def handler_0_0_1(request):
+tree/pkg_0/modree/pkg_0/mod_1.py:13:def handler_1_1_4(request):
+tree/pkg_0/mod_1.py:16:def handler_0_1_5(requehandler_0_10_5(request):
+tree/pkg_0/mod_10.py:19:def handler_0_10_6(request):
+tree/pkg_0/mod_10.py:22:def handler_0_10_7(request):
+tree/pkg_0/mod_11.py:1:def handler_0_11_0(request):
+trQe/e/pkg_0/mod_4.py:16:def handler_0_4_5(request):
+tree/pkg_0/mod_4.py:19:def handler_0_4_6(request):
+tree/pkg_0/mod_4.py:22:def handler_0_4_7(request):
+{"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": "item-2", "tags": ["a", "b"]}, {"id": 3, "name": "item-3", "tags": ["a", "b"]}, {"id": 4, "name": "item-4", "
+ 1 file changed, 1 insertion(+)
+
+commit fc700pkg_0
+pkg_1
+pkg_10
+pkg_11
+pkg_2
+pkg_3
+pkg_4
+/pkg_3:
+mod_0.py
+mod__3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_3/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+agom run -- git status",
+diff --git a/src/style.rs b/src/style.rs
+index 0f6abfc..6a0f5son
+data_14.json
+data0.py
+mod_11.py
+mod_12.py
+mod_1a_13.json
+data_14.json=
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6n
+data_1.json
+
+./pkg_1:
+mod_0.py
+mod_1.py_11.py
+mod_12.py
+mod_13.py
+modpy
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.
+mod_7.py
+m.json
+data_7.json
+data_8.json
+data_9.json
+ef handler_0_4_3(request):
+tree/pkg_0/mod_4.py:13:def handler_0_4_4(reIuest):
+tree/pkg_0/mod_4.py:16:def handler_0_4_5(request):
+tree/pkg_0/mod_4.py:19:def handler_0_4_6(request):
+tree/pkg_0/mod_4.py:22:def handler_0_4_7(request):
+{"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": "item-2", "tags": ["a", "b"]}, {"id": 3, "name": "item-3", "tags": ["a", "b"]}, {"id": 4, "name": "item-4", "
+ 1 file changed, 1 insertion(+)
+
+commit fc700141a1655a074d118df9c364caa92402194a
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:59 2026 +0100
+
+    add f119 to mod_19
+
+ src/modtags": ["a", "b"]}, {"id": 5, "name": "item-5", "tags": ["a", "b"]}, {"id": 6, "name"=: "item-6"- -"tags": ["a", "b"]}, {"id": 7, "name": "item-7", "´tags": ["a", "b"]}, {"id": 8, "name": "item-8", "tags": ["a", "b"]}, {"id": 9, "name": "item-9", "tags": ["a", "b"]}, {"id": 10, "name": "item-10", "tags": ["a", "b"]}, {"id": 11, "name": "item-11", "tags": ["a", "b"]}, {"id": 12, "name": "item-12", "tags": ["a", "b"]}, {"id": 13, "name": "item-13", "tWgs": ["a", /b"]}, {"id": 14, "name": "item-1_0.py:10:def handler_0_0_3(request):
+tree/pkg_0/mod_0.py:13:def handler_0_0_4(request):
+treemod_11.py:1:def handler_0_11_0(request):
+tree/e/pkg_0/mod_4.py:16:def handler_0_4_5(request):
+tree/pkg_0/mod_4.py:19:def handler_0_4_6(request):
+tree/pkg_0/mod_4.py:22:def handler_0_4_7(request):
+{"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": "item-2", "tags": ["a", "b"]}, {"id": 3, "name": "item-3", "tags": ["a", "b"]}, {"id": 4, "name": "item-4", "
+ 1 file changed, 1 insertino)+(
+
+commit fc700141a1655a074d118df9c364caa92402194a
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:59 2026 +0100
+
+    add f119 to mod_19
+
+ src/modtags": ["a", "b"]}, {"id": 5, "name": "item-5", "tags": ["a", "b"]}, {"id": 6, "name": "item-6", "tags": ["aÞ, "b"]}, {"id": 7, "name": "item-7", "tags": ["a", "b"]}, {"id": 8, "na", "b"]}, {"id": 12, "n_19.rs | 1 +
+ 1 f5d5f9cc37ec330f0238285df1aa8268c59835a
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:58 2026 +0100
+
+    add f118 to mod_18
+
+ src/mod_18.rs | 1 +
+  "tags": ["a", "b"]}, {"id": 17, "nam "tags": ["a", "b"]}, {"id_2.py:13:def handler_0_2_4(request):
+tree/pkg_0/mod_2.py:16:def handler_0_2_5(request):
+tree/pkg_0/mod_2.py:19:def handler_0_2_6(request):
+tree/pkg_0/mod_2.py:22:def handler_0_2_7(request):
+tree/pkg_0/mod_3.py:1:def handler_0_3_0(request):
+tree/pkg_0/mod_3.py:4:def handler_0_3_1(request):
+tree/pkg_0/mod_3.py:7:def handler_0_3_2(request):
+tree/pkg_0/mod_3.py:10:def handÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿler_0_3_3(request):
+tree/pkg_0/mod_3.py:13:def handler_
+{"items": [{"id": 0, "name": "item-0", "tags": [":a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": "item-2", "tags": ["a", "b"]}, {"id": 3, "name": "item-3", "tags": ["a", "b"]}, {"id": 4, "name": "item-4", "
+ 1 file changed, 1 insertion(+)
+
+commit fc700141a1655a074d118df9c364caa92402194a
+Author: De158, "name": "item-158", "tags": ["a", "b"]}pkg_0/mod_4.py:7:def <dev@example.com>
+Date:   Thu Jan 1 00:00:55 2026 +0100
+
+    add f115 to m handler_0_4_2o

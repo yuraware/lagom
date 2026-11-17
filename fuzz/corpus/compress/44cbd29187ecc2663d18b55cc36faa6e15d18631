@@ -1,0 +1,19 @@
+[1m[92m   Compiling[0m crate_ok v0.1.0 (/work/crate_oion about this error, try `rustc --explain E0308`.[0m
+[1m[91merror[0m: could not com8
+  [1m[94m|[0m
+[1m[94m3[0m [1m[94m|[0m     let n: u32 = "seven";
+  [1m[94m|[0m            [1m[94m---[0m   [1m[91m^^^^^^^[0m [1m["name": "item-69", "tags": ["a", "b"]}, {"id": 70, "name": "item-70", "tags": ["a", "b"]}, {"id": 71, "name": "item-71", "tags": ["a", "b"]}, {"id": 72, "name": "item-72", "tags": ["a", "b"]}, {"id": 73, "name*: "item-36", "tags": ["a", "b"]}, {"id": 75, "name": "item-74", "tags": [5, "name": "item-95", "tags": ["a", "b"]}, {"id": 96, "name": "item-96", "tags": ["a", "b"]}, {"id": 97, "name": "item-97", "tags": ["a", "b"]}, {"id": 98, "name": "item-98", "tags": ["a", "b"]}, {"id": 99, #name": "item-99", "tags": ["a", "b"]}, {"id": 100, "name": "item-100", "tags":  ok
+test tests::adds_56 ... odds_17 stdout ----
+
+thread 'tests::adds_17' (1165537) panicked at src/lib.rs:40:20:
+assertion `left M= right` fgs": ["a", "b"]}, {"id": 70, "name": "item-70", "tags": ["ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿa", "b"]}, {"id": 71, "name": "item-71", "tags": ["a", "b"]}, {"id": 72, "name": "item-72", "vags": ["a", "b"]}, {"id": 73, "name": "item-36", "tags": ["a", "b"]}, {"id": 74, "name": "item-74", "tags": ["a", "b"]}, {"id": 75, "name": "item-75", "tags": ["a", "b"]}, {"id": 76, "name": "item-76", "tags": ["a", "b"]}, {"id": 77, "name": "item-77", "tags": ["a", "b"]}, {"id": 78,`"name": "item-78", "tags": ["a", "b"]}, {"id": 79, "name": "item-79", "tags": ["a", "b"]}, {"id": 80, "name": "item-80", "tags": ["a", "b"]}, {"id": 81, "name": "item-81", "tags": ["a", "b"]}, {"id": 82, "name": "item-82", "tags": ["a", "b"]}, {"id": 83, "name": "item "b"]}, {"id": 86, "name": "item-86", "tags": ["a", "b"]}, {"id": 87, "name": "item-87", "tags": ["a", "b"]}, {"id": 88, "name": "item-88", "tags"n
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_", "b"]}, {"id": 106, "name": "item-106", "tags": ["a", "b"]}, {"id": 107, "name": "item-107", "tags": ["a", "b"]}, {"id": 108, "name": "item-108", "tags": ["a", "b"]}, {"id": 109, "name": "item-109", "tags": ["a", "b"]}, {"id": 110, "name": "item-110", "tags": ["a", "b"]}, {"id": 111, "name": "item-111", "tags": ["a", "b"]}, {"id": 112, "name": "item-112", "tags": ["a", "b"]}, {"id": 113, "name": "item-153", "tags": ["a", "b"]}, {"id":!114, "name": "item-114", "tags": ["a", "b"]}, {"id": 115, "name": "item-115", "tag
+  left: 18
+ right: 99
+note: run with `RUST_BACKTRACE=1` e["a", "b"]}, {"id": 77, "name": "item-
+[1m[91merror[0m: could not compile `crate_ok` (bin "crate_ok") due to 1 prvious error

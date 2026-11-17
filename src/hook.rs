@@ -101,8 +101,8 @@ pub(crate) fn with_deadline<T: Send + 'static>(
 }
 
 /// Parse a hook payload: a JSON object of at most [`MAX_PAYLOAD`] bytes. The error says
-/// why it was ignored, with its size and never its content.
-fn read_payload(input: impl Read) -> Result<Value, String> {
+/// why it was ignored, with its size and never its content. Public for the fuzz targets.
+pub fn read_payload(input: impl Read) -> Result<Value, String> {
     let mut bytes = Vec::new();
     if input.take(MAX_PAYLOAD + 1).read_to_end(&mut bytes).is_err() {
         return Err("stdin can't be read".into());

@@ -123,7 +123,8 @@ pub fn parse_list(s: &str) -> Vec<String> {
 /// Style files are user (or repository) text. Keep them inside the single `<lagom>`
 /// block: any tag the model could read as opening or closing it (`<lagom>`, `</LAGOM >`,
 /// `< /lagom>`, `<lagom x="1">`) has its `<` and `>` turned into `[` and `]`.
-fn neutralize_tags(body: &str) -> String {
+/// Public for the fuzz targets.
+pub fn neutralize_tags(body: &str) -> String {
     let mut out = String::with_capacity(body.len());
     let mut rest = body;
     while let Some(i) = rest.find('<') {
@@ -131,9 +132,15 @@ fn neutralize_tags(body: &str) -> String {
         let tail = &rest[i..];
         match lagom_tag_len(tail) {
             Some(len) => {
-                // `len` covers `<` … `>`; both ends are single-byte ASCII.
+                // `len` covers `<` … `>`; both ends are single-byte ASCII. A `<` inside
+                // starts no tag either: in `</lagom < /lagom x>…>` the inner one would
+                // otherwise survive (found by the style_frontmatter fuzz target, QA-05).
                 out.push('[');
-                out.push_str(&tail[1..len - 1]);
+                out.extend(
+                    tail[1..len - 1]
+                        .chars()
+                        .map(|c| if c == '<' { '[' } else { c }),
+                );
                 out.push(']');
                 rest = &tail[len..];
             }
@@ -284,6 +291,8 @@ mod tests {
             "<lagom\n>",
             "<lagom role=\"system\">",
             "x</Lagom\t>y",
+            // A tag inside another tag's span (found by fuzzing, QA-05).
+            "</lagom$ < /LAGOM x=1><0\n>",
         ] {
             let safe = neutralize_tags(variant).to_ascii_lowercase();
             let squashed: String = safe.chars().filter(|c| !c.is_whitespace()).collect();
@@ -293,6 +302,8 @@ mod tests {
             );
         }
         assert_eq!(neutralize_tags("<lagomish> <b>"), "<lagomish> <b>");
+        let once = neutralize_tags("</lagom$ < /LAGOM x=1><0\n>");
+        assert_eq!(neutralize_tags(&once), once, "a second pass finds no tag");
     }
 
     #[test]

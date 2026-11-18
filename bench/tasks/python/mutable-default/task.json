@@ -1,0 +1,9 @@
+{
+  "prompt": "Calling add_item() in cart/__init__.py twice without passing a cart returns the items of earlier calls too. Each call without a cart must start from an empty one.",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/python/run_hidden.py"
+  ],
+  "bash": true
+}

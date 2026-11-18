@@ -1,0 +1,9 @@
+{
+  "prompt": "read_totals() in ledger/__init__.py sums the amount per customer from CSV text, but it breaks on quoted names that contain a comma, such as \"Smith, John\". Make it read real CSV.",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/python/run_hidden.py"
+  ],
+  "bash": true
+}

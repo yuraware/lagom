@@ -1,0 +1,9 @@
+{
+  "prompt": "chunks(items, n) in batches/__init__.py should yield lists of n items from any iterable, with a shorter last list when the items run out. It drops the last partial list and fails on generators. Fix it, and raise ValueError for n below 1.",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/python/run_hidden.py"
+  ],
+  "bash": true
+}

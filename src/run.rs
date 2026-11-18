@@ -6,7 +6,7 @@ use std::process::{Command, ExitCode};
 
 use serde_json::json;
 
-use crate::compress::compress_keeping;
+use crate::compress::{Options, compress_with};
 use crate::store;
 
 /// `session`: the `agent:id` token from `lagom run --session …` (set by the pre-tool hook).
@@ -232,7 +232,7 @@ fn render_spilled(
     program: &str,
     who: &store::Attribution,
 ) -> String {
-    let compressed = compress_keeping(kept, code != 0, &keep_patterns());
+    let compressed = compress_configured(kept, code != 0);
     let mut out = compressed.text;
     if !out.is_empty() && !out.ends_with('\n') {
         out.push('\n');
@@ -269,15 +269,20 @@ fn render_spilled(
     out
 }
 
-/// The user's `compress.keep` patterns for the current folder (CMP-11).
-fn keep_patterns() -> Vec<String> {
+/// Compress with the `compress` settings of the current folder's config (CMP-11, CMP-01).
+fn compress_configured(raw: &str, failed: bool) -> crate::compress::Compressed {
     let cwd = std::env::current_dir().unwrap_or_default();
-    crate::config::Config::load(&cwd).compress_keep
+    let config = crate::config::Config::load(&cwd);
+    let opts = Options {
+        keep: &config.compress_keep,
+        lossless: config.compress_lossless,
+    };
+    compress_with(raw, failed, &opts)
 }
 
 /// Compress, store the original when lines were dropped, record stats.
 pub fn render(raw: &str, code: i32, program: &str, who: &store::Attribution) -> String {
-    let compressed = compress_keeping(raw, code != 0, &keep_patterns());
+    let compressed = compress_configured(raw, code != 0);
     let mut out = compressed.text;
     if compressed.lossy {
         match store::save_original(raw, &program_name(program)) {

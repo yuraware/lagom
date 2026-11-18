@@ -1624,3 +1624,20 @@ fn rewrite_extra_and_exclude_change_which_programs_are_wrapped() {
     assert!(!hook("git log"), "excluded by the project");
     assert!(!hook("make2 all"), "a project can't add programs");
 }
+
+#[test]
+fn lossless_mode_from_the_config_keeps_every_line() {
+    let home = sandbox("lossless");
+    let input: String = (1..=500).map(|i| format!("{i}\n")).collect();
+    let folded = text(&lagom(&home, &["compress"], Some(&input)));
+    assert!(
+        folded.lines().count() < 20,
+        "similar lines are folded by default"
+    );
+
+    let config = home.join(".config/lagom/config.json");
+    fs::create_dir_all(config.parent().unwrap()).unwrap();
+    fs::write(&config, r#"{"compress": {"lossless": true}}"#).unwrap();
+    let kept = text(&lagom(&home, &["compress"], Some(&input)));
+    assert_eq!(kept, input, "every line, no footer");
+}

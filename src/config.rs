@@ -26,6 +26,8 @@ pub struct Config {
     /// Substrings that make a line important to the compressor (`compress.keep`, any file:
     /// keeping more lines only ever shows more).
     pub compress_keep: Vec<String>,
+    /// `compress.lossless` in any file: only transforms that carry no information.
+    pub compress_lossless: bool,
     /// Malformed files, wrong value types and unknown keys. `lagom status` shows them,
     /// and `LAGOM_DEBUG` prints them on stderr.
     pub problems: Vec<String>,
@@ -173,7 +175,7 @@ impl Config {
                 )),
             }
         }
-        let mut compress_keep = Vec::new();
+        let (mut compress_keep, mut compress_lossless) = (Vec::new(), false);
         for (name, map) in &layers {
             match map.get("compress") {
                 None => {}
@@ -184,6 +186,12 @@ impl Config {
                                 Some(items) => compress_keep.extend(items),
                                 None => problems.push(format!(
                                     "{name}: `compress.keep` must be a list of non-empty strings"
+                                )),
+                            },
+                            "lossless" => match value {
+                                Value::Bool(on) => compress_lossless |= on,
+                                _ => problems.push(format!(
+                                    "{name}: `compress.lossless` must be true or false"
                                 )),
                             },
                             _ => problems.push(format!("{name}: unknown key `compress.{key}`")),
@@ -209,6 +217,7 @@ impl Config {
             rewrite_extra,
             rewrite_exclude,
             compress_keep,
+            compress_lossless,
             problems,
         }
     }
@@ -301,6 +310,19 @@ mod tests {
         let c = Config::from_layers(None, None, None, Some(("u", &bad)));
         assert!(c.rewrite_extra.is_empty() && c.rewrite_exclude.is_empty());
         assert_eq!(c.problems.len(), 3, "{:?}", c.problems);
+    }
+
+    #[test]
+    fn compress_lossless_is_on_when_any_file_says_so() {
+        let on = map(json!({"compress": {"lossless": true}}));
+        let off = map(json!({"compress": {"lossless": false}}));
+        let c = |p, u| Config::from_layers(None, None, p, u).compress_lossless;
+        assert!(!c(None, None));
+        assert!(c(Some(("p", &on)), Some(("u", &off))));
+        assert!(c(None, Some(("u", &on))));
+        let bad = map(json!({"compress": {"lossless": "yes"}}));
+        let cfg = Config::from_layers(None, None, None, Some(("u", &bad)));
+        assert!(!cfg.compress_lossless && cfg.problems.len() == 1);
     }
 
     #[test]

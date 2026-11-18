@@ -4,10 +4,10 @@
 //! anything dropped so the caller can store the original for `lagom recall`.
 
 mod diff;
-#[cfg(test)]
-mod error_rule;
 mod json;
 mod log;
+#[cfg(test)]
+mod properties;
 mod search;
 
 /// Output budget. Failed commands get double, so errors are never squeezed out.
@@ -20,6 +20,8 @@ struct Limits<'a> {
     max_line_chars: usize,
     /// The user's `compress.keep` substrings: lines holding one count as important (CMP-11).
     keep: &'a [String],
+    /// `compress.lossless`: only transforms that carry no information (CMP-01).
+    lossless: bool,
 }
 
 impl Default for Limits<'_> {
@@ -31,6 +33,7 @@ impl Default for Limits<'_> {
             max_important: 40,
             max_line_chars: 400,
             keep: &[],
+            lossless: false,
         }
     }
 }
@@ -66,16 +69,27 @@ pub struct Compressed {
     pub errors_despite_success: bool,
 }
 
-/// Compress raw command output. `failed` means a non-zero exit code.
-pub fn compress(raw: &str, failed: bool) -> Compressed {
-    compress_keeping(raw, failed, &[])
+/// What the user's config changes about compression.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Options<'a> {
+    /// `compress.keep`: lines holding one of these substrings count as important, like
+    /// error lines (CMP-11).
+    pub keep: &'a [String],
+    /// `compress.lossless`: only transforms that carry no information: colors, progress-bar
+    /// frames and exact repeats. Nothing is truncated or summarized (CMP-01).
+    pub lossless: bool,
 }
 
-/// [`compress`], where lines holding one of the `keep` substrings (the user's
-/// `compress.keep`) count as important, like error lines.
-pub fn compress_keeping(raw: &str, failed: bool, keep: &[String]) -> Compressed {
+/// Compress raw command output. `failed` means a non-zero exit code.
+pub fn compress(raw: &str, failed: bool) -> Compressed {
+    compress_with(raw, failed, &Options::default())
+}
+
+/// [`compress`] with the user's [`Options`].
+pub fn compress_with(raw: &str, failed: bool, opts: &Options) -> Compressed {
     let limits = Limits {
-        keep,
+        keep: opts.keep,
+        lossless: opts.lossless,
         ..Limits::default()
     };
     if is_compressed(raw) {
@@ -96,6 +110,19 @@ pub fn compress_keeping(raw: &str, failed: bool, keep: &[String]) -> Compressed 
         limits
     };
     let mut lossy = false;
+
+    if limits.lossless {
+        let lines = collapse_repeats(normalize_lines(&cleaned), limits, &mut lossy);
+        let mut text = lines.join("\n");
+        if raw.ends_with('\n') && !text.is_empty() {
+            text.push('\n');
+        }
+        return Compressed {
+            text,
+            lossy,
+            errors_despite_success,
+        };
+    }
 
     if let Some((text, lossy)) = json::compress(&cleaned, limits) {
         return Compressed {
@@ -291,7 +318,7 @@ fn collapse_repeats(mut lines: Vec<String>, limits: Limits, lossy: &mut bool) ->
             run_end[i]
         };
         let similar = k - i;
-        if similar >= 4 && has_shape_mark && !limits.important(&lines[i]) {
+        if similar >= 4 && has_shape_mark && !limits.lossless && !limits.important(&lines[i]) {
             out.push(std::mem::take(&mut lines[i]));
             out.push(format!("… [{} similar lines]", similar - 2));
             out.push(std::mem::take(&mut lines[k - 1]));
@@ -504,7 +531,11 @@ mod tests {
             "dropped by default"
         );
         let keep = ["ACME-".to_string()];
-        let kept = compress_keeping(&raw, false, &keep);
+        let opts = Options {
+            keep: &keep,
+            ..Options::default()
+        };
+        let kept = compress_with(&raw, false, &opts);
         assert!(
             kept.text.contains("ACME-0042 contract violated"),
             "{}",

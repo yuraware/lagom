@@ -1,0 +1,2 @@
+### Security
+- Commands the shell could read differently from Lagom are no longer rewritten: unbalanced quotes, a trailing backslash, control characters, whitespace other than spaces and tabs (a no-break space, for example), and invisible characters such as zero-width spaces and bidirectional overrides. A trailing `\r` or form feed is no longer trimmed off a rewritten command, which changed what it ran.

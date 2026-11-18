@@ -58,6 +58,11 @@ const STREAMING_ARGS: [&str; 12] = [
     "-it",
 ];
 
+/// What the shell trims around a command: spaces and tabs. Rust's `trim` would also drop
+/// a trailing `\r` or form feed, which the shell keeps as part of the last word, so the
+/// rewrite would quietly change the command (SEC-06).
+const BLANKS: [char; 2] = [' ', '\t'];
+
 /// Characters that make a command more than "one program with arguments".
 const SHELL_OPERATORS: [char; 9] = ['|', '&', ';', '<', '>', '`', '\n', '(', ')'];
 
@@ -65,9 +70,9 @@ const SHELL_OPERATORS: [char; 9] = ['|', '&', ';', '<', '>', '`', '\n', '(', ')'
 /// `(dir, command)`. The directory must be a plain word or a single-quoted string with
 /// no shell metacharacters, variables or globs.
 pub fn split_cd(command: &str) -> Option<(&str, &str)> {
-    let rest = command.trim().strip_prefix("cd ")?;
+    let rest = command.trim_matches(BLANKS).strip_prefix("cd ")?;
     let (dir, cmd) = rest.split_once("&&")?;
-    let (dir, cmd) = (dir.trim(), cmd.trim());
+    let (dir, cmd) = (dir.trim_matches(BLANKS), cmd.trim_matches(BLANKS));
     let bare = dir
         .strip_prefix('\'')
         .and_then(|d| d.strip_suffix('\''))
@@ -79,6 +84,7 @@ pub fn split_cd(command: &str) -> Option<(&str, &str)> {
         && !bare.starts_with('-')
         && !bare.contains(['\'', '"', '$', '`', '\\', '*', '?', '[', '~', '{'])
         && !bare.contains(SHELL_OPERATORS)
+        && !bare.chars().any(is_ambiguous_char)
         && (quoted || !bare.contains(char::is_whitespace));
     (ok && !cmd.is_empty()).then_some((bare, cmd))
 }
@@ -92,12 +98,19 @@ pub fn skip_reason(command: &str, wrapped: Wrapped) -> Option<&'static str> {
 }
 
 fn single_command_skip_reason(command: &str, wrapped: Wrapped) -> Option<&'static str> {
-    let trimmed = command.trim();
+    let trimmed = command.trim_matches(BLANKS);
     if trimmed.is_empty() {
         return Some("empty command");
     }
     if trimmed.contains(SHELL_OPERATORS) || trimmed.contains("$(") {
         return Some("pipes, &&, ;, redirects and subshells are never rewritten");
+    }
+    // Text the shell and Lagom could read differently is never rewritten (SEC-06).
+    if trimmed.chars().any(is_ambiguous_char) {
+        return Some("control characters, unusual whitespace or invisible characters");
+    }
+    if !quotes_balanced(trimmed) {
+        return Some("unbalanced quotes or a trailing backslash");
     }
     let mut words = trimmed.split_whitespace();
     let first = words.next().unwrap_or_default();
@@ -114,6 +127,35 @@ fn single_command_skip_reason(command: &str, wrapped: Wrapped) -> Option<&'stati
         return Some("long-running or watch mode");
     }
     None
+}
+
+/// A character the shell may split, join or show differently from how Lagom reads it:
+/// control characters other than tab, whitespace other than space and tab (Rust splits
+/// words on a no-break space, the shell doesn't), and invisible format characters such as
+/// zero-width spaces and bidirectional overrides.
+fn is_ambiguous_char(c: char) -> bool {
+    (c.is_control() && c != '\t')
+        || (c.is_whitespace() && c != ' ' && c != '\t')
+        || matches!(c, '\u{ad}' | '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2060}'..='\u{2064}' | '\u{2066}'..='\u{2069}' | '\u{feff}')
+}
+
+/// Whether every quote and backslash escape in `command` is closed, read as a POSIX shell
+/// reads them: nothing escapes inside single quotes, `\` escapes elsewhere.
+fn quotes_balanced(command: &str) -> bool {
+    let mut chars = command.chars();
+    let mut quote = None;
+    while let Some(c) = chars.next() {
+        match (quote, c) {
+            (Some('\''), '\'') => quote = None,
+            (Some('\''), _) => {}
+            (_, '\\') if chars.next().is_none() => return false,
+            (_, '\\') => {}
+            (None, '\'' | '"') => quote = Some(c),
+            (Some('"'), '"') => quote = None,
+            _ => {}
+        }
+    }
+    quote.is_none()
 }
 
 /// True for programs on Lagom's built-in list (`git`, `cargo`, …).
@@ -163,11 +205,11 @@ pub fn rewrite(
     Some(match split_cd(command) {
         // Keep the `cd` exactly as written; compress the command after it.
         Some((_, cmd)) => {
-            let trimmed = command.trim();
-            let cd = trimmed[..trimmed.find("&&").unwrap_or(0)].trim_end();
+            let trimmed = command.trim_matches(BLANKS);
+            let cd = trimmed[..trimmed.find("&&").unwrap_or(0)].trim_end_matches(BLANKS);
             format!("{cd} && {run} {cmd}")
         }
-        None => format!("{run} {}", command.trim()),
+        None => format!("{run} {}", command.trim_matches(BLANKS)),
     })
 }
 

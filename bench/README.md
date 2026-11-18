@@ -94,6 +94,17 @@ python3 -I bench/stats.py bench/results/<date>/runs.jsonl [--metric cost_usd|tur
 
 For every task, the median of the metric over its repeats; then, per arm, the geometric mean of the arm-to-baseline ratios over the tasks both ran, with a seeded paired bootstrap 95% interval (tasks are resampled, each with its own ratio) and a two-sided exact sign test. Pass rates come with Wilson 95% intervals. A ratio below 1 means the arm used less. Runs without the metric (a timeout has no cost) are left out of its medians but count for the pass rate.
 
+### The published page
+
+`bench/report.py` writes `docs/benchmarks.md` and its charts from stored results, so the README, the comparison page and the launch quote one source:
+
+```sh
+python3 -I bench/report.py bench/results/<date>/runs.jsonl [--readme README.md]   # write the page (and the README block)
+python3 -I bench/report.py --check                                                # CI: the page matches its results
+```
+
+The page shows every arm, including the ones that lose, with cost per passed task, pass rate and turns side by side, never one score; hand-written SVG bar charts with interval whiskers (`docs/benchmarks/*.svg`); and the full report from `stats.py`. Its first line names the results, baseline, resamples and seed, so `--check` rebuilds it and fails when any byte differs. `--readme` rewrites the block between `<!-- benchmarks:start -->` and `<!-- benchmarks:end -->` with the same headline table. `bench/testdata/` holds a synthetic sample and the page it gives, for the test; it measures nothing.
+
 A task is a folder under `bench/tasks/<suite>/`: `task.json` (`prompt`; `check` as an argument list, where `{bench}` stands for the `bench/` folder and `{task}` for the task's; `bash`; `category`: `small-fix`, `feature`, `build` or `prose`, for the report; `risky` when shipping a test matters, fixed before any run; and optional `setup` and `solve` commands), `fixture/`, `hidden/` and `solution/` (or a `solve` command), named by its path (`rust/off-by-one`). `--tasks bench/tasks/rust` runs one suite. The selftest requires the fixture alone to fail its checks and fixture plus solution to pass.
 
 | Suite | Tasks | Checks |

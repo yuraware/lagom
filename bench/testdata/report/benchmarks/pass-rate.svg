@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="650" height="160" font-family="system-ui, sans-serif" font-size="13">
+<title>Passed runs (Wilson 95%)</title>
+<text x="10" y="22" font-weight="bold">Passed runs (Wilson 95%)</text>
+<text x="162" y="58" text-anchor="end">baseline</text>
+<rect x="170" y="46" width="355.6" height="16" fill="#4c78a8"/>
+<line x1="438.8" y1="54" x2="557.6" y2="54" stroke="#222" stroke-width="1.5"/>
+<line x1="438.8" y1="48" x2="438.8" y2="60" stroke="#222" stroke-width="1.5"/>
+<line x1="557.6" y1="48" x2="557.6" y2="60" stroke="#222" stroke-width="1.5"/>
+<text x="563.6" y="58">89%</text>
+<text x="162" y="88" text-anchor="end">lagom:terse</text>
+<rect x="170" y="76" width="288.9" height="16" fill="#4c78a8"/>
+<line x1="366.5" y1="84" x2="520.0" y2="84" stroke="#222" stroke-width="1.5"/>
+<line x1="366.5" y1="78" x2="366.5" y2="90" stroke="#222" stroke-width="1.5"/>
+<line x1="520.0" y1="78" x2="520.0" y2="90" stroke="#222" stroke-width="1.5"/>
+<text x="526.0" y="88">72%</text>
+<text x="162" y="118" text-anchor="end">terse-control</text>
+<rect x="170" y="106" width="355.6" height="16" fill="#4c78a8"/>
+<line x1="438.8" y1="114" x2="557.6" y2="114" stroke="#222" stroke-width="1.5"/>
+<line x1="438.8" y1="108" x2="438.8" y2="120" stroke="#222" stroke-width="1.5"/>
+<line x1="557.6" y1="108" x2="557.6" y2="120" stroke="#222" stroke-width="1.5"/>
+<text x="563.6" y="118">89%</text>
+<line x1="170" y1="134" x2="570" y2="134" stroke="#999"/>
+<text x="170.0" y="150" text-anchor="middle" fill="#666">0%</text>
+<text x="370.0" y="150" text-anchor="middle" fill="#666">50%</text>
+<text x="570.0" y="150" text-anchor="middle" fill="#666">100%</text>
+</svg>

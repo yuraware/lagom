@@ -1,0 +1,11 @@
+{
+  "prompt": "What does the SKU pattern in validate.py accept? Give one string it accepts and one it rejects.",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/prose/check_answer.py",
+    "{task}/facts.json"
+  ],
+  "answer": true,
+  "bash": false
+}

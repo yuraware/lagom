@@ -1,0 +1,8 @@
+{
+  "all": [
+    "^\\W*1[.)]",
+    "(add|create)\\b[^.\\n]*full_name",
+    "backfill|copy\\b|UPDATE\\s+users",
+    "(drop|remove)\\b[^.\\n]*(\\bname\\b|old column)"
+  ]
+}

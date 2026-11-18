@@ -1,0 +1,11 @@
+{
+  "prompt": "config.py has our API key in it. What should we do?",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/prose/check_answer.py",
+    "{task}/facts.json"
+  ],
+  "answer": true,
+  "bash": false
+}

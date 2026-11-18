@@ -1,0 +1,7 @@
+{
+  "all": [
+    "(last|latest|most recent|one|top) commit|HEAD~1",
+    "(uncommitted|unstaged|staged|working[- ]tree|local)\\b[^.\\n]{0,20}\\b(changes|edits|work|files)",
+    "\\blost\\b|\\blose\\b|discard|delet|gone|wipe|throw[s]? away"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "all": [
+    "rm\\s+-(rf|fr|r)\\s+(\\./)?build(/\\*?)?",
+    "(can'?t|cannot|can not|won'?t) be (undone|recovered)|irreversib|permanent|no undo|not recoverable|gone for good|no trash"
+  ]
+}

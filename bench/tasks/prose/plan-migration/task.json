@@ -1,0 +1,11 @@
+{
+  "prompt": "Plan how to rename the `name` column of the `users` table to `full_name` in PostgreSQL without downtime, as numbered steps.",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/prose/check_answer.py",
+    "{task}/facts.json"
+  ],
+  "answer": true,
+  "bash": false
+}

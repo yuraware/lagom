@@ -1,0 +1,11 @@
+{
+  "prompt": "What is the time complexity of find_duplicates in dups.py, and how could it be made linear?",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/prose/check_answer.py",
+    "{task}/facts.json"
+  ],
+  "answer": true,
+  "bash": false
+}

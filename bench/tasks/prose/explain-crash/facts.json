@@ -1,0 +1,6 @@
+{
+  "all": [
+    "ZeroDivisionError|divi(de|des|sion|ding) by (zero|0)",
+    "empty|len\\(values\\)\\W*(is|==)\\s*0|no (values|items|elements)"
+  ]
+}

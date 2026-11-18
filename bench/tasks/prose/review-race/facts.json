@@ -1,0 +1,9 @@
+{
+  "all": [
+    "race|not atomic|non-atomic|lost (update|increment)",
+    "\\block\\b|threading\\.Lock|mutex|atomic"
+  ],
+  "none": [
+    "^\\W*yes\\b[^.\\n]*(always|will)"
+  ]
+}

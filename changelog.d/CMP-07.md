@@ -1,0 +1,2 @@
+### Added
+- Unified diffs (`git diff`, `git show`, `git log -p`) keep every changed line of normal files with their file and hunk headers, cut unchanged context to one line around each change, drop headers that repeat the file name, and summarize lockfiles (`Cargo.lock`, `package-lock.json`, `uv.lock` …) in one line. Above 480 changed lines, later files are named with their `+`/`-` counts. `GIT binary patch` bodies become one line, and `--no-prefix` diffs work too.

@@ -27,7 +27,7 @@ The hook rewrites a command to `lagom run -- …` only when all of these hold:
   { "permissions": { "allow": ["Shell(git)", "Shell(cargo)"] } }
   ```
   In Claude Code's bypass mode no rule is needed. A deny or ask rule always blocks the rewrite. Allow rules in a project's committed `.claude/settings.json` don't count (Claude Code applies them only after workspace trust); put them in your user settings or the project's uncommitted `.claude/settings.local.json`. Rule syntax follows Claude Code: `Bash(git log)` matches only that exact command, `Bash(git log *)` also matches it with arguments.
-- **It is one known program** (git, cargo, npm, pytest, go, rg, docker, …) with no `|`, `&&`, `;`, redirects, subshells or `VAR=value` in front.
+- **It is one known program** (git, cargo, npm, pytest, go, rg, docker, …) with no `|`, `&&`, `;`, redirects, subshells or `VAR=value` in front. The one exception is a leading `cd <dir> &&` into the project (`cd crates/core && cargo test`): the command after it is rewritten, if your rules allow it.
 - **It isn't long-running:** dev servers, watch modes, `-f`/`--follow` and background commands are left alone.
 
 Check a decision by hand (empty output means "not rewritten"):
@@ -40,7 +40,7 @@ You can always compress by hand: `lagom run -- <command>`.
 
 ## I need the full output
 
-Compressed output ends with `[lagom: N → M lines; full output: lagom recall <id>]`. Run `lagom recall <id>`. Lagom keeps the last 500 originals; older ones are gone.
+Compressed output ends with `[lagom: N → M lines; full output: lagom recall <id> …]`. Run `lagom recall <id>`, or fetch only what you need: `--grep TEXT` (matching lines with their numbers), `--lines A-B`, `--head N`, `--tail N`. Lagom keeps the last 500 originals, up to 200 MB and 14 days; older ones are gone. `lagom recall --list` shows what is kept.
 
 To skip compression for one command: `LAGOM_RAW=1 git log`. To turn all hooks off: `LAGOM_DISABLE=1`.
 

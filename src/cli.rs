@@ -20,9 +20,19 @@ Usage:
   lagom style show <name>                   Print a style
   lagom style use [--project] <names…|off>  Set active styles (user or this project)
   lagom run -- <command> [args…]            Run a command and compress its output
+            [--session AGENT:ID]            (set by the agent hook, for stats)
   lagom compress                            Compress text from stdin
-  lagom recall <id>                         Print the full output behind a compressed result
+  lagom recall <id> [--grep TEXT]           Print the full output behind a compressed result
+                  [--lines A-B] [--head N] [--tail N]  or only part of it
+  lagom recall --list | --clear             List or delete saved outputs
   lagom stats                               Show estimated savings
+  lagom experiment start [--holdout 0.2]    Measure styles: some sessions run without them
+                  [--days 14] | status | stop
+  lagom stats --experiment                  Styled vs holdout output tokens, with a 95% interval
+  lagom discover [--days N]                 Large outputs Lagom didn't compress, and why
+  lagom stats --usage [--days N]            Real token usage per style (Claude Code, Codex)
+  lagom bench compress [DIR…] [--json F]    Compress a corpus of real outputs; report sizes and
+                  [--compare BASELINE]      kept must_keep strings (exit 1 on an unexpected loss)
   lagom hook <agent> <event>                Used by agent hooks (reads JSON on stdin)
   lagom --version
 
@@ -35,16 +45,19 @@ pub fn main() -> ExitCode {
     let rest = |n: usize| args.get(n..).unwrap_or(&[]).to_vec();
     match args.first().map(String::as_str) {
         Some("run") => {
-            let cmd = rest(1);
-            let cmd = if cmd.first().map(String::as_str) == Some("--") {
-                cmd[1..].to_vec()
-            } else {
-                cmd
-            };
-            run::run(&cmd)
+            let mut cmd = rest(1);
+            let mut session = None;
+            if cmd.first().map(String::as_str) == Some("--session") && cmd.len() >= 2 {
+                session = Some(cmd[1].clone());
+                cmd.drain(..2);
+            }
+            if cmd.first().map(String::as_str) == Some("--") {
+                cmd.remove(0);
+            }
+            run::run(&cmd, session.as_deref())
         }
         Some("compress") => cmd_compress(),
-        Some("recall") => cmd_recall(args.get(1)),
+        Some("recall") => cmd_recall(&rest(1)),
         Some("hook") => {
             hook::run(
                 args.get(1).map(String::as_str).unwrap_or(""),
@@ -56,7 +69,20 @@ pub fn main() -> ExitCode {
         Some("uninstall") => cmd_install(&rest(1), false),
         Some("status") => cmd_status(),
         Some("style") => cmd_style(&rest(1)),
-        Some("stats") => cmd_stats(),
+        Some("stats") => match args.get(1).map(String::as_str) {
+            Some("--usage") => cmd_usage(&rest(2)),
+            Some("--experiment") => cmd_experiment_report(),
+            None => cmd_stats(),
+            Some(other) => {
+                eprintln!(
+                    "lagom: unknown option `{other}`\nusage: lagom stats [--usage [--days N] | --experiment]"
+                );
+                ExitCode::from(2)
+            }
+        },
+        Some("bench") => crate::bench::run(&rest(1)),
+        Some("experiment") => cmd_experiment(&rest(1)),
+        Some("discover") => cmd_discover(&rest(1)),
         Some("--version" | "-V" | "version") => {
             println!("lagom {}", env!("CARGO_PKG_VERSION"));
             ExitCode::SUCCESS
@@ -82,21 +108,86 @@ fn cmd_compress() -> ExitCode {
         eprintln!("lagom: stdin is not valid UTF-8 text");
         return ExitCode::from(1);
     }
-    let out = run::render(&raw, 0, "compress");
+    let out = run::render(&raw, 0, "compress", &store::Attribution::default());
     let _ = std::io::stdout().write_all(out.as_bytes());
     ExitCode::SUCCESS
 }
 
-fn cmd_recall(id: Option<&String>) -> ExitCode {
-    match id.and_then(|id| store::load_original(id)) {
+fn cmd_recall(args: &[String]) -> ExitCode {
+    const USAGE: &str =
+        "usage: lagom recall <id> [--lines A-B] [--grep TEXT] [--head N] [--tail N]";
+    let Some((id, rest)) = args.split_first() else {
+        eprintln!("lagom: {USAGE}");
+        return ExitCode::from(2);
+    };
+    match id.as_str() {
+        "--list" => {
+            let now = std::time::SystemTime::now();
+            let all = store::list_recall();
+            for e in &all {
+                let age = now
+                    .duration_since(e.modified)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                let age = match age {
+                    s if s < 3600 => format!("{}m", s / 60),
+                    s if s < 86_400 => format!("{}h", s / 3600),
+                    s => format!("{}d", s / 86_400),
+                };
+                println!(
+                    "{}  {:>8}  {:>4} ago  {}",
+                    e.id,
+                    human_bytes(e.bytes),
+                    age,
+                    e.program
+                );
+            }
+            let total: u64 = all.iter().map(|e| e.bytes).sum();
+            println!(
+                "{} saved outputs, {} (kept: last 500, 200 MB, 14 days)",
+                all.len(),
+                human_bytes(total)
+            );
+            return ExitCode::SUCCESS;
+        }
+        "--clear" => {
+            println!("removed {} saved outputs", store::clear_recall());
+            return ExitCode::SUCCESS;
+        }
+        _ => {}
+    }
+    let selection = match store::Selection::parse(rest) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("lagom: {e}\n{USAGE}");
+            return ExitCode::from(2);
+        }
+    };
+    if !store::is_recall_id(id) {
+        eprintln!(
+            "lagom: `{id}` is not a recall id (10 hex characters, from a `[lagom: … lagom recall <id> …]` line)\n{USAGE}"
+        );
+        return ExitCode::from(2);
+    }
+    match store::load_original(id) {
         Some(text) => {
-            print!("{text}");
+            print!("{}", selection.apply(&text));
             ExitCode::SUCCESS
         }
         None => {
-            eprintln!("lagom: no stored output for that id (usage: lagom recall <id>)");
+            eprintln!(
+                "lagom: no stored output for `{id}`: it may have been pruned (Lagom keeps up to 500 outputs, 200 MB, for 14 days; see `lagom recall --list`)"
+            );
             ExitCode::from(1)
         }
+    }
+}
+
+fn human_bytes(n: u64) -> String {
+    match n {
+        n if n < 1024 => format!("{n} B"),
+        n if n < 1024 * 1024 => format!("{:.1} KB", n as f64 / 1024.0),
+        n => format!("{:.1} MB", n as f64 / (1024.0 * 1024.0)),
     }
 }
 
@@ -306,6 +397,10 @@ fn cmd_status() -> ExitCode {
         );
     }
     print_active_styles(&cwd());
+    let langs = crate::lang::detect(&cwd());
+    if !langs.names().is_empty() {
+        println!("project languages: {}", langs.names().join(", "));
+    }
     ExitCode::SUCCESS
 }
 
@@ -389,6 +484,295 @@ fn cmd_style(args: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+/// `lagom stats --usage [--days N]`: real token usage from Claude Code transcripts,
+/// grouped by the styles Lagom injected.
+fn cmd_usage(args: &[String]) -> ExitCode {
+    let days = match args {
+        [] => 30,
+        [flag, n] if flag == "--days" => match n.parse::<u64>() {
+            Ok(n) => n,
+            Err(_) => {
+                eprintln!("lagom: --days needs a number");
+                return ExitCode::from(2);
+            }
+        },
+        _ => {
+            eprintln!("usage: lagom stats --usage [--days N]");
+            return ExitCode::from(2);
+        }
+    };
+    let since = std::time::SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(days.saturating_mul(86_400)));
+    let (styles, tracked_since) = store::session_styles();
+    let agents = [
+        ("Claude Code", crate::gain::claude::sessions(since)),
+        ("Codex", crate::gain::codex::sessions(since)),
+    ];
+    if agents.iter().all(|(_, s)| s.is_empty()) {
+        println!("No Claude Code or Codex sessions in the last {days} days.");
+        return ExitCode::SUCCESS;
+    }
+    for (name, sessions) in agents.iter().filter(|(_, s)| !s.is_empty()) {
+        println!("{name} token usage, last {days} days (from its own logs):");
+        println!(
+            "{:<30} {:>8} {:>7} {:>14} {:>15} {:>11}",
+            "style", "sessions", "turns", "output/turn", "input/turn", "cache read"
+        );
+        for g in &crate::gain::by_style(sessions, &styles, tracked_since) {
+            println!(
+                "{:<30} {:>8} {:>7} {:>14} {:>15} {:>10.0}%",
+                g.style,
+                g.sessions,
+                g.turns,
+                g.median_output_per_turn,
+                g.median_input_per_turn,
+                g.cache_read_share * 100.0
+            );
+        }
+        println!();
+    }
+    println!(
+        "Medians per main-conversation turn. Observational: sessions differ in their work, so this does not prove a style's effect."
+    );
+    ExitCode::SUCCESS
+}
+
+/// `lagom discover [--days N]`: large outputs Lagom didn't compress, and why.
+fn cmd_discover(args: &[String]) -> ExitCode {
+    use crate::gain::{claude, codex, discover};
+    let days: u64 = match args {
+        [] => 30,
+        [flag, n] if flag == "--days" && n.parse::<u64>().is_ok() => n.parse().unwrap_or(30),
+        _ => {
+            eprintln!("usage: lagom discover [--days N]");
+            return ExitCode::from(2);
+        }
+    };
+    let since = std::time::SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(days.saturating_mul(86_400)));
+    let mut calls = Vec::new();
+    // Lossy: a log still being written may end in the middle of a character.
+    let read = |p: &std::path::Path| {
+        std::fs::read(p)
+            .ok()
+            .map(|b| String::from_utf8_lossy(&b).into_owned())
+    };
+    for path in claude::transcript_files(&claude::projects_dir(), since) {
+        if let Some(text) = read(&path) {
+            calls.extend(discover::claude_calls(&text));
+        }
+    }
+    for path in claude::transcript_files(&codex::sessions_dir(), since) {
+        if let Some(text) = read(&path) {
+            calls.extend(discover::codex_calls(&text));
+        }
+    }
+    let r = discover::analyze(&calls);
+    let kb = |b: usize| format!("{:.0} KB", b as f64 / 1024.0);
+    println!(
+        "Last {days} days: {} tool calls read from Claude Code and Codex logs, {} already compressed by Lagom.",
+        calls.len(),
+        r.compressed
+    );
+    let mut groups: Vec<_> = r.uncompressed.iter().collect();
+    groups.sort_by_key(|(_, g)| std::cmp::Reverse(g.bytes));
+    if groups.is_empty() {
+        println!(
+            "\nNo large uncompressed command outputs (≥ {}).",
+            kb(discover::LARGE)
+        );
+    } else {
+        println!(
+            "\nLarge command outputs not compressed (≥ {} each):",
+            kb(discover::LARGE)
+        );
+        for ((key, reason), g) in groups.iter().take(10) {
+            println!(
+                "  {:>3} × {key:<24} {:>8} total (~{} tokens) — {reason}",
+                g.count,
+                kb(g.bytes),
+                g.bytes / 4
+            );
+        }
+        let hint = |r: &str| groups.iter().any(|((_, reason), _)| *reason == r);
+        println!("\nWhat to do:");
+        if hint("no allow rule matched, or Lagom's hook isn't installed for this agent") {
+            println!(
+                "  - Install Lagom (`lagom install`) and allow the commands you trust, e.g. `Bash(cargo test *)` in ~/.claude/settings.json."
+            );
+        }
+        if hint("pipes, &&, ;, redirects and subshells are never rewritten") {
+            println!(
+                "  - Compound commands are left alone on purpose; split them, or run `lagom run -- <command>` yourself."
+            );
+        }
+        if hint("program not in Lagom's rewrite list") {
+            println!(
+                "  - Unknown programs can still be compressed with `lagom run -- <command>`; filters for more tools are planned."
+            );
+        }
+    }
+    let large: usize = r.by_tool.values().map(|g| g.bytes).sum();
+    if large > 0 {
+        let mut tools: Vec<_> = r.by_tool.iter().collect();
+        tools.sort_by_key(|(_, g)| std::cmp::Reverse(g.bytes));
+        let shares: Vec<String> = tools
+            .iter()
+            .map(|(tool, g)| format!("{tool} {:.0}%", g.bytes as f64 * 100.0 / large as f64))
+            .collect();
+        println!(
+            "\nLarge outputs (≥ {}) by tool, share of bytes: {}",
+            kb(discover::LARGE),
+            shares.join(", ")
+        );
+    }
+    let mut rereads: Vec<_> = r.rereads.iter().collect();
+    rereads.sort_by_key(|(_, g)| std::cmp::Reverse(g.bytes));
+    if !rereads.is_empty() {
+        println!("\nLarge files (or the same part of one) read again in the same session:");
+        for (path, g) in rereads.iter().take(10) {
+            println!("  {:>3} × {path} ({} again)", g.count, kb(g.bytes));
+        }
+    }
+    ExitCode::SUCCESS
+}
+
+/// `lagom experiment start --holdout 0.2 [--days 14] | status | stop`.
+fn cmd_experiment(args: &[String]) -> ExitCode {
+    use crate::gain::experiment::Experiment;
+    const USAGE: &str = "usage: lagom experiment start [--holdout 0.2] [--days 14] | status | stop";
+    match args.first().map(String::as_str) {
+        Some("start") => {
+            let (mut holdout, mut days) = (0.2_f64, 14_u64);
+            let mut it = args[1..].iter();
+            while let Some(flag) = it.next() {
+                let value = it.next();
+                match (flag.as_str(), value) {
+                    ("--holdout", Some(v)) => match v.parse::<f64>() {
+                        Ok(h) if (0.05..=0.5).contains(&h) => holdout = h,
+                        _ => {
+                            eprintln!("lagom: --holdout must be between 0.05 and 0.5");
+                            return ExitCode::from(2);
+                        }
+                    },
+                    ("--days", Some(v)) => match v.parse::<u64>() {
+                        Ok(d) if (1..=90).contains(&d) => days = d,
+                        _ => {
+                            eprintln!("lagom: --days must be between 1 and 90");
+                            return ExitCode::from(2);
+                        }
+                    },
+                    _ => {
+                        eprintln!("lagom: {USAGE}");
+                        return ExitCode::from(2);
+                    }
+                }
+            }
+            match Experiment::start(holdout, days) {
+                Ok(_) => {
+                    println!(
+                        "Experiment started: about {:.0}% of new sessions run without styles for {days} days.",
+                        holdout * 100.0
+                    );
+                    println!("See results any time with `lagom stats --experiment`.");
+                    println!(
+                        "Other tools that add answer rules at session start (Caveman, for example) run in both groups and blur the result: turn them off while it runs."
+                    );
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("lagom: cannot save the experiment: {e}");
+                    ExitCode::from(1)
+                }
+            }
+        }
+        Some("status") => {
+            match Experiment::load() {
+                Some(e) if Experiment::active().is_some() => println!(
+                    "Running: {:.0}% holdout, {} days left.",
+                    e.holdout * 100.0,
+                    e.ends.saturating_sub(store_now()) / 86_400
+                ),
+                Some(_) => println!("Finished. `lagom stats --experiment` shows the results."),
+                None => println!("No experiment. Start one with `lagom experiment start`."),
+            }
+            ExitCode::SUCCESS
+        }
+        Some("stop") => match Experiment::stop() {
+            Ok(Some(_)) => {
+                println!(
+                    "Experiment stopped; every session gets styles again. `lagom stats --experiment` still shows the results."
+                );
+                ExitCode::SUCCESS
+            }
+            Ok(None) => {
+                println!("No experiment is running.");
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("lagom: {e}");
+                ExitCode::from(1)
+            }
+        },
+        _ => {
+            eprintln!("lagom: {USAGE}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn store_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// `lagom stats --experiment`: styled vs holdout output tokens per turn.
+fn cmd_experiment_report() -> ExitCode {
+    use crate::gain::experiment::{Experiment, compare, per_arm, recorded_arms};
+    let Some(e) = Experiment::load() else {
+        println!("No experiment. Start one with `lagom experiment start --holdout 0.2`.");
+        return ExitCode::SUCCESS;
+    };
+    let since = std::time::UNIX_EPOCH + std::time::Duration::from_secs(e.started);
+    let mut sessions = crate::gain::claude::sessions(Some(since));
+    sessions.extend(crate::gain::codex::sessions(Some(since)));
+    let (styled, holdout) = per_arm(&sessions, &recorded_arms(e.started));
+    println!(
+        "Holdout experiment ({:.0}% without styles): {} styled sessions, {} holdout sessions.",
+        e.holdout * 100.0,
+        styled.len(),
+        holdout.len()
+    );
+    match compare(&styled, &holdout, 10_000, e.started) {
+        Some(c) => {
+            println!(
+                "Output tokens per turn (mean per session): styled {:.0}, holdout {:.0}.",
+                c.styled_mean, c.holdout_mean
+            );
+            let pct = |x: f64| x * 100.0 / c.holdout_mean.max(1.0);
+            println!(
+                "Difference: {:+.0} tokens per turn ({:+.0}%), 95% interval {:+.0} to {:+.0} ({:+.0}% to {:+.0}%).",
+                c.diff,
+                pct(c.diff),
+                c.ci_low,
+                c.ci_high,
+                pct(c.ci_low),
+                pct(c.ci_high)
+            );
+            if c.ci_low <= 0.0 && c.ci_high >= 0.0 {
+                println!("The interval includes zero: no measurable effect yet.");
+            }
+            if c.holdout_sessions < 20 {
+                println!("Few holdout sessions so far; the interval narrows as more come in.");
+            }
+        }
+        None => println!("Not enough sessions in both arms yet (at least 2 each)."),
+    }
+    ExitCode::SUCCESS
+}
+
 fn cmd_stats() -> ExitCode {
     let t = store::totals();
     let saved = t.bytes_in.saturating_sub(t.bytes_out);
@@ -412,6 +796,28 @@ fn cmd_stats() -> ExitCode {
     println!(
         "net: ~{net} tokens (estimate: 4 bytes ≈ 1 token; style effects on answer length are not measured)"
     );
+    if !t.by_agent.is_empty() {
+        println!("by agent:");
+        for (agent, b) in &t.by_agent {
+            println!(
+                "  {agent:<8} {} runs, saved ~{} tokens; {} injections, ~{} tokens",
+                b.runs,
+                tokens(b.bytes_in.saturating_sub(b.bytes_out)),
+                b.injections,
+                tokens(b.injected_bytes)
+            );
+        }
+    }
+    if !t.by_style.is_empty() {
+        println!("by style:");
+        for (style, b) in &t.by_style {
+            println!(
+                "  {style:<20} {} injections, ~{} tokens",
+                b.injections,
+                tokens(b.injected_bytes)
+            );
+        }
+    }
     ExitCode::SUCCESS
 }
 

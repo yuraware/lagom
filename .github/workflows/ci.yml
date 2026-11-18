@@ -3,33 +3,130 @@ on:
   push:
     branches: [main]
   pull_request:
+    # labeled/unlabeled: the override labels (size-increase-ok, no-changelog) take effect when changed.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
 
+# A new push to a PR cancels the run it replaces; runs on main always finish.
+# Runs started by a label change (BEN-18) skip the tests, so they get their own group:
+# adding a label must not cancel the test run of the current commit.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') && '-label' || '' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+# Actions are pinned by commit SHA; the comment names the release it points to.
 jobs:
   test:
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     strategy:
+      fail-fast: false
       matrix:
+        # Windows joins in WIN-01.
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-15
         with:
+          toolchain: stable
           components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - run: cargo fmt --check
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked --workspace
+
+  msrv:
+    # Builds with the oldest Rust we support: `rust-version` in Cargo.toml.
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Read rust-version from Cargo.toml
+        id: msrv
+        run: |
+          version=$(sed -n 's/^rust-version *= *"\([0-9.]*\)".*/\1/p' Cargo.toml | head -n 1)
+          if [ -z "$version" ]; then
+            echo "::error file=Cargo.toml::rust-version is missing"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-15
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - run: cargo build --locked --workspace --all-targets
 
   changelog:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - run: python3 -I -m unittest discover -s scripts -p 'test_*.py'
       - run: python3 -I scripts/release_notes.py --check --base origin/${{ github.base_ref }}
         env:
           LAGOM_NO_CHANGELOG: ${{ contains(github.event.pull_request.labels.*.name, 'no-changelog') && '1' || '0' }}
+
+  latency:
+    # Measures only; the regression gate comes with QA-08. macOS arm64 runners are scarce
+    # (GitHub cancels jobs it can't place within 15 minutes), so pull requests measure on
+    # Linux and pushes to main measure on both.
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
+    strategy:
+      matrix:
+        os: ${{ github.event_name == 'push' && fromJSON('["ubuntu-latest", "macos-latest"]') || fromJSON('["ubuntu-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-15
+        with:
+          toolchain: stable
+      - run: sudo apt-get install -y hyperfine
+        if: runner.os == 'Linux'
+      - run: brew install hyperfine
+        if: runner.os == 'macOS'
+      - run: bench/latency.sh target/bench/latency-${{ matrix.os }}.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: latency-${{ matrix.os }}
+          path: target/bench/latency-${{ matrix.os }}.json
+
+  fidelity:
+    # BEN-04: no must_keep string may be lost, and total output may not grow >5% vs the base.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-15
+        with:
+          toolchain: stable
+      - run: cargo build --release
+      - name: No must_keep string lost
+        run: ./target/release/lagom bench compress --json target/bench-current.json
+      - name: Output size against the base branch
+        if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'size-increase-ok')
+        run: |
+          git worktree add ../base "origin/${{ github.base_ref }}"
+          cargo build --release --manifest-path ../base/Cargo.toml
+          set +e
+          ../base/target/release/lagom bench compress bench/corpus tests/fixtures/compress \
+            --json target/bench-base.json > /dev/null
+          code=$?
+          set -e
+          if [ "$code" -le 1 ] && [ -f target/bench-base.json ]; then
+            ./target/release/lagom bench compress --compare target/bench-base.json --max-growth 5
+          else
+            echo "The base branch has no 'lagom bench compress' yet; skipping the size check."
+          fi
+      - name: Size check skipped by the size-increase-ok label
+        if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'size-increase-ok')
+        run: echo "size-increase-ok is set; total output may grow."

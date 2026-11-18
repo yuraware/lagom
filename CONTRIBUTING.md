@@ -52,6 +52,8 @@ Everything Lagom injects or adds to output is read by the model as context. Chec
 
 Lagom has one runtime dependency, `serde_json`, and keeps it that way unless there is a strong reason. Open an issue before adding a crate. Async runtimes, argument-parser frameworks, error-helper crates, date-time crates and logging frameworks are out: the binary has a hand-written argument parser, uses `std::error::Error` and Unix seconds, and prints debug output to stderr.
 
+CI enforces this with [cargo-deny](https://github.com/EmbarkStudios/cargo-deny) and [deny.toml](deny.toml): every crate in the build must be on its allow-list. Dependencies must use a license on its list (MIT, Apache-2.0, BSD, ISC, Unicode-3.0 or Zlib), and must have no open RustSec advisory. Run `cargo deny check` before a pull request that changes `Cargo.lock`.
+
 ## License
 
 Lagom is licensed under [Apache-2.0](LICENSE), and contributions are accepted under the same license. Code copied from another project must have a compatible license, keep its original copyright header, and be listed in `NOTICE`. Don't submit code you don't have the right to share.

@@ -1,0 +1,57 @@
+# cargo-deny (QA-09): licenses, the crate allow-list and security advisories. CI runs
+# `cargo deny check`; to run it locally: `cargo install --locked cargo-deny`.
+
+[graph]
+# The platforms Lagom is built for: release archives, CI and `cargo install`. A crate that
+# only one of them uses is still checked; serde's never-built `cfg(any())` link to
+# serde_derive is not.
+targets = [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-unknown-linux-musl",
+    "aarch64-unknown-linux-musl",
+    "x86_64-pc-windows-msvc",
+]
+all-features = true
+
+[licenses]
+# A dependency's license must be one of these. Anything else fails, BUSL included.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+]
+confidence-threshold = 0.93
+unused-allowed-license = "allow"
+
+[bans]
+# The dependency budget (D-37 in the plan): serde_json and what it pulls in. Any crate not
+# listed here fails the build. Adding one needs a decision in PLAN.md first.
+allow = [
+    { crate = "serde_json", reason = "the one dependency (D-37)" },
+    { crate = "serde", reason = "serde_json" },
+    { crate = "serde_core", reason = "serde_json" },
+    { crate = "itoa", reason = "serde_json" },
+    { crate = "zmij", reason = "serde_json" },
+    { crate = "memchr", reason = "serde_json" },
+    { crate = "indexmap", reason = "serde_json preserve_order" },
+    { crate = "equivalent", reason = "indexmap" },
+    { crate = "hashbrown", reason = "indexmap" },
+    { crate = "foldhash", reason = "serde_json preserve_order" },
+]
+allow-workspace = true
+multiple-versions = "deny"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+
+[advisories]
+yanked = "deny"

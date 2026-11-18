@@ -3,16 +3,17 @@
   "scope": "all time",
   "compression": {
     "method": "tokens ≈ bytes ÷ 4, an estimate",
+    "basis": "estimated",
     "total": {
       "runs": 5,
       "compressed": 3,
       "bytes_in": 183500,
       "bytes_out": 19500,
       "saved_tokens": 41000,
-      "injections": 3,
-      "injected_bytes": 4200,
-      "injected_tokens": 1050,
-      "net_tokens": 39950
+      "injections": 4,
+      "injected_bytes": 5000,
+      "injected_tokens": 1250,
+      "net_tokens": 39750
     },
     "by_command": {
       "cargo": {
@@ -59,10 +60,19 @@
         "injected_tokens": 0,
         "net_tokens": 0
       }
+    },
+    "coverage": {
+      "runs": 5,
+      "not_counted": "commands Lagom didn't wrap (see lagom discover)",
+      "skipped_lines": {
+        "unreadable": 1,
+        "newer": 1
+      }
     }
   },
   "injection": {
     "method": "tokens ≈ bytes ÷ 4, an estimate",
+    "basis": "estimated",
     "by_style": {
       "terse": {
         "runs": 0,
@@ -70,10 +80,10 @@
         "bytes_in": 0,
         "bytes_out": 0,
         "saved_tokens": 0,
-        "injections": 1,
-        "injected_bytes": 1000,
-        "injected_tokens": 250,
-        "net_tokens": -250
+        "injections": 2,
+        "injected_bytes": 1800,
+        "injected_tokens": 450,
+        "net_tokens": -450
       },
       "terse+lean-code": {
         "runs": 0,
@@ -86,18 +96,32 @@
         "injected_tokens": 800,
         "net_tokens": -800
       }
+    },
+    "coverage": {
+      "injections": 4
     }
   },
   "output": {
     "method": "median output tokens per main-conversation turn, from the agents' own logs; observational, so not proof of a style's effect",
+    "basis": "measured from the agents' own logs",
     "by_agent": {
       "Claude Code": [],
       "Codex": []
+    },
+    "coverage": {
+      "sessions_measured": 0,
+      "unavailable": 1,
+      "unavailable_reason": "Cursor keeps no usage data"
     }
   },
   "net": {
     "method": "tokens saved by compression minus tokens of injected style rules; a style's effect on answer length is not included",
-    "tokens": 39950,
+    "tokens": 39750,
+    "basis": {
+      "compression": "estimated",
+      "injection": "estimated",
+      "style_savings": "unknown"
+    },
     "by_agent": {
       "claude": {
         "runs": 2,
@@ -120,6 +144,17 @@
         "injected_bytes": 1000,
         "injected_tokens": 250,
         "net_tokens": 27500
+      },
+      "cursor": {
+        "runs": 0,
+        "compressed": 0,
+        "bytes_in": 0,
+        "bytes_out": 0,
+        "saved_tokens": 0,
+        "injections": 1,
+        "injected_bytes": 800,
+        "injected_tokens": 200,
+        "net_tokens": -200
       },
       "manual": {
         "runs": 1,
@@ -173,10 +208,10 @@
         "bytes_in": 123000,
         "bytes_out": 12000,
         "saved_tokens": 27750,
-        "injections": 1,
-        "injected_bytes": 1000,
-        "injected_tokens": 250,
-        "net_tokens": 27500
+        "injections": 2,
+        "injected_bytes": 1800,
+        "injected_tokens": 450,
+        "net_tokens": 27300
       }
     }
   }

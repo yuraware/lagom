@@ -914,7 +914,8 @@ fn cmd_stats(a: &Args) -> ExitCode {
     let ctx = Context { styles, models };
     let mut report = Report::default();
     report.scope = filter.scope(days);
-    store::for_each_stat(|v| report.add_filtered(v, &filter, &ctx));
+    report.skipped = store::for_each_stat(|v| report.add_filtered(v, &filter, &ctx));
+    report.experiment = crate::gain::experiment::Experiment::load().is_some();
     report.add_sessions("Claude Code", claude, &filter, &ctx, tracked_since);
     report.add_sessions("Codex", codex, &filter, &ctx, tracked_since);
     if let Err(e) = filter.check(&report.known) {

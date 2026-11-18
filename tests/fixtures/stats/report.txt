@@ -8,24 +8,29 @@ by command:
   git              2 runs       60000 →      7000 bytes  saved ~13250 tokens
   ls               1 runs         500 →       500 bytes  saved ~0 tokens
   pytest           1 runs        3000 →      3000 bytes  saved ~0 tokens
+coverage: 5 commands Lagom ran; commands it didn't wrap aren't counted (see `lagom discover`); skipped 1 unreadable and 1 newer-format lines of stats.jsonl
 
 Injection
-style rules injected: 3 times, ~1050 tokens
+style rules injected: 4 times, ~1250 tokens
 by style:
-  terse                    1 injections, ~250 tokens
+  terse                    2 injections, ~450 tokens
   terse+lean-code          2 injections, ~800 tokens
+coverage: 4 injections recorded at session start, subagent start and after compaction
 
 Output (median output tokens per main-conversation turn, from the agents' own logs; observational, so not proof of a style's effect)
 no Claude Code or Codex sessions found
+coverage: 0 sessions measured (Claude Code 0, Codex 0) / 1 unavailable (Cursor keeps no usage data)
 
 Net (tokens saved by compression minus tokens of injected style rules; a style's effect on answer length is not included)
-net: ~39950 tokens
+net: ~39750 tokens
 by agent:
   claude   net ~12450 tokens: 2 runs saved ~13250, 2 injections cost ~800
   codex    net ~27500 tokens: 1 runs saved ~27750, 1 injections cost ~250
+  cursor   net ~-200 tokens: 0 runs saved ~0, 1 injections cost ~200
   manual   net ~0 tokens: 1 runs saved ~0, 0 injections cost ~0
   unknown  net ~0 tokens: 1 runs saved ~0, 0 injections cost ~0
 by day (the last 14 with activity, UTC):
   2026-11-21  net ~0 tokens
   2026-11-22  net ~12450 tokens
-  2026-11-23  net ~27500 tokens
+  2026-11-23  net ~27300 tokens
+basis: compression and injection are estimated (bytes ÷ 4); style savings are unknown: no holdout experiment (start one with `lagom experiment start`)

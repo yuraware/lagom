@@ -239,6 +239,12 @@ pub struct Report {
     pub by_day: BTreeMap<String, Bucket>,
     /// Output tokens per style, per agent, for the sessions in the window.
     pub output: Vec<(String, Vec<StyleUsage>)>,
+    /// Lines of `stats.jsonl` that couldn't be read or came from a newer Lagom.
+    pub skipped: crate::store::Skipped,
+    /// Whether a holdout experiment exists, the only measured source of style savings.
+    pub experiment: bool,
+    /// Cursor sessions seen in events: Cursor keeps no usage data to measure.
+    cursor_sessions: BTreeSet<String>,
 }
 
 impl Report {
@@ -289,6 +295,9 @@ impl Report {
     pub fn add(&mut self, v: &Value) {
         let n = |k: &str| v.get(k).and_then(Value::as_u64).unwrap_or(0);
         let agent = event_agent(v);
+        if let (Some(session), "cursor") = (v.get("session").and_then(Value::as_str), agent) {
+            self.cursor_sessions.insert(session.to_string());
+        }
         let day = v.get("ts").and_then(Value::as_u64).map(utc_day);
         let mut groups: Vec<&mut Bucket> = vec![&mut self.total];
         groups.push(self.by_agent.entry(agent.to_string()).or_default());
@@ -364,6 +373,21 @@ impl Report {
             }
         }
 
+        let skipped = self.skipped.unreadable + self.skipped.newer;
+        let _ = write!(
+            s,
+            "coverage: {} commands Lagom ran; commands it didn't wrap aren't counted (see `lagom discover`)",
+            t.runs
+        );
+        if skipped > 0 {
+            let _ = write!(
+                s,
+                "; skipped {} unreadable and {} newer-format lines of stats.jsonl",
+                self.skipped.unreadable, self.skipped.newer
+            );
+        }
+        let _ = writeln!(s);
+
         let _ = writeln!(s, "\nInjection");
         let _ = writeln!(
             s,
@@ -383,6 +407,12 @@ impl Report {
             }
         }
 
+        let _ = writeln!(
+            s,
+            "coverage: {} injections recorded at session start, subagent start and after compaction",
+            t.injections
+        );
+
         let _ = writeln!(s, "\nOutput ({OUTPUT})");
         if self.output.iter().all(|(_, rows)| rows.is_empty()) {
             let _ = writeln!(s, "no Claude Code or Codex sessions found");
@@ -397,6 +427,21 @@ impl Report {
                 );
             }
         }
+
+        let measured: Vec<String> = self
+            .output
+            .iter()
+            .map(|(agent, rows)| {
+                format!("{agent} {}", rows.iter().map(|g| g.sessions).sum::<usize>())
+            })
+            .collect();
+        let _ = writeln!(
+            s,
+            "coverage: {} sessions measured ({}) / {} unavailable (Cursor keeps no usage data)",
+            self.sessions_measured(),
+            measured.join(", "),
+            self.cursor_sessions.len()
+        );
 
         let _ = writeln!(s, "\nNet ({NET})");
         let _ = writeln!(s, "net: ~{} tokens", t.net_tokens());
@@ -420,7 +465,29 @@ impl Report {
                 let _ = writeln!(s, "  {day}  net ~{} tokens", b.net_tokens());
             }
         }
+        let _ = writeln!(
+            s,
+            "basis: compression and injection are estimated (bytes ÷ 4); style savings are {}",
+            self.style_basis()
+        );
         s
+    }
+
+    fn sessions_measured(&self) -> usize {
+        self.output
+            .iter()
+            .flat_map(|(_, rows)| rows)
+            .map(|g| g.sessions)
+            .sum()
+    }
+
+    /// Style savings are measured only by a holdout experiment; otherwise they are unknown.
+    fn style_basis(&self) -> &'static str {
+        if self.experiment {
+            "measured by the holdout experiment: see `lagom stats --experiment`"
+        } else {
+            "unknown: no holdout experiment (start one with `lagom experiment start`)"
+        }
     }
 
     pub fn json(&self) -> Value {
@@ -448,10 +515,20 @@ impl Report {
         json!({
             "source": "~/.lagom/stats.jsonl",
             "scope": self.scope,
-            "compression": {"method": TOKENS, "total": self.total.json(), "by_command": map(&self.by_command)},
-            "injection": {"method": TOKENS, "by_style": map(&self.by_style)},
-            "output": {"method": OUTPUT, "by_agent": output},
+            "compression": {"method": TOKENS, "basis": "estimated", "total": self.total.json(),
+                            "by_command": map(&self.by_command),
+                            "coverage": {"runs": self.total.runs,
+                                         "not_counted": "commands Lagom didn't wrap (see lagom discover)",
+                                         "skipped_lines": {"unreadable": self.skipped.unreadable, "newer": self.skipped.newer}}},
+            "injection": {"method": TOKENS, "basis": "estimated", "by_style": map(&self.by_style),
+                          "coverage": {"injections": self.total.injections}},
+            "output": {"method": OUTPUT, "basis": "measured from the agents' own logs", "by_agent": output,
+                       "coverage": {"sessions_measured": self.sessions_measured(),
+                                    "unavailable": self.cursor_sessions.len(),
+                                    "unavailable_reason": "Cursor keeps no usage data"}},
             "net": {"method": NET, "tokens": self.total.net_tokens(),
+                    "basis": {"compression": "estimated", "injection": "estimated",
+                              "style_savings": if self.experiment { "measured" } else { "unknown" }},
                     "by_agent": map(&self.by_agent), "by_day": map(&self.by_day)},
         })
     }
@@ -507,6 +584,22 @@ mod tests {
         assert_eq!(r.by_agent["unknown"].injections, 1);
         assert_eq!(r.by_day["2026-11-24"].runs, 2);
         assert_eq!(r.by_day["2026-11-22"].injections, 1);
+    }
+
+    #[test]
+    fn style_savings_are_unknown_without_an_experiment() {
+        let mut r = Report::default();
+        assert!(
+            r.text()
+                .contains("style savings are unknown: no holdout experiment")
+        );
+        assert_eq!(r.json()["net"]["basis"]["style_savings"], "unknown");
+        r.experiment = true;
+        assert!(
+            r.text()
+                .contains("style savings are measured by the holdout experiment")
+        );
+        assert_eq!(r.json()["net"]["basis"]["style_savings"], "measured");
     }
 
     #[test]

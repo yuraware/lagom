@@ -172,9 +172,173 @@ pub fn project_note(cwd: &Path) -> Option<String> {
     })
 }
 
+/// The project hint for the code style when `hints` is on: the Rust hint for a project
+/// whose nearest marker folder has a Cargo.toml (LANG-03 adds Python).
+pub fn project_hint(cwd: &Path) -> Option<String> {
+    let langs = detect(cwd);
+    let root = langs.root?;
+    langs.rust.then(|| rust_hint(&root)).flatten()
+}
+
+/// Dependency names shown at most, and the hint's length at most (LANG-02).
+const HINT_NAMES: usize = 15;
+const HINT_CHARS: usize = 400;
+
+/// A crate name as Cargo allows it. Only these reach the hint: Cargo.toml is repository
+/// text, and the hint goes into the model's prompt.
+fn is_crate_name(s: &str) -> bool {
+    (1..=64).contains(&s.len())
+        && s.starts_with(|c: char| c.is_ascii_alphabetic())
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
+/// Crate names under `[dependencies]` and `[workspace.dependencies]`, in file order, read
+/// with a line scan rather than a TOML parser: `name = …`, `name.workspace = true` and
+/// `[dependencies.name]` tables. Lines inside a multi-line value are skipped.
+pub fn rust_dependencies(cargo_toml: &str) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    let (mut in_deps, mut depth) = (false, 0i32);
+    let mut add = |name: &str| {
+        let name = name.trim().trim_matches('"');
+        if is_crate_name(name) && !names.iter().any(|n| n == name) {
+            names.push(name.to_string());
+        }
+    };
+    for raw in cargo_toml.lines() {
+        let line = raw.split(" #").next().unwrap_or("").trim();
+        if depth > 0 {
+            depth += nesting(line);
+            continue;
+        }
+        if line.starts_with('[') {
+            let header = line.trim_start_matches('[').trim_end_matches(']').trim();
+            in_deps = matches!(header, "dependencies" | "workspace.dependencies");
+            if let Some(name) = header
+                .strip_prefix("dependencies.")
+                .or_else(|| header.strip_prefix("workspace.dependencies."))
+            {
+                add(name);
+            }
+            continue;
+        }
+        if let Some((key, value)) = line.split_once('=') {
+            if in_deps && !key.trim().starts_with('#') {
+                add(key.split('.').next().unwrap_or(""));
+            }
+            depth = nesting(value).max(0);
+        }
+    }
+    names
+}
+
+/// Opening minus closing braces and brackets: above zero, the value goes on.
+fn nesting(text: &str) -> i32 {
+    text.chars()
+        .map(|c| match c {
+            '{' | '[' => 1,
+            '}' | ']' => -1,
+            _ => 0,
+        })
+        .sum()
+}
+
+/// One line for the code style naming what a Rust project already depends on, so "reuse
+/// what exists" has names to reuse (LANG-02). At most 15 names and 400 characters.
+/// `None` without a `Cargo.toml` at `root`.
+pub fn rust_hint(root: &Path) -> Option<String> {
+    let deps = rust_dependencies(&fs::read_to_string(root.join("Cargo.toml")).ok()?);
+    if deps.is_empty() {
+        return Some(
+            "Rust project with no dependencies: prefer std. No new crates without asking.".into(),
+        );
+    }
+    let mut shown = deps.len().min(HINT_NAMES);
+    loop {
+        let more = deps.len() - shown;
+        let hint = format!(
+            "Rust project. Prefer std, then existing deps: {}{}. No new crates without asking.",
+            deps[..shown].join(", "),
+            if more > 0 {
+                format!(" and {more} more")
+            } else {
+                String::new()
+            }
+        );
+        if hint.chars().count() <= HINT_CHARS || shown == 1 {
+            return Some(hint);
+        }
+        shown -= 1;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_rust_hint_on_this_repository() {
+        // Golden: Lagom's own Cargo.toml.
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert_eq!(
+            rust_hint(root).unwrap(),
+            "Rust project. Prefer std, then existing deps: serde_json. No new crates without asking."
+        );
+    }
+
+    #[test]
+    fn dependencies_are_read_from_both_tables_and_every_form() {
+        let toml = r#"
+[package]
+name = "x"
+version = "0.1.0"
+
+[dependencies]
+serde = { version = "1", features = [
+    "derive",
+    "rc",
+] }
+anyhow = "1"       # comment
+tokio.workspace = true
+"not a crate!" = "1"
+
+[dev-dependencies]
+proptest = "1"
+
+[dependencies.regex]
+version = "1"
+
+[workspace.dependencies]
+clap = "4"
+serde = "1"
+"#;
+        assert_eq!(
+            rust_dependencies(toml),
+            ["serde", "anyhow", "tokio", "regex", "clap"]
+        );
+    }
+
+    #[test]
+    fn the_hint_stays_short() {
+        let dir = scratch("rust-many-deps");
+        let deps: String = (0..40)
+            .map(|i| format!("crate_number_{i:02} = \"1\"\n"))
+            .collect();
+        fs::write(dir.join("Cargo.toml"), format!("[dependencies]\n{deps}")).unwrap();
+        let hint = rust_hint(&dir).unwrap();
+        assert!(
+            hint.chars().count() <= HINT_CHARS,
+            "{} chars",
+            hint.chars().count()
+        );
+        assert!(hint.matches("crate_number_").count() <= HINT_NAMES);
+        assert!(
+            hint.contains(" more. No new crates without asking."),
+            "{hint}"
+        );
+        fs::write(dir.join("Cargo.toml"), "[package]\nname = \"x\"\n").unwrap();
+        assert!(rust_hint(&dir).unwrap().contains("no dependencies"));
+    }
 
     #[test]
     fn test_policy_follows_the_project() {

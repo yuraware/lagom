@@ -1,0 +1,447 @@
+#!/usr/bin/env python3
+"""A/B harness for coding agents (BEN-06): the same tasks under each arm, interleaved,
+each run in a fresh folder and judged by hidden checks. Standard library only.
+
+    python3 -I bench/ab.py --selftest
+    python3 -I bench/ab.py --agent fake --arms baseline,terse-control,lagom:terse --repeats 2
+    python3 -I bench/ab.py --agent claude --arms baseline,terse-control,lagom:terse \\
+        --repeats 3 --budget-usd 20 [--model sonnet] [--task py-off-by-one,py-add-flag]
+
+Arms: `baseline`; `terse-control`, with only the instruction "Answer concisely."; and
+`lagom:<style>`, with Lagom's hooks and that style installed in the run's folder.
+
+A task is a folder in bench/tasks/ with task.json (`prompt`, `check` as an argument
+list, `bash`: whether the agent may run commands), fixture/ (what the agent starts
+with), hidden/ (the checks, copied in only after the agent stops) and solution/ (a
+reference the checks must pass). `--selftest` runs every task's references: the
+fixture alone must fail its checks and fixture plus solution must pass. A paid run
+refuses to start if it fails.
+
+Every run happens outside any git repository, after one throwaway call per model so no
+arm pays the cold cache write. Claude Code runs with --setting-sources project
+--strict-mcp-config --no-session-persistence and permissions bypassed, never --bare
+(it skips hooks). A task that allows commands runs them in Claude Code's own sandbox:
+writes stay in the run's folder and no network leaves it. Codex runs with
+--sandbox workspace-write. Tokens are read from `modelUsage`, which counts subagents.
+
+Results: one JSON line per run in bench/results/<date>/runs.jsonl.
+"""
+import argparse
+import datetime
+import json
+import os
+import shlex
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+CONTROL = "Answer concisely."
+ISOLATION = ["--setting-sources", "project", "--strict-mcp-config", "--no-session-persistence"]
+WARMUP_PROMPT = "Reply with the single word OK."
+CHECK_TIMEOUT = 300
+
+
+class UsageError(Exception):
+    pass
+
+
+# ---------- tasks ----------
+
+def load_tasks(root, only=None):
+    tasks = []
+    for name in sorted(os.listdir(root)):
+        d = os.path.join(root, name)
+        meta_path = os.path.join(d, "task.json")
+        if not os.path.isfile(meta_path) or (only and name not in only):
+            continue
+        with open(meta_path) as f:
+            meta = json.load(f)
+        if not isinstance(meta.get("prompt"), str) or not isinstance(meta.get("check"), list):
+            raise UsageError(f"{meta_path}: needs a `prompt` string and a `check` argument list")
+        tasks.append({"name": name, "dir": d, "prompt": meta["prompt"], "check": meta["check"],
+                      "bash": bool(meta.get("bash", False))})
+    missing = sorted(set(only or []) - {t["name"] for t in tasks})
+    if missing:
+        raise UsageError(f"no such task: {', '.join(missing)}")
+    if not tasks:
+        raise UsageError(f"no tasks in {root}")
+    return tasks
+
+
+def inside_git(path):
+    return subprocess.run(["git", "-C", path, "rev-parse", "--is-inside-work-tree"],
+                          capture_output=True).returncode == 0
+
+
+def workspace(task, overlay=None):
+    """A fresh folder outside any git repository with the task's fixture in `work/`."""
+    base = tempfile.mkdtemp(prefix="lagom-ab-")
+    if inside_git(base):
+        shutil.rmtree(base)
+        raise UsageError(f"{tempfile.gettempdir()} is inside a git repository: set TMPDIR elsewhere")
+    work = os.path.join(base, "work")
+    shutil.copytree(os.path.join(task["dir"], "fixture"), work)
+    if overlay:
+        shutil.copytree(overlay, work, dirs_exist_ok=True)
+    return base, work
+
+
+def run_check(task, work):
+    """Copy the hidden checks in and run them: (passed, last lines of their output)."""
+    shutil.copytree(os.path.join(task["dir"], "hidden"), work, dirs_exist_ok=True)
+    try:
+        p = subprocess.run(task["check"], cwd=work, capture_output=True, text=True, timeout=CHECK_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return False, "check timed out"
+    except OSError as e:
+        return False, f"check could not run: {e}"
+    return p.returncode == 0, "\n".join((p.stdout + p.stderr).strip().splitlines()[-5:])
+
+
+def selftest(tasks):
+    """Problems with the tasks' references: the fixture must fail, the solution pass."""
+    problems = []
+    for t in tasks:
+        solution = os.path.join(t["dir"], "solution")
+        if not os.path.isdir(solution):
+            problems.append(f"{t['name']}: no solution/ folder")
+            continue
+        for label, overlay, want in (("fixture alone", None, False), ("solution", solution, True)):
+            base, work = workspace(t, overlay)
+            try:
+                passed, _ = run_check(t, work)
+            finally:
+                shutil.rmtree(base, ignore_errors=True)
+            if passed != want:
+                problems.append(f"{t['name']}: the {label} {'passes' if passed else 'fails'} the hidden check")
+    return problems
+
+
+# ---------- arms ----------
+
+def parse_arms(text):
+    arms = [a.strip() for a in text.split(",") if a.strip()]
+    for a in arms:
+        if a in ("baseline", "terse-control"):
+            continue
+        style = a.split(":", 1)[1] if a.startswith("lagom:") else ""
+        if not style or not all(c.isalnum() or c in "-_" for c in style):
+            raise UsageError(f"unknown arm {a!r}: use baseline, terse-control or lagom:<style>")
+    if len(set(arms)) != len(arms) or not arms:
+        raise UsageError("arms must be listed once each")
+    return arms
+
+
+def lagom_hooks(lagom_bin, agent):
+    """Lagom's hook entries, as `lagom install` writes them (src/install.rs)."""
+    def group(event, matcher=None):
+        g = {"hooks": [{"type": "command", "timeout": 10,
+                        "command": f"{shlex.quote(lagom_bin)} hook {agent} {event}"}]}
+        if matcher:
+            g = {"matcher": matcher, **g}
+        return [g]
+    hooks = {"SessionStart": group("session-start", "startup|resume|clear|compact|fork"),
+             "PreToolUse": group("pre-tool", "Bash" if agent == "claude" else "Bash|bash")}
+    if agent == "claude":
+        hooks["SubagentStart"] = group("subagent-start")
+    return hooks
+
+
+def prepare(work, agent, arm, task, lagom_bin):
+    """Write the run's project settings: Lagom's hooks and style, and the Bash sandbox."""
+    hook_agent = "codex" if agent == "codex" else "claude"
+    settings = {}
+    if task["bash"] and hook_agent == "claude":
+        settings["sandbox"] = {"enabled": True, "allowUnsandboxedCommands": False}
+    if arm.startswith("lagom:"):
+        os.makedirs(os.path.join(work, ".lagom"), exist_ok=True)
+        with open(os.path.join(work, ".lagom", "config.json"), "w") as f:
+            json.dump({"styles": [arm.split(":", 1)[1]]}, f)
+        if hook_agent == "claude":
+            settings["hooks"] = lagom_hooks(lagom_bin, "claude")
+        else:
+            os.makedirs(os.path.join(work, ".codex"), exist_ok=True)
+            with open(os.path.join(work, ".codex", "hooks.json"), "w") as f:
+                json.dump({"hooks": lagom_hooks(lagom_bin, "codex")}, f)
+    if settings:
+        os.makedirs(os.path.join(work, ".claude"), exist_ok=True)
+        with open(os.path.join(work, ".claude", "settings.json"), "w") as f:
+            json.dump(settings, f, indent=2)
+
+
+# ---------- agents ----------
+
+def command(agent, agent_bin, prompt, arm, model, bash, budget_left):
+    if agent == "codex":
+        cmd = [agent_bin, "exec", "--json", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config",
+               "--sandbox", "workspace-write"]
+        if model:
+            cmd += ["--model", model]
+        if arm == "terse-control":
+            cmd += ["-c", f"developer_instructions={json.dumps(CONTROL)}"]
+        if arm.startswith("lagom:"):
+            cmd += ["--dangerously-bypass-hook-trust"]
+        return cmd + [prompt]
+    cmd = [agent_bin, "-p", prompt, "--output-format", "json", *ISOLATION, "--permission-mode", "bypassPermissions"]
+    if agent == "fake":
+        cmd = [sys.executable, "-I", *cmd]
+    if model:
+        cmd += ["--model", model]
+    if arm == "terse-control":
+        cmd += ["--append-system-prompt", CONTROL]
+    if not bash:
+        cmd += ["--disallowedTools", "Bash"]
+    if budget_left is not None:
+        cmd += ["--max-budget-usd", f"{max(budget_left, 0.01):.2f}"]
+    return cmd
+
+
+def parse_claude(stdout):
+    """The result of `claude -p --output-format json`, or None when it isn't one."""
+    text = stdout.strip()
+    for candidate in (text, text.splitlines()[-1] if text else ""):
+        try:
+            r = json.loads(candidate)
+        except ValueError:
+            continue
+        if isinstance(r, dict) and r.get("type") == "result":
+            usage = {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}
+            for m in (r.get("modelUsage") or {}).values():
+                usage["input"] += m.get("inputTokens", 0)
+                usage["output"] += m.get("outputTokens", 0)
+                usage["cache_read"] += m.get("cacheReadInputTokens", 0)
+                usage["cache_write"] += m.get("cacheCreationInputTokens", 0)
+            return {"cost_usd": r.get("total_cost_usd"), "turns": r.get("num_turns"),
+                    "agent_ms": r.get("duration_ms"), "is_error": bool(r.get("is_error")),
+                    "subtype": r.get("subtype"), "models": sorted((r.get("modelUsage") or {}).keys()),
+                    "usage": usage}
+    return None
+
+
+def parse_codex(stdout):
+    """`codex exec --json` events: tokens from each turn.completed. Codex reports no cost."""
+    usage = {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}
+    turns, error, seen = 0, False, False
+    for line in stdout.splitlines():
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(e, dict):
+            continue
+        seen = True
+        if e.get("type") == "turn.completed":
+            turns += 1
+            u = e.get("usage") or {}
+            usage["input"] += u.get("input_tokens", 0)
+            usage["cache_read"] += u.get("cached_input_tokens", 0)
+            usage["output"] += u.get("output_tokens", 0)
+        elif e.get("type") in ("turn.failed", "error"):
+            error = True
+    if not seen:
+        return None
+    return {"cost_usd": None, "turns": turns, "agent_ms": None, "is_error": error, "subtype": None,
+            "models": [], "usage": usage}
+
+
+def run_agent(cmd, cwd, env, timeout):
+    """(exit code or None on timeout, stdout, stderr). The whole process group is killed on timeout."""
+    p = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE, text=True, start_new_session=True)
+    try:
+        out, err = p.communicate(timeout=timeout)
+        return p.returncode, out, err
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGKILL)
+        out, err = p.communicate()
+        return None, out, err
+
+
+def lagom_activity(lagom_home):
+    """How often Lagom acted in a run: style injections and compressed commands."""
+    counts = {"injections": 0, "compressed": 0}
+    try:
+        with open(os.path.join(lagom_home, "stats.jsonl")) as f:
+            for line in f:
+                kind = json.loads(line).get("kind")
+                counts["injections"] += kind == "inject"
+                counts["compressed"] += kind == "run"
+    except (OSError, ValueError):
+        pass
+    return counts
+
+
+def agent_env(base, arm, task_dir, agent):
+    env = dict(os.environ)
+    env["LAGOM_HOME"] = os.path.join(base, "lagom-home")       # this run's stats only
+    env["XDG_CONFIG_HOME"] = os.path.join(base, "config")      # no user Lagom styles or config
+    env.pop("LAGOM_STYLES", None)
+    env.pop("LAGOM_REWRITE", None)
+    if arm.startswith("lagom:"):
+        env.pop("LAGOM_DISABLE", None)
+    else:
+        env["LAGOM_DISABLE"] = "1"   # a user-level Lagom hook, if one still loads, does nothing
+    if agent == "fake":
+        env["AB_FAKE_SOLUTION"] = os.path.join(task_dir, "solution") if task_dir else ""
+    return env
+
+
+# ---------- the run ----------
+
+def one_run(args, task, arm, repeat, budget_left):
+    base, work = workspace(task)
+    try:
+        prepare(work, args.agent, arm, task, args.lagom_bin)
+        env = agent_env(base, arm, task["dir"], args.agent)
+        cmd = command(args.agent, args.agent_bin, task["prompt"], arm, args.model, task["bash"], budget_left)
+        started = datetime.datetime.now(datetime.timezone.utc)
+        code, out, err = run_agent(cmd, work, env, args.timeout)
+        wall_ms = int((datetime.datetime.now(datetime.timezone.utc) - started).total_seconds() * 1000)
+        parsed = (parse_codex if args.agent == "codex" else parse_claude)(out)
+        if code is None:
+            status = "timeout"
+        elif parsed is None:
+            status = "bad_output"
+        elif code != 0 or parsed["is_error"]:
+            status = "agent_error"
+        else:
+            status = "ok"
+        passed, check_tail = run_check(task, work)
+        row = {"kind": "run", "ts": started.isoformat(timespec="seconds"), "agent": args.agent,
+               "model": args.model, "task": task["name"], "arm": arm, "repeat": repeat, "status": status,
+               "exit_code": code, "passed": passed, "wall_ms": wall_ms, **(parsed or {}),
+               "lagom": lagom_activity(env["LAGOM_HOME"]) if arm.startswith("lagom:") else None}
+        row.pop("is_error", None)
+        if status != "ok":
+            row["stderr_tail"] = "\n".join(err.strip().splitlines()[-5:])
+        if not passed:
+            row["check_tail"] = check_tail
+        return row
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
+def warmup(args, budget_left):
+    """One throwaway call, so no arm pays the cold cache write."""
+    base = tempfile.mkdtemp(prefix="lagom-ab-warmup-")
+    try:
+        cmd = command(args.agent, args.agent_bin, WARMUP_PROMPT, "baseline", args.model, False, budget_left)
+        code, out, _ = run_agent(cmd, base, agent_env(base, "baseline", None, args.agent), args.timeout)
+        parsed = (parse_codex if args.agent == "codex" else parse_claude)(out) or {}
+        return {"kind": "warmup", "agent": args.agent, "model": args.model, "exit_code": code,
+                "cost_usd": parsed.get("cost_usd"), "models": parsed.get("models", [])}
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
+def schedule(tasks, arms, repeats):
+    """(repeat, task, arm) cells, arms interleaved and their order rotated per task and repeat."""
+    cells = []
+    for r in range(repeats):
+        for i, t in enumerate(tasks):
+            k = (r + i) % len(arms)
+            cells.extend((r, t, a) for a in arms[k:] + arms[:k])
+    return cells
+
+
+def summary(rows, arms):
+    lines = ["", f"{'arm':<20} {'runs':>4} {'passed':>6} {'median cost':>12} {'median turns':>13}"]
+    for arm in arms:
+        rs = [r for r in rows if r["arm"] == arm]
+        costs = sorted(r["cost_usd"] for r in rs if r.get("cost_usd") is not None)
+        turns = sorted(r["turns"] for r in rs if r.get("turns") is not None)
+        med = lambda v: v[len(v) // 2] if v else None
+        cost = f"${med(costs):.4f}" if costs else "–"
+        lines.append(f"{arm:<20} {len(rs):>4} {sum(r['passed'] for r in rs):>6} {cost:>12} {str(med(turns) or '–'):>13}")
+    return "\n".join(lines)
+
+
+def main(argv):
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p.add_argument("--agent", choices=["claude", "codex", "fake"])
+    p.add_argument("--agent-bin", help="the agent's executable (default: claude, codex, or bench/fake_agent.py)")
+    p.add_argument("--arms", default="baseline,terse-control,lagom:terse")
+    p.add_argument("--tasks", default=os.path.join(HERE, "tasks"))
+    p.add_argument("--task", help="only these tasks, comma-separated")
+    p.add_argument("--repeats", type=int, default=1)
+    p.add_argument("--budget-usd", type=float, help="stop starting runs at this spend (required for claude)")
+    p.add_argument("--max-runs", type=int, help="stop after this many runs (required for codex: it reports no cost)")
+    p.add_argument("--model")
+    p.add_argument("--timeout", type=int, default=900, help="seconds per run (default 900)")
+    p.add_argument("--lagom-bin", default=shutil.which("lagom") or "lagom")
+    p.add_argument("--out", default=os.path.join(HERE, "results", datetime.date.today().isoformat()))
+    p.add_argument("--selftest", action="store_true", help="run every task's references and stop")
+    args = p.parse_args(argv)
+    try:
+        tasks = load_tasks(args.tasks, args.task.split(",") if args.task else None)
+        if args.selftest:
+            problems = selftest(tasks)
+            print("\n".join(problems) or f"selftest ok: {len(tasks)} tasks")
+            return 1 if problems else 0
+        if not args.agent:
+            raise UsageError("--agent is required (or --selftest)")
+        arms = parse_arms(args.arms)
+        if args.repeats < 1:
+            raise UsageError("--repeats must be at least 1")
+        if args.agent == "claude" and args.budget_usd is None:
+            raise UsageError("--budget-usd is required for claude")
+        if args.agent == "codex" and args.max_runs is None:
+            raise UsageError("--max-runs is required for codex: it reports no cost, so a budget can't be checked")
+        if inside_git(tempfile.gettempdir()):
+            raise UsageError(f"{tempfile.gettempdir()} is inside a git repository: set TMPDIR elsewhere")
+        if any(a.startswith("lagom:") for a in arms) and not shutil.which(args.lagom_bin):
+            raise UsageError(f"Lagom arms need the lagom binary: {args.lagom_bin} not found (--lagom-bin)")
+        args.agent_bin = args.agent_bin or (os.path.join(HERE, "fake_agent.py") if args.agent == "fake" else args.agent)
+        # Hooks run in the run's folder: a relative path would point nowhere there.
+        args.lagom_bin = os.path.abspath(shutil.which(args.lagom_bin) or args.lagom_bin)
+    except UsageError as e:
+        print(f"ab: {e}", file=sys.stderr)
+        return 2
+
+    if args.agent != "fake":
+        problems = selftest(tasks)
+        if problems:
+            print("ab: the selftest fails, so no paid run starts:\n" + "\n".join(problems), file=sys.stderr)
+            return 1
+
+    os.makedirs(args.out, exist_ok=True)
+    results = os.path.join(args.out, "runs.jsonl")
+    spent, rows = 0.0, []
+    budget_left = lambda: None if args.budget_usd is None else args.budget_usd - spent
+
+    def record(row):
+        with open(results, "a") as f:
+            f.write(json.dumps(row) + "\n")
+
+    w = warmup(args, budget_left())
+    spent += w.get("cost_usd") or 0
+    record(w)
+    cells = schedule(tasks, arms, args.repeats)
+    for n, (repeat, task, arm) in enumerate(cells, 1):
+        if args.budget_usd is not None and spent >= args.budget_usd:
+            print(f"ab: budget of ${args.budget_usd:.2f} reached after {n - 1} of {len(cells)} runs", file=sys.stderr)
+            break
+        if args.max_runs is not None and n > args.max_runs:
+            print(f"ab: --max-runs {args.max_runs} reached", file=sys.stderr)
+            break
+        row = one_run(args, task, arm, repeat, budget_left())
+        if row.get("cost_usd") is None and args.agent == "claude":
+            record(row)
+            print(f"ab: run {n} reported no cost ({row['status']}), so spend can't be tracked: stopping", file=sys.stderr)
+            break
+        spent += row.get("cost_usd") or 0
+        rows.append(row)
+        record(row)
+        print(f"[{n}/{len(cells)}] {task['name']} {arm}: {row['status']}, "
+              f"{'passed' if row['passed'] else 'failed'}, spent ${spent:.4f}", file=sys.stderr)
+    print(summary(rows, arms))
+    print(f"\n{len(rows)} runs, ${spent:.4f} spent (warm-up included). Results: {results}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

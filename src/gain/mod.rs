@@ -4,6 +4,7 @@ pub mod claude;
 pub mod codex;
 pub mod discover;
 pub mod experiment;
+pub mod report;
 
 use std::collections::{BTreeMap, HashMap};
 

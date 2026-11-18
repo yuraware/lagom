@@ -26,7 +26,7 @@ Usage:
   lagom recall <id> [--grep TEXT]           Print the full output behind a compressed result
                   [--lines A-B] [--head N] [--tail N]  or only part of it
   lagom recall --list | --clear             List or delete saved outputs
-  lagom stats                               Show estimated savings
+  lagom stats [--json]                      Savings, injected-rule cost, output tokens and net
   lagom experiment start [--holdout 0.2]    Measure styles: some sessions run without them
                   [--days 14] | status | stop
   lagom stats --experiment                  Styled vs holdout output tokens, with a 95% interval
@@ -94,17 +94,20 @@ pub fn main() -> ExitCode {
         Some("status") => cmd_status(&rest(1)),
         Some("style") => cmd_style(&rest(1)),
         Some("stats") => {
-            const USAGE: &str = "lagom stats [--usage [--days N] | --experiment]";
-            let a = match Args::parse(&rest(1), &["--usage", "--experiment", "--days="], 0) {
+            const USAGE: &str = "lagom stats [--json] | --usage [--days N] | --experiment";
+            let spec = ["--usage", "--experiment", "--days=", "--json"];
+            let a = match Args::parse(&rest(1), &spec, 0) {
                 Ok(a) => a,
                 Err(e) => return usage_error(&e, USAGE),
             };
-            match (a.has("--usage"), a.has("--experiment"), a.value("--days")) {
-                (true, false, days) => cmd_usage(days),
-                (false, true, None) => cmd_experiment_report(),
-                (false, false, None) => cmd_stats(),
+            let (usage, experiment, json) =
+                (a.has("--usage"), a.has("--experiment"), a.has("--json"));
+            match (usage, experiment, a.value("--days"), json) {
+                (true, false, days, false) => cmd_usage(days),
+                (false, true, None, false) => cmd_experiment_report(),
+                (false, false, None, json) => cmd_stats(json),
                 _ => usage_error(
-                    "use --usage or --experiment; --days goes with --usage",
+                    "use one of --json, --usage or --experiment; --days goes with --usage",
                     USAGE,
                 ),
             }
@@ -823,50 +826,28 @@ fn cmd_experiment_report() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-fn cmd_stats() -> ExitCode {
-    let t = store::totals();
-    let saved = t.bytes_in.saturating_sub(t.bytes_out);
-    let tokens = |bytes: u64| bytes / 4;
-    println!(
-        "commands run through lagom: {} ({} compressed)",
-        t.runs, t.compressed_runs
-    );
-    println!(
-        "output: {} → {} bytes, saved ~{} tokens",
-        t.bytes_in,
-        t.bytes_out,
-        tokens(saved)
-    );
-    println!(
-        "style rules injected: {} times, ~{} tokens",
-        t.injections,
-        tokens(t.injected_bytes)
-    );
-    let net = tokens(saved) as i64 - tokens(t.injected_bytes) as i64;
-    println!(
-        "net: ~{net} tokens (estimate: 4 bytes ≈ 1 token; style effects on answer length are not measured)"
-    );
-    if !t.by_agent.is_empty() {
-        println!("by agent:");
-        for (agent, b) in &t.by_agent {
-            println!(
-                "  {agent:<8} {} runs, saved ~{} tokens; {} injections, ~{} tokens",
-                b.runs,
-                tokens(b.bytes_in.saturating_sub(b.bytes_out)),
-                b.injections,
-                tokens(b.injected_bytes)
-            );
-        }
+/// The `lagom stats` report (GAIN-06), as text or `--json`.
+fn cmd_stats(as_json: bool) -> ExitCode {
+    const OUTPUT_DAYS: u64 = 30;
+    let mut report = crate::gain::report::Report {
+        output_days: OUTPUT_DAYS,
+        ..Default::default()
+    };
+    store::for_each_stat(|v| report.add(v));
+    let since = std::time::SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(OUTPUT_DAYS * 86_400));
+    let (styles, tracked_since) = store::session_styles();
+    for (name, sessions) in [
+        ("Claude Code", crate::gain::claude::sessions(since)),
+        ("Codex", crate::gain::codex::sessions(since)),
+    ] {
+        let rows = crate::gain::by_style(&sessions, &styles, tracked_since);
+        report.output.push((name.to_string(), rows));
     }
-    if !t.by_style.is_empty() {
-        println!("by style:");
-        for (style, b) in &t.by_style {
-            println!(
-                "  {style:<20} {} injections, ~{} tokens",
-                b.injections,
-                tokens(b.injected_bytes)
-            );
-        }
+    if as_json {
+        println!("{:#}", report.json());
+    } else {
+        print!("{}", report.text());
     }
     ExitCode::SUCCESS
 }

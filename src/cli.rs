@@ -1,6 +1,6 @@
 //! Command-line interface shared by the `lagom` binary and its `lgm` alias.
 
-use std::io::{Read, Write};
+use std::io::{IsTerminal, Read, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
@@ -11,7 +11,9 @@ const HELP: &str = "lagom — fewer tokens, simpler answers for coding agents
 
 Usage:
   lagom install [claude|codex|cursor ...]   Install hooks and skills (default: every agent found)
-  lagom uninstall [claude|codex|cursor ...] Remove Lagom's hooks and skills
+                [--dry-run] [--yes]         Show changes only / don't ask for confirmation
+  lagom uninstall [claude|codex|cursor ...] Remove Lagom's hooks and skills [--dry-run]
+                  [--all] [--purge] [--yes]  --purge also deletes ~/.lagom and ~/.config/lagom
   lagom status                              Show what is installed and which styles are active
   lagom style                               Show active styles
   lagom style list                          List built-in, user and project styles
@@ -115,8 +117,49 @@ fn parse_agents(names: &[String], only_present: bool) -> Result<Vec<Agent>, Stri
         .collect()
 }
 
-fn cmd_install(names: &[String], installing: bool) -> ExitCode {
-    let agents = match parse_agents(names, installing) {
+/// Ask a yes/no question. Enter or "y" means yes; "n", end of input or a read error means no.
+fn confirm(question: &str, input: &mut impl std::io::BufRead, out: &mut impl Write) -> bool {
+    let _ = write!(out, "{question} [Y/n] ");
+    let _ = out.flush();
+    let mut answer = String::new();
+    match input.read_line(&mut answer) {
+        Ok(0) | Err(_) => false,
+        Ok(_) => !answer.trim().to_lowercase().starts_with('n'),
+    }
+}
+
+fn cmd_install(args: &[String], installing: bool) -> ExitCode {
+    let (mut dry_run, mut yes, mut purge, mut all, mut names) =
+        (false, false, false, false, Vec::new());
+    for a in args {
+        match a.as_str() {
+            "--dry-run" | "-n" => dry_run = true,
+            "--yes" | "-y" => yes = true,
+            "--all" => all = true, // the default when no agent is named
+            "--purge" if !installing => purge = true,
+            s if s.starts_with('-') => {
+                eprintln!("lagom: unknown option `{s}`");
+                return ExitCode::from(2);
+            }
+            _ => names.push(a.clone()),
+        }
+    }
+    if all && !names.is_empty() {
+        eprintln!("lagom: use either --all or agent names, not both");
+        return ExitCode::from(2);
+    }
+    if purge && !names.is_empty() {
+        eprintln!(
+            "lagom: --purge deletes data every agent shares; run `lagom uninstall --all --purge`"
+        );
+        return ExitCode::from(2);
+    }
+    // Decide before changing anything: without a terminal there is no one to ask.
+    if purge && !dry_run && !yes && !std::io::stdin().is_terminal() {
+        eprintln!("lagom: --purge deletes Lagom's data and config; rerun with --yes to confirm");
+        return ExitCode::from(2);
+    }
+    let agents = match parse_agents(&names, installing) {
         Ok(a) if a.is_empty() => {
             eprintln!(
                 "lagom: no Claude Code, Codex or Cursor config found; name an agent, e.g. `lagom install claude`"
@@ -129,34 +172,125 @@ fn cmd_install(names: &[String], installing: bool) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    if installing && cfg!(windows) {
+        eprintln!(
+            "lagom: `lagom install` doesn't support Windows yet: the hooks it writes need a POSIX shell. `lagom uninstall` still works."
+        );
+        return ExitCode::from(2);
+    }
+    if installing && !dry_run && !yes && std::io::stdin().is_terminal() {
+        let list: Vec<&str> = agents.iter().map(|a| a.name()).collect();
+        let question = format!("Install Lagom hooks and skills into {}?", list.join(", "));
+        if !confirm(
+            &question,
+            &mut std::io::stdin().lock(),
+            &mut std::io::stdout(),
+        ) {
+            println!("\nCancelled. Nothing was changed.");
+            return ExitCode::from(1);
+        }
+    }
+
     let bin = hook::lagom_bin();
-    let mut failed = false;
-    for agent in agents {
+    let mut summary: Vec<(Agent, String)> = Vec::new();
+    for agent in agents.iter().copied() {
         let result = if installing {
-            install::install(agent, &bin)
+            install::install(agent, &bin, dry_run)
         } else {
-            install::uninstall(agent)
+            install::uninstall(agent, dry_run)
         };
-        match result {
-            Ok(notes) => {
+        let state = match result {
+            Ok(out) => {
                 println!("{}:", agent.name());
-                for n in notes {
+                for n in &out.notes {
                     println!("  {n}");
                 }
+                match (installing, dry_run, out.changed) {
+                    (_, _, false) if installing => "already up to date",
+                    (_, _, false) => "nothing to remove",
+                    (true, true, true) => "would install",
+                    (true, false, true) => "installed",
+                    (false, true, true) => "would remove",
+                    (false, false, true) => "removed",
+                }
+                .to_string()
             }
-            Err(e) => {
-                eprintln!("{}: {e}", agent.name());
-                failed = true;
+            Err(e) => format!("failed: {e}"),
+        };
+        summary.push((agent, state));
+    }
+    if names.is_empty() && installing {
+        for agent in [Agent::Claude, Agent::Codex, Agent::Cursor] {
+            if !agents.contains(&agent) {
+                summary.push((agent, "skipped (not found)".into()));
             }
         }
     }
-    if installing && !failed {
+
+    println!("\nSummary:");
+    for (agent, state) in &summary {
+        println!("  {:<7} {state}", agent.name());
+    }
+    let mut failed = summary.iter().any(|(_, s)| s.starts_with("failed"));
+    if purge && !failed {
+        failed = !cmd_purge(dry_run, yes);
+    }
+    if !installing && names.is_empty() && !failed {
+        if let Ok(exe) = std::env::current_exe() {
+            println!(
+                "To remove the program itself: {}",
+                install::removal_hint(&exe)
+            );
+        }
+    }
+    if dry_run {
+        println!("Dry run: nothing was changed.");
+    } else if installing && !failed {
         println!("Restart the agent (or start a new session) to load Lagom.");
     }
     if failed {
         ExitCode::from(1)
     } else {
         ExitCode::SUCCESS
+    }
+}
+
+/// Delete Lagom's data and config. Asks first in a terminal; needs `--yes` otherwise.
+/// Returns false on failure or when the user declines.
+fn cmd_purge(dry_run: bool, yes: bool) -> bool {
+    let dirs: Vec<_> = install::purge_targets()
+        .into_iter()
+        .filter(|d| d.exists())
+        .collect();
+    if dirs.is_empty() {
+        println!("purge: no Lagom data or config found");
+        return true;
+    }
+    if !dry_run && !yes {
+        let list: Vec<String> = dirs.iter().map(|d| d.display().to_string()).collect();
+        print!(
+            "Delete {} (stats, saved outputs, styles, config)? [y/N] ",
+            list.join(" and ")
+        );
+        let _ = std::io::stdout().flush();
+        let mut answer = String::new();
+        let _ = std::io::stdin().read_line(&mut answer);
+        if !answer.trim().to_lowercase().starts_with('y') {
+            println!("purge: skipped");
+            return true;
+        }
+    }
+    match install::purge(dry_run) {
+        Ok(notes) => {
+            for n in notes {
+                println!("purge: {n}");
+            }
+            true
+        }
+        Err(e) => {
+            eprintln!("lagom: {e}");
+            false
+        }
     }
 }
 
@@ -279,4 +413,26 @@ fn cmd_stats() -> ExitCode {
         "net: ~{net} tokens (estimate: 4 bytes ≈ 1 token; style effects on answer length are not measured)"
     );
     ExitCode::SUCCESS
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn answer(input: &str) -> bool {
+        let mut out = Vec::new();
+        let yes = confirm("Install?", &mut input.as_bytes(), &mut out);
+        assert_eq!(String::from_utf8(out).unwrap(), "Install? [Y/n] ");
+        yes
+    }
+
+    #[test]
+    fn confirm_defaults_to_yes_and_cancels_on_no_or_end_of_input() {
+        assert!(answer("\n"));
+        assert!(answer("y\n"));
+        assert!(answer("Yes\n"));
+        assert!(!answer("n\n"));
+        assert!(!answer("No\n"));
+        assert!(!answer(""), "Ctrl-D at the prompt must not install");
+    }
 }

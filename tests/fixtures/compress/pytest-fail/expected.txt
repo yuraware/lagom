@@ -1,0 +1,71 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.5, pytest-9.2.0, pluggy-1.7.0
+rootdir: /work/py
+collected 82 items
+
+test_bad.py FF                                                           [  2%]
+test_ok_0.py .                                                           [  3%]
+test_ok_1.py .                                                           [  4%]
+test_ok_10.py .                                                          [  6%]
+… [2 similar lines]
+test_ok_13.py .                                                          [  9%]
+test_ok_14.py .                                                          [ 10%]
+… [4 similar lines]
+test_ok_19.py .                                                          [ 17%]
+test_ok_2.py .                                                           [ 18%]
+test_ok_20.py .                                                          [ 19%]
+… [8 similar lines]
+test_ok_29.py .                                                          [ 30%]
+test_ok_3.py .                                                           [ 31%]
+test_ok_30.py .                                                          [ 32%]
+… [8 similar lines]
+test_ok_39.py .                                                          [ 43%]
+test_ok_4.py .                                                           [ 45%]
+test_ok_40.py .                                                          [ 46%]
+… [8 similar lines]
+test_ok_49.py .                                                          [ 57%]
+test_ok_5.py .                                                           [ 58%]
+test_ok_50.py .                                                          [ 59%]
+… [8 similar lines]
+test_ok_59.py .                                                          [ 70%]
+test_ok_6.py .                                                           [ 71%]
+test_ok_60.py .                                                          [ 73%]
+… [8 similar lines]
+test_ok_69.py .                                                          [ 84%]
+test_ok_7.py .                                                           [ 85%]
+test_ok_70.py .                                                          [ 86%]
+… [8 similar lines]
+test_ok_79.py .                                                          [ 97%]
+test_ok_8.py .                                                           [ 98%]
+test_ok_9.py .                                                           [100%]
+
+=================================== FAILURES ===================================
+_________________________________ test_lookup __________________________________
+
+    def test_lookup():
+>       assert helper("b") == 1
+               ^^^^^^^^^^^
+
+test_bad.py:5:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+x = 'b'
+
+    def helper(x):
+>       return {"a": 1}[x]
+               ^^^^^^^^^^^
+E       KeyError: 'b'
+
+test_bad.py:2: KeyError
+__________________________________ test_math ___________________________________
+
+    def test_math():
+>       assert 2 + 2 == 5, "arithmetic is broken"
+E       AssertionError: arithmetic is broken
+E       assert (2 + 2) == 5
+
+test_bad.py:8: AssertionError
+=========================== short test summary info ============================
+FAILED test_bad.py::test_lookup - KeyError: 'b'
+FAILED test_bad.py::test_math - AssertionError: arithmetic is broken
+========================= 2 failed, 80 passed in 0.09s =========================

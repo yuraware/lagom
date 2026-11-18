@@ -186,20 +186,42 @@ fn read_json_object(path: &Path) -> Result<Map<String, Value>, String> {
     }
 }
 
+/// Where the first change to an existing file keeps a copy of the original.
+fn backup_path(path: &Path) -> PathBuf {
+    PathBuf::from(format!("{}.lagom.bak", path.display()))
+}
+
+/// Dry-run note for the backup `write_json_atomic` would create, if any.
+fn backup_note(path: &Path) -> Option<String> {
+    let backup = backup_path(path);
+    (path.exists() && !backup.exists())
+        .then(|| format!("would back up the original to {}", backup.display()))
+}
+
 fn write_json_atomic(path: &Path, value: &Map<String, Value>) -> Result<(), String> {
     let err = |e: std::io::Error| format!("cannot write {}: {e}", path.display());
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(err)?;
     }
-    let backup = PathBuf::from(format!("{}.lagom.bak", path.display()));
+    let backup = backup_path(path);
     if path.exists() && !backup.exists() {
         fs::copy(path, &backup).map_err(err)?;
     }
+    // A settings file linked from a dotfiles folder stays a link: write its target.
+    let target = match fs::symlink_metadata(path) {
+        Ok(m) if m.file_type().is_symlink() => fs::canonicalize(path).map_err(err)?,
+        _ => path.to_path_buf(),
+    };
+    let path = target.as_path();
     let tmp = PathBuf::from(format!("{}.lagom.tmp", path.display()));
     let text = serde_json::to_string_pretty(&Value::Object(value.clone()))
         .map_err(|e| e.to_string())?
         + "\n";
     fs::write(&tmp, text).map_err(err)?;
+    // Keep the original file's permissions (a private settings file stays private).
+    if let Ok(meta) = fs::metadata(path) {
+        fs::set_permissions(&tmp, meta.permissions()).map_err(err)?;
+    }
     fs::rename(&tmp, path).map_err(err)
 }
 
@@ -276,15 +298,35 @@ pub fn remove_hooks(agent: Agent, config: &mut Map<String, Value>) -> bool {
     *config != before
 }
 
-fn install_skills(dir: &Path) -> Result<Vec<String>, String> {
+/// Result of installing into or removing from one agent.
+#[derive(Debug, Default)]
+pub struct Outcome {
+    pub notes: Vec<String>,
+    /// Something was (or, in a dry run, would be) changed.
+    pub changed: bool,
+}
+
+/// Write our skills into `dir`. Returns notes and whether anything changed.
+fn install_skills(dir: &Path, dry_run: bool) -> Result<(Vec<String>, bool), String> {
     let mut notes = Vec::new();
+    let mut changed = false;
     for (name, text) in SKILLS {
         let skill_dir = dir.join(name);
-        if skill_dir.exists() && !skill_dir.join(MARKER).exists() {
+        let ours = skill_dir.join(MARKER).exists();
+        if skill_dir.exists() && !ours {
             notes.push(format!(
                 "skipped skill {name}: {} exists and is not Lagom's",
                 skill_dir.display()
             ));
+            continue;
+        }
+        let current = fs::read_to_string(skill_dir.join("SKILL.md")).ok();
+        if ours && current.as_deref() == Some(text) {
+            continue;
+        }
+        changed = true;
+        if dry_run {
+            notes.push(format!("would write skill {}", skill_dir.display()));
             continue;
         }
         let err = |e: std::io::Error| format!("cannot write skill {name}: {e}");
@@ -296,70 +338,162 @@ fn install_skills(dir: &Path) -> Result<Vec<String>, String> {
         )
         .map_err(err)?;
     }
-    Ok(notes)
+    Ok((notes, changed))
 }
 
-fn uninstall_skills(dir: &Path) -> usize {
+/// Remove our skills from `dir` (or count them in a dry run).
+fn uninstall_skills(dir: &Path, dry_run: bool) -> usize {
     SKILLS
         .iter()
         .map(|(name, _)| dir.join(name))
         .filter(|d| d.join(MARKER).exists())
-        .filter(|d| fs::remove_dir_all(d).is_ok())
+        .filter(|d| dry_run || fs::remove_dir_all(d).is_ok())
         .count()
 }
 
-pub fn install(agent: Agent, bin: &str) -> Result<Vec<String>, String> {
+/// Install hooks and skills for `agent`. With `dry_run`, only report what would change.
+pub fn install(agent: Agent, bin: &str, dry_run: bool) -> Result<Outcome, String> {
     let t = target(agent);
-    let mut notes = Vec::new();
+    let mut out = Outcome::default();
     let mut config = read_json_object(&t.hooks_file)?;
     if merge_hooks(agent, &mut config, bin) {
-        write_json_atomic(&t.hooks_file, &config)?;
-        notes.push(format!("hooks: updated {}", t.hooks_file.display()));
+        out.changed = true;
+        if dry_run {
+            out.notes
+                .push(format!("hooks: would update {}", t.hooks_file.display()));
+            out.notes.extend(backup_note(&t.hooks_file));
+        } else {
+            write_json_atomic(&t.hooks_file, &config)?;
+            out.notes
+                .push(format!("hooks: updated {}", t.hooks_file.display()));
+        }
     } else {
-        notes.push(format!(
+        out.notes.push(format!(
             "hooks: already up to date in {}",
             t.hooks_file.display()
         ));
     }
-    notes.extend(install_skills(&t.skills_dir)?);
-    notes.push(format!(
-        "skills: {} in {}",
-        SKILLS.len(),
+    let (skill_notes, skills_changed) = install_skills(&t.skills_dir, dry_run)?;
+    out.notes.extend(skill_notes);
+    out.changed |= skills_changed;
+    if !dry_run {
+        out.notes.push(format!(
+            "skills: {} in {}",
+            SKILLS.len(),
+            t.skills_dir.display()
+        ));
+    }
+    if agent == Agent::Codex && out.changed {
+        out.notes.push("Codex: open Codex and run /hooks to review and trust the lagom hooks; they stay inactive until trusted.".into());
+    }
+    Ok(out)
+}
+
+/// Remove Lagom's hooks and skills from `agent`. With `dry_run`, only report.
+pub fn uninstall(agent: Agent, dry_run: bool) -> Result<Outcome, String> {
+    let t = target(agent);
+    let mut out = Outcome::default();
+    if t.hooks_file.exists() {
+        let mut config = read_json_object(&t.hooks_file)?;
+        if remove_hooks(agent, &mut config) {
+            out.changed = true;
+            let only_version = config.len() == 1 && config.contains_key("version");
+            let delete = config.is_empty() || (agent == Agent::Cursor && only_version);
+            let verb = if dry_run { "would remove" } else { "removed" };
+            if !dry_run && delete {
+                fs::remove_file(&t.hooks_file).map_err(|e| e.to_string())?;
+            } else if !dry_run {
+                write_json_atomic(&t.hooks_file, &config)?;
+            }
+            out.notes.push(if delete {
+                format!(
+                    "hooks: {verb} {} (only Lagom hooks were in it)",
+                    t.hooks_file.display()
+                )
+            } else {
+                format!("hooks: {verb} from {}", t.hooks_file.display())
+            });
+            if dry_run && !delete {
+                out.notes.extend(backup_note(&t.hooks_file));
+            }
+        } else {
+            out.notes
+                .push(format!("hooks: none found in {}", t.hooks_file.display()));
+        }
+    }
+    let skills = uninstall_skills(&t.skills_dir, dry_run);
+    out.changed |= skills > 0;
+    out.notes.push(format!(
+        "skills: {} {skills} from {}",
+        if dry_run { "would remove" } else { "removed" },
         t.skills_dir.display()
     ));
-    if agent == Agent::Codex {
-        notes.push("Codex: open Codex and run /hooks to review and trust the lagom hooks; they stay inactive until trusted.".into());
+    Ok(out)
+}
+
+/// Folders `--purge` deletes: Lagom's data (`~/.lagom`) and config (`~/.config/lagom`).
+pub fn purge_targets() -> Vec<PathBuf> {
+    vec![crate::store::lagom_dir(), crate::style::config_dir()]
+}
+
+/// Delete Lagom's data and config folders. Only folders Lagom created are deleted: the
+/// default `~/.lagom` and `~/.config/lagom`, or any folder holding Lagom's marker file.
+/// Anything else (a `LAGOM_HOME` pointing at `~/Documents`, the home folder, a filesystem
+/// root) is refused before anything is deleted.
+pub fn purge(dry_run: bool) -> Result<Vec<String>, String> {
+    let home = home_dir();
+    let defaults = [home.join(".lagom"), home.join(".config").join("lagom")];
+    let dirs: Vec<PathBuf> = purge_targets().into_iter().filter(|d| d.exists()).collect();
+    for dir in &dirs {
+        let shallow = dir.components().count() < 3;
+        let ours = defaults.contains(dir) || dir.join(crate::store::DIR_MARKER).is_file();
+        if shallow || home.starts_with(dir) || !ours {
+            return Err(format!(
+                "refusing to delete {}: Lagom didn't create it (no {} file); delete it yourself if you are sure",
+                dir.display(),
+                crate::store::DIR_MARKER
+            ));
+        }
+    }
+    let mut notes = Vec::new();
+    for dir in dirs {
+        if dry_run {
+            notes.push(format!("would delete {}", dir.display()));
+        } else {
+            fs::remove_dir_all(&dir)
+                .map_err(|e| format!("cannot delete {}: {e}", dir.display()))?;
+            notes.push(format!("deleted {}", dir.display()));
+        }
     }
     Ok(notes)
 }
 
-pub fn uninstall(agent: Agent) -> Result<Vec<String>, String> {
-    let t = target(agent);
-    let mut notes = Vec::new();
-    if t.hooks_file.exists() {
-        let mut config = read_json_object(&t.hooks_file)?;
-        if remove_hooks(agent, &mut config) {
-            let only_version = config.len() == 1 && config.contains_key("version");
-            if config.is_empty() || (agent == Agent::Cursor && only_version) {
-                fs::remove_file(&t.hooks_file).map_err(|e| e.to_string())?;
-                notes.push(format!(
-                    "hooks: removed {} (only Lagom hooks were in it)",
-                    t.hooks_file.display()
-                ));
-            } else {
-                write_json_atomic(&t.hooks_file, &config)?;
-                notes.push(format!("hooks: removed from {}", t.hooks_file.display()));
-            }
-        } else {
-            notes.push(format!("hooks: none found in {}", t.hooks_file.display()));
-        }
+/// The command that removes the binary itself, guessed from where it lives.
+/// Links are followed first: Homebrew on Intel Macs and pipx put a link on `PATH`
+/// (`/usr/local/bin/lagom`, `~/.local/bin/lagom`) that points into their own folders.
+pub fn removal_hint(exe: &Path) -> String {
+    let resolved = fs::canonicalize(exe).unwrap_or_else(|_| exe.to_path_buf());
+    let has = |part: &str| resolved.components().any(|c| c.as_os_str() == part);
+    let dir = exe.parent().unwrap_or(Path::new("."));
+    if has("Cellar")
+        || resolved.starts_with("/opt/homebrew")
+        || resolved.starts_with("/home/linuxbrew")
+    {
+        "brew uninstall lagom".into()
+    } else if has(".cargo") {
+        "cargo uninstall lagom".into()
+    } else if has("pipx") {
+        "pipx uninstall lagom-ai".into()
+    } else if has("site-packages") || resolved.to_string_lossy().contains("/.local/share/uv/") {
+        "pip uninstall lagom-ai (or: uv tool uninstall lagom-ai)".into()
+    } else {
+        let ext = std::env::consts::EXE_SUFFIX;
+        format!(
+            "rm {} {}",
+            shell_quote(&dir.join(format!("lagom{ext}")).to_string_lossy()),
+            shell_quote(&dir.join(format!("lgm{ext}")).to_string_lossy())
+        )
     }
-    notes.push(format!(
-        "skills: removed {} from {}",
-        uninstall_skills(&t.skills_dir),
-        t.skills_dir.display()
-    ));
-    Ok(notes)
 }
 
 /// (agent, hooks installed, skills installed)
@@ -385,6 +519,70 @@ pub fn status(agent: Agent) -> (bool, usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_registered_hook_has_a_contract_fixture() {
+        // QA-03: tests/hooks/<agent>/<event>[--variant]/ must exist for every hook we install.
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/hooks");
+        for agent in [Agent::Claude, Agent::Codex, Agent::Cursor] {
+            let cases: Vec<String> = fs::read_dir(root.join(agent.name()))
+                .map(|d| {
+                    d.flatten()
+                        .map(|e| e.file_name().to_string_lossy().into_owned())
+                        .collect()
+                })
+                .unwrap_or_default();
+            for (_, event, _, _) in hook_specs(agent) {
+                assert!(
+                    cases
+                        .iter()
+                        .any(|c| c == event || c.starts_with(&format!("{event}--"))),
+                    "no fixture in tests/hooks/{}/ for `{event}`",
+                    agent.name()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn removal_hint_matches_install_method() {
+        let hint = |p: &str| removal_hint(Path::new(p));
+        assert_eq!(
+            hint("/opt/homebrew/Cellar/lagom/0.1.0/bin/lagom"),
+            "brew uninstall lagom"
+        );
+        assert_eq!(hint("/opt/homebrew/bin/lagom"), "brew uninstall lagom");
+        assert_eq!(hint("/home/a/.cargo/bin/lagom"), "cargo uninstall lagom");
+        assert_eq!(
+            hint("/home/a/.local/share/pipx/venvs/lagom-ai/bin/lagom"),
+            "pipx uninstall lagom-ai"
+        );
+        assert!(hint("/home/a/.local/bin/lagom").starts_with("rm /home/a/.local/bin/lagom"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn removal_hint_follows_links_into_package_folders() {
+        let root = std::env::temp_dir().join(format!("lagom-hint-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        for (real, expected) in [
+            (
+                "usr/local/Cellar/lagom/0.1.0/bin/lagom",
+                "brew uninstall lagom",
+            ),
+            ("pipx/venvs/lagom-ai/bin/lagom", "pipx uninstall lagom-ai"),
+        ] {
+            let real = root.join(real);
+            fs::create_dir_all(real.parent().unwrap()).unwrap();
+            fs::write(&real, "").unwrap();
+            let link = root.join("bin/lagom");
+            fs::create_dir_all(link.parent().unwrap()).unwrap();
+            let _ = fs::remove_file(&link);
+            std::os::unix::fs::symlink(&real, &link).unwrap();
+            assert_eq!(removal_hint(&link), expected);
+        }
+        let _ = fs::remove_dir_all(&root);
+    }
 
     const BIN: &str = "/opt/lagom/bin/lagom";
 

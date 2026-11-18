@@ -108,6 +108,11 @@
       "Claude Code": [],
       "Codex": []
     },
+    "cache": {
+      "method": "input tokens read from the prompt cache, from the agents' own logs; a session counts on the UTC day of its last message",
+      "by_agent": {},
+      "by_day": {}
+    },
     "coverage": {
       "sessions_measured": 0,
       "unavailable": 1,

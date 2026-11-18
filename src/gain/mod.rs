@@ -27,6 +27,16 @@ impl Usage {
         self.cache_read += other.cache_read;
         self.messages += other.messages;
     }
+
+    /// Share of input tokens read from the prompt cache, 0.0-1.0.
+    pub fn cache_read_share(&self) -> f64 {
+        let input_all = self.input + self.cache_write + self.cache_read;
+        if input_all == 0 {
+            0.0
+        } else {
+            self.cache_read as f64 / input_all as f64
+        }
+    }
 }
 
 /// One agent session's usage.
@@ -147,18 +157,13 @@ pub fn by_style(
                     outputs.push(o);
                 }
             }
-            let input_all = total.input + total.cache_write + total.cache_read;
             StyleUsage {
                 style: style.to_string(),
                 sessions: group.len(),
                 turns: outputs.len(),
                 median_output_per_turn: median(outputs),
                 median_input_per_turn: median(inputs),
-                cache_read_share: if input_all == 0 {
-                    0.0
-                } else {
-                    total.cache_read as f64 / input_all as f64
-                },
+                cache_read_share: total.cache_read_share(),
                 total,
             }
         })

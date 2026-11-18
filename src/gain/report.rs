@@ -7,7 +7,7 @@ use std::fmt::Write as _;
 
 use serde_json::{Value, json};
 
-use super::{SessionUsage, StyleUsage};
+use super::{SessionUsage, StyleUsage, Usage};
 
 /// Bytes per estimated token. A rough rule for English text and code (CMP-10 calibrates it).
 pub const BYTES_PER_TOKEN: u64 = 4;
@@ -16,6 +16,10 @@ const OUTPUT: &str = "median output tokens per main-conversation turn, from the 
 const NET: &str = "tokens saved by compression minus tokens of injected style rules; a style's effect on answer length is not included";
 /// Days shown in the text report's daily table; `--json` has every day.
 const TEXT_DAYS: usize = 14;
+/// A day is flagged when its cache-read share falls below this part of the previous day's
+/// after a Lagom change: losing the prompt cache costs more than compression saves.
+const CACHE_DROP: f64 = 0.8;
+const CACHE: &str = "input tokens read from the prompt cache, from the agents' own logs; a session counts on the UTC day of its last message";
 
 /// Sums for one group: a command, a style, an agent, a day, or everything.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -224,6 +228,17 @@ impl Filter {
     }
 }
 
+/// One UTC day of prompt-cache use (GAIN-12).
+struct CacheDay {
+    day: String,
+    /// Share of input read from the cache.
+    share: f64,
+    /// The previous day with cache data, and its share.
+    prev: Option<(String, f64)>,
+    /// The share fell below [`CACHE_DROP`] of the previous day's after a Lagom change.
+    flagged: bool,
+}
+
 #[derive(Debug, Default)]
 pub struct Report {
     /// The window and filters, for the header: `UTC, since 2026-10-18 (last 30 days)`.
@@ -245,6 +260,11 @@ pub struct Report {
     pub experiment: bool,
     /// Cursor sessions seen in events: Cursor keeps no usage data to measure.
     cursor_sessions: BTreeSet<String>,
+    /// Cache usage of the sessions in the window, per agent and per UTC day.
+    pub cache_by_agent: BTreeMap<String, Usage>,
+    pub cache_by_day: BTreeMap<String, Usage>,
+    /// Style sets and Lagom versions seen in events, per UTC day.
+    setup_by_day: BTreeMap<String, BTreeSet<String>>,
 }
 
 impl Report {
@@ -287,6 +307,16 @@ impl Report {
             .into_iter()
             .filter(|s| filter.session_matches(s, ctx, &self.project_sessions))
             .collect();
+        for s in &kept {
+            let total = s.total();
+            self.cache_by_agent
+                .entry(agent.to_string())
+                .or_default()
+                .add(&total);
+            if let Some(t) = s.last_ts.as_deref().and_then(super::iso_to_unix) {
+                self.cache_by_day.entry(utc_day(t)).or_default().add(&total);
+            }
+        }
         let rows = super::by_style(&kept, &ctx.styles, tracked_since);
         self.output.push((agent.to_string(), rows));
     }
@@ -297,6 +327,16 @@ impl Report {
         let agent = event_agent(v);
         if let (Some(session), "cursor") = (v.get("session").and_then(Value::as_str), agent) {
             self.cursor_sessions.insert(session.to_string());
+        }
+        if let Some(day) = v.get("ts").and_then(Value::as_u64).map(utc_day) {
+            let setup = self.setup_by_day.entry(day).or_default();
+            if let Some(version) = v.get("lagom").and_then(Value::as_str) {
+                setup.insert(format!("lagom {version}"));
+            }
+            if v.get("kind").and_then(Value::as_str) == Some("inject") {
+                let ctx = Context::default();
+                setup.extend(event_style(v, &ctx).map(|s| format!("styles {s}")));
+            }
         }
         let day = v.get("ts").and_then(Value::as_u64).map(utc_day);
         let mut groups: Vec<&mut Bucket> = vec![&mut self.total];
@@ -428,6 +468,30 @@ impl Report {
             }
         }
 
+        if !self.cache_by_agent.is_empty() {
+            let _ = writeln!(s, "cache ({CACHE}):");
+            for (agent, u) in &self.cache_by_agent {
+                let _ = writeln!(
+                    s,
+                    "  {agent:<12} read {} / wrote {} tokens, {:.0}% of input from cache",
+                    u.cache_read,
+                    u.cache_write,
+                    u.cache_read_share() * 100.0
+                );
+            }
+            let days = self.cache_days();
+            for d in days.iter().rev().take(TEXT_DAYS).rev() {
+                let _ = write!(s, "  {}  {:.0}% from cache", d.day, d.share * 100.0);
+                if let (true, Some((p, p_share))) = (d.flagged, &d.prev) {
+                    let _ = write!(
+                        s,
+                        "  ⚠ down from {:.0}% on {p}, after a Lagom change (styles or version)",
+                        p_share * 100.0
+                    );
+                }
+                let _ = writeln!(s);
+            }
+        }
         let measured: Vec<String> = self
             .output
             .iter()
@@ -471,6 +535,63 @@ impl Report {
             self.style_basis()
         );
         s
+    }
+
+    /// Per UTC day with cache data: the cache-read share, the previous day's, and whether
+    /// the share fell below [`CACHE_DROP`] of it after a Lagom change in between.
+    fn cache_days(&self) -> Vec<CacheDay> {
+        let mut out = Vec::new();
+        let mut prev: Option<(String, f64)> = None;
+        for (day, usage) in &self.cache_by_day {
+            let share = usage.cache_read_share();
+            let flagged = prev.as_ref().is_some_and(|(p, prev_share)| {
+                share < prev_share * CACHE_DROP && self.setup_changed(p, day)
+            });
+            out.push(CacheDay {
+                day: day.clone(),
+                share,
+                prev: prev.clone(),
+                flagged,
+            });
+            prev = Some((day.clone(), share));
+        }
+        out
+    }
+
+    /// Whether a style set or Lagom version first appears after `before` and by `day`.
+    fn setup_changed(&self, before: &str, day: &str) -> bool {
+        let seen: BTreeSet<&String> = self
+            .setup_by_day
+            .range(..=before.to_string())
+            .flat_map(|(_, s)| s)
+            .collect();
+        self.setup_by_day
+            .range(before.to_string()..=day.to_string())
+            .filter(|(d, _)| d.as_str() != before)
+            .flat_map(|(_, s)| s)
+            .any(|item| !seen.contains(item))
+    }
+
+    fn cache_json(&self) -> Value {
+        let usage = |u: &Usage| {
+            json!({"cache_read": u.cache_read, "cache_write": u.cache_write,
+                                        "input": u.input, "read_share": u.cache_read_share()})
+        };
+        let by_agent: serde_json::Map<String, Value> = self
+            .cache_by_agent
+            .iter()
+            .map(|(a, u)| (a.clone(), usage(u)))
+            .collect();
+        let by_day: serde_json::Map<String, Value> = self
+            .cache_days()
+            .into_iter()
+            .map(|d| {
+                let mut v = usage(&self.cache_by_day[&d.day]);
+                v["dropped_after_change"] = d.flagged.into();
+                (d.day, v)
+            })
+            .collect();
+        json!({"method": CACHE, "by_agent": by_agent, "by_day": by_day})
     }
 
     fn sessions_measured(&self) -> usize {
@@ -523,6 +644,7 @@ impl Report {
             "injection": {"method": TOKENS, "basis": "estimated", "by_style": map(&self.by_style),
                           "coverage": {"injections": self.total.injections}},
             "output": {"method": OUTPUT, "basis": "measured from the agents' own logs", "by_agent": output,
+                       "cache": self.cache_json(),
                        "coverage": {"sessions_measured": self.sessions_measured(),
                                     "unavailable": self.cursor_sessions.len(),
                                     "unavailable_reason": "Cursor keeps no usage data"}},
@@ -584,6 +706,69 @@ mod tests {
         assert_eq!(r.by_agent["unknown"].injections, 1);
         assert_eq!(r.by_day["2026-11-24"].runs, 2);
         assert_eq!(r.by_day["2026-11-22"].injections, 1);
+    }
+
+    fn session(id: &str, last: &str, input: u64, read: u64, write: u64) -> SessionUsage {
+        SessionUsage {
+            agent: "claude".into(),
+            session_id: id.into(),
+            model: None,
+            first_ts: Some(last.into()),
+            last_ts: Some(last.into()),
+            main: Usage {
+                input,
+                output: 10,
+                cache_write: write,
+                cache_read: read,
+                messages: 1,
+            },
+            subagents: Usage::default(),
+            turns: vec![(input, 10)],
+        }
+    }
+
+    #[test]
+    fn a_cache_drop_after_a_lagom_change_is_flagged() {
+        let mut r = Report::default();
+        // Day 1: terse with Lagom 0.1.1. Day 2: a new style set. Day 3: nothing changed.
+        for (ts, styles) in [
+            (1_795_305_600, json!(["terse"])),
+            (1_795_392_000, json!(["terse", "lean-code"])),
+            (1_795_478_400, json!(["terse", "lean-code"])),
+        ] {
+            r.add(&json!({"v": 1, "lagom": "0.1.1", "ts": ts, "kind": "inject", "bytes": 400, "styles": styles}));
+        }
+        let sessions = vec![
+            session("s1", "2026-11-22T12:00:00Z", 10, 970, 20), // 97% from cache
+            session("s2", "2026-11-23T12:00:00Z", 300, 600, 100), // 60%: down after a change
+            session("s3", "2026-11-24T12:00:00Z", 600, 300, 100), // 30%: down, but nothing changed
+        ];
+        r.add_sessions(
+            "Claude Code",
+            sessions,
+            &Filter::default(),
+            &Context::default(),
+            None,
+        );
+        let text = r.text();
+        assert!(text.contains("2026-11-22  97% from cache\n"), "{text}");
+        assert!(
+            text.contains(
+                "2026-11-23  60% from cache  ⚠ down from 97% on 2026-11-22, after a Lagom change"
+            ),
+            "{text}"
+        );
+        assert!(
+            text.contains("2026-11-24  30% from cache\n"),
+            "no Lagom change, no flag: {text}"
+        );
+        assert!(
+            text.contains("Claude Code  read 1870 / wrote 220 tokens, 62% of input from cache"),
+            "{text}"
+        );
+        let days = &r.json()["output"]["cache"]["by_day"];
+        assert_eq!(days["2026-11-23"]["dropped_after_change"], true);
+        assert_eq!(days["2026-11-24"]["dropped_after_change"], false);
     }
 
     #[test]

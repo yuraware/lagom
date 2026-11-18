@@ -268,7 +268,8 @@ pub struct Report {
     pub skipped: crate::store::Skipped,
     /// Whether a holdout experiment exists, the only measured source of style savings.
     pub experiment: bool,
-    /// Cursor sessions seen in events: Cursor keeps no usage data to measure.
+    /// Cursor sessions seen in events. Cursor stores its token counts as zero and reports no
+    /// usage to hooks, so they can't be measured locally (GAIN-03).
     cursor_sessions: BTreeSet<String>,
     /// Cache usage of the sessions in the window, per agent and per UTC day.
     pub cache_by_agent: BTreeMap<String, Usage>,
@@ -560,7 +561,7 @@ impl Report {
             .collect();
         let _ = writeln!(
             s,
-            "coverage: {} sessions measured ({}) / {} unavailable (Cursor keeps no usage data)",
+            "coverage: {} sessions measured ({}); Cursor: not measurable locally ({} sessions seen)",
             self.sessions_measured(),
             measured.join(", "),
             self.cursor_sessions.len()
@@ -720,7 +721,7 @@ impl Report {
                        "cost": self.cost_json(),
                        "coverage": {"sessions_measured": self.sessions_measured(),
                                     "unavailable": self.cursor_sessions.len(),
-                                    "unavailable_reason": "Cursor keeps no usage data"}},
+                                    "unavailable_reason": "Cursor: not measurable locally"}},
             "net": {"method": NET, "tokens": self.total.net_tokens(),
                     "basis": {"compression": "estimated", "injection": "estimated",
                               "style_savings": if self.experiment { "measured" } else { "unknown" }},

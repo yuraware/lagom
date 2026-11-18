@@ -124,7 +124,7 @@
     "coverage": {
       "sessions_measured": 0,
       "unavailable": 1,
-      "unavailable_reason": "Cursor keeps no usage data"
+      "unavailable_reason": "Cursor: not measurable locally"
     }
   },
   "net": {

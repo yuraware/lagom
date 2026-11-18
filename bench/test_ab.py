@@ -208,6 +208,25 @@ class Harness(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout)
         self.assertIn("selftest ok: 10 tasks", r.stdout)
 
+    @unittest.skipUnless(shutil.which("cargo"), "needs cargo")
+    def test_every_output_heavy_task_fails_without_its_solution_and_passes_with_it(self):
+        r = self.ab("--selftest", tasks=os.path.join(HERE, "tasks", "output-heavy"))
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("selftest ok: 8 tasks", r.stdout)
+
+    def test_setup_generates_files_the_check_regenerates(self):
+        [task] = ab.load_tasks(os.path.join(HERE, "tasks", "output-heavy"), ["log-needle-small"])
+        base, work = ab.workspace(task)
+        try:
+            with open(os.path.join(work, "logs", "app.log")) as f:
+                self.assertEqual(sum(1 for _ in f), 40)
+            self.assertFalse(ab.run_check(task, work)[0])
+            with open(os.path.join(work, "blocklist.txt"), "w") as f:
+                f.write("ORD-7731-QX\n")
+            self.assertTrue(ab.run_check(task, work)[0])
+        finally:
+            shutil.rmtree(base)
+
     def test_tasks_are_found_in_suite_folders(self):
         names = [t["name"] for t in ab.load_tasks(os.path.join(HERE, "tasks"))]
         self.assertIn("smoke/py-add-flag", names)

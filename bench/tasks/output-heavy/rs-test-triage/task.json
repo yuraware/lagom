@@ -1,0 +1,18 @@
+{
+  "prompt": "Run `cargo test` and fix the code in src/lib.rs so every test passes. Don't change the tests.",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/output-heavy/gen_rust.py",
+    "tests",
+    "check"
+  ],
+  "bash": true,
+  "setup": [
+    "python3",
+    "-I",
+    "{bench}/tasks/output-heavy/gen_rust.py",
+    "tests",
+    "write"
+  ]
+}

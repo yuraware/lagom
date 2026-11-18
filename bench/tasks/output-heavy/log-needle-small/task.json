@@ -1,0 +1,17 @@
+{
+  "prompt": "The nightly billing job failed. Find the order whose payment failed in logs/app.log and write its order id, and nothing else, to blocklist.txt.",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/output-heavy/gen_log.py",
+    "check"
+  ],
+  "bash": true,
+  "setup": [
+    "python3",
+    "-I",
+    "{bench}/tasks/output-heavy/gen_log.py",
+    "write",
+    "40"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "prompt": "Count the events whose status is \"failed\" per service in data/events.json and write the counts to failures.json as one JSON object, {\"service\": count}, listing only services with at least one failure.",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/output-heavy/gen_events.py",
+    "check",
+    "4000"
+  ],
+  "bash": true,
+  "setup": [
+    "python3",
+    "-I",
+    "{bench}/tasks/output-heavy/gen_events.py",
+    "write",
+    "4000"
+  ],
+  "solve": [
+    "python3",
+    "-I",
+    "{bench}/tasks/output-heavy/gen_events.py",
+    "solve",
+    "4000"
+  ]
+}

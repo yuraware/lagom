@@ -40,9 +40,32 @@ Usage:
 ";
 
 /// Entry point shared by the `lagom` and `lgm` binaries.
+/// A closed pipe (`lagom recall <id> | head`) ends Lagom quietly, as it ends `cat`: Rust
+/// ignores SIGPIPE, so `println!` would panic instead. `lagom run` keeps ignoring it, so it
+/// can still return the wrapped command's exit code (ARCH-09).
+#[cfg(unix)]
+fn restore_default_sigpipe() {
+    unsafe extern "C" {
+        fn signal(signum: i32, handler: usize) -> usize;
+    }
+    const SIGPIPE: i32 = 13; // the same number on Linux and macOS
+    const SIG_DFL: usize = 0;
+    // SAFETY: runs once at start-up, before any thread exists, and only puts one signal's
+    // handler back to the default.
+    unsafe {
+        signal(SIGPIPE, SIG_DFL);
+    }
+}
+
+#[cfg(not(unix))]
+fn restore_default_sigpipe() {}
+
 pub fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let rest = |n: usize| args.get(n..).unwrap_or(&[]).to_vec();
+    if args.first().map(String::as_str) != Some("run") {
+        restore_default_sigpipe();
+    }
     match args.first().map(String::as_str) {
         Some("run") => {
             let mut cmd = rest(1);

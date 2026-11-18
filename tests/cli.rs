@@ -1389,3 +1389,52 @@ fn stats_file_is_rotated_at_its_size_cap_and_both_files_are_read() {
         "both files are counted:\n{said}"
     );
 }
+
+/// Starts lagom with stdout piped, reads a few bytes, then closes the pipe, as `| head` does.
+#[cfg(unix)]
+fn close_pipe_early(home: &Path, args: &[&str]) -> (std::process::ExitStatus, String) {
+    use std::io::Read;
+    let mut child = Command::new(env!("CARGO_BIN_EXE_lagom"))
+        .args(args)
+        .env("HOME", home)
+        .env_remove("LAGOM_HOME")
+        .env_remove("LAGOM_DISABLE")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut first = [0u8; 16];
+    child.stdout.take().unwrap().read_exact(&mut first).unwrap(); // dropped here: pipe closed
+    let out = child.wait_with_output().unwrap();
+    (
+        out.status,
+        String::from_utf8_lossy(&out.stderr).into_owned(),
+    )
+}
+
+#[cfg(unix)]
+#[test]
+fn a_closed_pipe_ends_lagom_quietly_and_run_keeps_the_exit_code() {
+    let home = sandbox("closed-pipe");
+    // A large saved output, so recall writes far more than the pipe holds.
+    let out = lagom(&home, &["run", "--", "sh", "-c", "seq 1 300000"], None);
+    let said = text(&out);
+    let id = said
+        .rsplit("lagom recall ")
+        .next()
+        .and_then(|s| s.split(|c: char| !c.is_ascii_hexdigit()).next())
+        .unwrap()
+        .to_string();
+    assert!(id.len() >= 8, "no recall id in: {said}");
+
+    let (status, stderr) = close_pipe_early(&home, &["recall", &id]);
+    assert!(!stderr.contains("panicked"), "{stderr}");
+    assert_ne!(status.code(), Some(101), "{status:?}");
+
+    // `lagom run` must still return the command's own exit code.
+    let (status, stderr) =
+        close_pipe_early(&home, &["run", "--", "sh", "-c", "seq 1 300000; exit 3"]);
+    assert!(!stderr.contains("panicked"), "{stderr}");
+    assert_eq!(status.code(), Some(3));
+}

@@ -10,7 +10,7 @@ each run in a fresh folder and judged by hidden checks. Standard library only.
 Arms: `baseline`; `terse-control`, with only the instruction "Answer concisely."; and
 `lagom:<style>`, with Lagom's hooks and that style installed in the run's folder.
 
-A task is a folder under bench/tasks/ (grouped in suites: smoke/, rust/, …) with task.json (`prompt`, `check` as an argument
+A task is a folder under bench/tasks/ (grouped in suites: smoke/, rust/, python/) with task.json (`prompt`, `check` as an argument
 list, `bash`: whether the agent may run commands), fixture/ (what the agent starts
 with), hidden/ (the checks, copied in only after the agent stops) and solution/ (a
 reference the checks must pass). `--selftest` runs every task's references: the
@@ -78,7 +78,9 @@ def load_tasks(root, only=None):
             meta = json.load(f)
         if not isinstance(meta.get("prompt"), str) or not isinstance(meta.get("check"), list):
             raise UsageError(f"{meta_path}: needs a `prompt` string and a `check` argument list")
-        tasks.append({"name": name, "dir": d, "prompt": meta["prompt"], "check": meta["check"],
+        # `{bench}` in a check is this folder, for runners shared by a suite.
+        check = [a.replace("{bench}", HERE) for a in meta["check"]]
+        tasks.append({"name": name, "dir": d, "prompt": meta["prompt"], "check": check,
                       "bash": bool(meta.get("bash", False))})
     missing = sorted(set(only or []) - {t["name"] for t in tasks})
     if missing:

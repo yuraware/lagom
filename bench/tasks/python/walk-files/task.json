@@ -1,0 +1,9 @@
+{
+  "prompt": "large_files(root, min_bytes) in sizes/__init__.py should list every file under root, in any subfolder, of at least min_bytes, as sorted paths relative to root with / separators. It only looks at the top folder. Fix it.",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/python/run_hidden.py"
+  ],
+  "bash": true
+}

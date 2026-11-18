@@ -203,10 +203,17 @@ class Harness(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout)
         self.assertIn("selftest ok: 10 tasks", r.stdout)
 
+    def test_every_python_task_fails_without_its_solution_and_passes_with_it(self):
+        r = self.ab("--selftest", tasks=os.path.join(HERE, "tasks", "python"))
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("selftest ok: 10 tasks", r.stdout)
+
     def test_tasks_are_found_in_suite_folders(self):
         names = [t["name"] for t in ab.load_tasks(os.path.join(HERE, "tasks"))]
         self.assertIn("smoke/py-add-flag", names)
         self.assertIn("rust/off-by-one", names)
+        self.assertIn("python/slugify", names)
+        self.assertNotIn("python", names, "a shared runner isn't a task")
 
     def test_codex_commands_and_events(self):
         cmd = ab.command("codex", "codex", "do it", "terse-control", "gpt-x", True, None)

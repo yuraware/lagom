@@ -1,0 +1,9 @@
+{
+  "prompt": "Money in money/__init__.py accepts any amount and currency. Make it raise ValueError when the amount is negative or the currency isn't three upper-case letters (such as \"EUR\").",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/python/run_hidden.py"
+  ],
+  "bash": true
+}

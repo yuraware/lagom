@@ -1,0 +1,9 @@
+{
+  "prompt": "slugify() in slugs/__init__.py should turn a title into a URL slug: lowercase ASCII letters and digits separated by single hyphens, with accents removed (\"Cr\u00e8me Br\u00fbl\u00e9e!\" becomes \"creme-brulee\"). Today it keeps accents and punctuation. Fix it.",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/python/run_hidden.py"
+  ],
+  "bash": true
+}

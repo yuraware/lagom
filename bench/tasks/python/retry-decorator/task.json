@@ -1,0 +1,9 @@
+{
+  "prompt": "Implement retry(times, exceptions) in retrying/__init__.py: a decorator that calls the function again when it raises one of `exceptions`, at most `times` calls in all, and re-raises the last error when every call failed. Other exceptions pass through at once. The decorated function keeps its name.",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/python/run_hidden.py"
+  ],
+  "bash": true
+}

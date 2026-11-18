@@ -1,0 +1,9 @@
+{
+  "prompt": "deep_merge(base, override) in settings/__init__.py should merge nested dictionaries key by key, with override winning on conflicts. Today a nested dictionary in override replaces the whole one in base, and base is modified. Fix both: neither argument may change.",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/python/run_hidden.py"
+  ],
+  "bash": true
+}

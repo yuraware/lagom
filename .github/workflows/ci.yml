@@ -42,6 +42,8 @@ jobs:
       - run: cargo test --locked --workspace
       # BEN-06: the A/B harness against its fake agent, with the lagom binary cargo just built.
       - run: python3 -I -m unittest discover -s bench -p 'test_*.py'
+      # BEN-12: a published benchmark page must match the results it names, byte for byte.
+      - run: python3 -I bench/report.py --check
 
   msrv:
     # Builds with the oldest Rust we support: `rust-version` in Cargo.toml.

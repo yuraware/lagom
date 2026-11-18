@@ -26,7 +26,8 @@ Usage:
   lagom recall <id> [--grep TEXT]           Print the full output behind a compressed result
                   [--lines A-B] [--head N] [--tail N]  or only part of it
   lagom recall --list | --clear             List or delete saved outputs
-  lagom stats [--json]                      Savings, injected-rule cost, output tokens and net
+  lagom stats [--days N | --since D | --all-time] [--agent A] [--model M] [--style S]
+              [--project P] [--session ID] [--json]  Savings, rule cost, output tokens and net
   lagom experiment start [--holdout 0.2]    Measure styles: some sessions run without them
                   [--days 14] | status | stop
   lagom stats --experiment                  Styled vs holdout output tokens, with a 95% interval
@@ -94,21 +95,44 @@ pub fn main() -> ExitCode {
         Some("status") => cmd_status(&rest(1)),
         Some("style") => cmd_style(&rest(1)),
         Some("stats") => {
-            const USAGE: &str = "lagom stats [--json] | --usage [--days N] | --experiment";
-            let spec = ["--usage", "--experiment", "--days=", "--json"];
+            let spec = [
+                "--usage",
+                "--experiment",
+                "--json",
+                "--days=",
+                "--since=",
+                "--all-time",
+                "--agent=",
+                "--model=",
+                "--style=",
+                "--project=",
+                "--session=",
+            ];
             let a = match Args::parse(&rest(1), &spec, 0) {
                 Ok(a) => a,
-                Err(e) => return usage_error(&e, USAGE),
+                Err(e) => return usage_error(&e, STATS_USAGE),
             };
-            let (usage, experiment, json) =
-                (a.has("--usage"), a.has("--experiment"), a.has("--json"));
-            match (usage, experiment, a.value("--days"), json) {
-                (true, false, days, false) => cmd_usage(days),
-                (false, true, None, false) => cmd_experiment_report(),
-                (false, false, None, json) => cmd_stats(json),
+            let report_only = [
+                "--json",
+                "--since",
+                "--all-time",
+                "--agent",
+                "--model",
+                "--style",
+                "--project",
+                "--session",
+            ]
+            .iter()
+            .any(|f| a.has(f) || a.value(f).is_some());
+            match (a.has("--usage"), a.has("--experiment")) {
+                (true, false) if !report_only => cmd_usage(a.value("--days")),
+                (false, true) if !report_only && a.value("--days").is_none() => {
+                    cmd_experiment_report()
+                }
+                (false, false) => cmd_stats(&a),
                 _ => usage_error(
-                    "use one of --json, --usage or --experiment; --days goes with --usage",
-                    USAGE,
+                    "--usage takes only --days, and --experiment takes nothing else",
+                    STATS_USAGE,
                 ),
             }
         }
@@ -826,25 +850,77 @@ fn cmd_experiment_report() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// The `lagom stats` report (GAIN-06), as text or `--json`.
-fn cmd_stats(as_json: bool) -> ExitCode {
-    const OUTPUT_DAYS: u64 = 30;
-    let mut report = crate::gain::report::Report {
-        output_days: OUTPUT_DAYS,
-        ..Default::default()
-    };
-    store::for_each_stat(|v| report.add(v));
-    let since = std::time::SystemTime::now()
-        .checked_sub(std::time::Duration::from_secs(OUTPUT_DAYS * 86_400));
-    let (styles, tracked_since) = store::session_styles();
-    for (name, sessions) in [
-        ("Claude Code", crate::gain::claude::sessions(since)),
-        ("Codex", crate::gain::codex::sessions(since)),
-    ] {
-        let rows = crate::gain::by_style(&sessions, &styles, tracked_since);
-        report.output.push((name.to_string(), rows));
+const STATS_USAGE: &str = "lagom stats [--days N | --since YYYY-MM-DD | --all-time] [--agent A] [--model M] [--style S] [--project PATH|ID] [--session ID] [--json] | --usage [--days N] | --experiment";
+
+/// The `lagom stats` report (GAIN-06) for a UTC window and filters (GAIN-10).
+fn cmd_stats(a: &Args) -> ExitCode {
+    use crate::gain::report::{Context, Filter, Report};
+    let windows = [
+        a.value("--days").is_some(),
+        a.value("--since").is_some(),
+        a.has("--all-time"),
+    ];
+    if windows.iter().filter(|w| **w).count() > 1 {
+        return usage_error("use one of --days, --since and --all-time", STATS_USAGE);
     }
-    if as_json {
+    let (since, days) = if a.has("--all-time") {
+        (None, None)
+    } else if let Some(d) = a.value("--since") {
+        match crate::gain::iso_to_unix(&format!("{d}T00:00:00Z")).filter(|_| d.len() == 10) {
+            Some(t) => (Some(t), None),
+            None => return usage_error("--since needs a date such as 2026-11-01", STATS_USAGE),
+        }
+    } else {
+        let days = match a.value("--days").map(str::parse::<u64>) {
+            None => 30,
+            Some(Ok(n)) if n >= 1 => n,
+            _ => return usage_error("--days needs a whole number of days", STATS_USAGE),
+        };
+        (
+            Some(store::now_secs().saturating_sub(days.saturating_mul(86_400))),
+            Some(days),
+        )
+    };
+    // A path (`.` too) means its git repository's project id; anything else is an id.
+    let project = match a.value("--project") {
+        Some(p) if p == "." || p.contains('/') => match store::project_id(Path::new(p)) {
+            Some(id) => Some(id),
+            None => {
+                return usage_error(&format!("{p} is not inside a git repository"), STATS_USAGE);
+            }
+        },
+        other => other.map(String::from),
+    };
+    let text = |f: &str| a.value(f).map(String::from);
+    let filter = Filter {
+        since,
+        agent: text("--agent"),
+        model: text("--model"),
+        style: text("--style"),
+        project,
+        session: text("--session"),
+    };
+    let from = since.map(|t| std::time::UNIX_EPOCH + std::time::Duration::from_secs(t));
+    let (claude, codex) = (
+        crate::gain::claude::sessions(from),
+        crate::gain::codex::sessions(from),
+    );
+    let (styles, tracked_since) = store::session_styles();
+    let models = claude
+        .iter()
+        .chain(&codex)
+        .filter_map(|s| Some((s.session_id.clone(), s.model.clone()?)))
+        .collect();
+    let ctx = Context { styles, models };
+    let mut report = Report::default();
+    report.scope = filter.scope(days);
+    store::for_each_stat(|v| report.add_filtered(v, &filter, &ctx));
+    report.add_sessions("Claude Code", claude, &filter, &ctx, tracked_since);
+    report.add_sessions("Codex", codex, &filter, &ctx, tracked_since);
+    if let Err(e) = filter.check(&report.known) {
+        return usage_error(&e, STATS_USAGE);
+    }
+    if a.has("--json") {
         println!("{:#}", report.json());
     } else {
         print!("{}", report.text());

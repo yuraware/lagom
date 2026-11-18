@@ -1,4 +1,4 @@
-lagom stats, from ~/.lagom/stats.jsonl (tokens ≈ bytes ÷ 4, an estimate)
+lagom stats, all time, from ~/.lagom/stats.jsonl (tokens ≈ bytes ÷ 4, an estimate)
 
 Compression
 commands run through lagom: 5 (3 compressed)
@@ -15,7 +15,7 @@ by style:
   terse                    1 injections, ~250 tokens
   terse+lean-code          2 injections, ~800 tokens
 
-Output, last 30 days (median output tokens per main-conversation turn, from the agents' own logs; observational, so not proof of a style's effect)
+Output (median output tokens per main-conversation turn, from the agents' own logs; observational, so not proof of a style's effect)
 no Claude Code or Codex sessions found
 
 Net (tokens saved by compression minus tokens of injected style rules; a style's effect on answer length is not included)
@@ -25,7 +25,7 @@ by agent:
   codex    net ~27500 tokens: 1 runs saved ~27750, 1 injections cost ~250
   manual   net ~0 tokens: 1 runs saved ~0, 0 injections cost ~0
   unknown  net ~0 tokens: 1 runs saved ~0, 0 injections cost ~0
-by day (last 14 with activity, UTC):
+by day (the last 14 with activity, UTC):
   2026-11-21  net ~0 tokens
   2026-11-22  net ~12450 tokens
   2026-11-23  net ~27500 tokens

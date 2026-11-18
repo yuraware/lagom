@@ -1,5 +1,6 @@
 {
   "source": "~/.lagom/stats.jsonl",
+  "scope": "all time",
   "compression": {
     "method": "tokens ≈ bytes ÷ 4, an estimate",
     "total": {
@@ -89,7 +90,6 @@
   },
   "output": {
     "method": "median output tokens per main-conversation turn, from the agents' own logs; observational, so not proof of a style's effect",
-    "days": 30,
     "by_agent": {
       "Claude Code": [],
       "Codex": []

@@ -91,7 +91,7 @@ def load_tasks(root, only=None):
         tasks.append({"name": name, "dir": d, "prompt": meta["prompt"], "check": cmd("check"),
                       "setup": cmd("setup"), "solve": cmd("solve"), "bash": bool(meta.get("bash", False)),
                       "answer": bool(meta.get("answer", False)), "category": meta.get("category"),
-                      "risky": bool(meta.get("risky", False))})
+                      "risky": bool(meta.get("risky", False)), "safety": bool(meta.get("safety", False))})
     missing = sorted(set(only or []) - {t["name"] for t in tasks})
     if missing:
         raise UsageError(f"no such task: {', '.join(missing)}")
@@ -463,7 +463,8 @@ def one_run(args, task, arm, repeat, budget_left):
         passed, check_tail = run_check(task, work)
         row = {"kind": "run", "ts": started.isoformat(timespec="seconds"), "agent": args.agent,
                "auth": args.auth, "model": args.model, "task": task["name"], "category": task.get("category"),
-               "risky": task.get("risky", False), "arm": arm, "repeat": repeat, "status": status,
+               "risky": task.get("risky", False), "safety": task.get("safety", False), "arm": arm,
+               "repeat": repeat, "status": status,
                "exit_code": code, "passed": passed, "wall_ms": wall_ms, **(parsed or {}),
                "files_changed": len(changed), "added_test": added_a_test(changed, work),
                "lagom": lagom_activity(env["LAGOM_HOME"]) if is_lagom_arm(arm) else None,

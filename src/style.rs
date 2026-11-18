@@ -207,7 +207,11 @@ pub fn render(cwd: &Path) -> String {
         .iter()
         .any(|n| n == "lean-code" || n == "lean-code-reach")
     {
-        if let Some(note) = crate::lang::project_note(cwd) {
+        if let Some(note) = config
+            .test_note
+            .then(|| crate::lang::project_note(cwd))
+            .flatten()
+        {
             out.push_str(&note);
             out.push_str("\n\n");
         }

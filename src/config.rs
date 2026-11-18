@@ -11,7 +11,7 @@ use serde_json::{Map, Value};
 use crate::style;
 
 /// Keys Lagom reads. Anything else in a config file is reported as unknown.
-const KNOWN: [&str; 4] = ["styles", "rewrite", "compress", "hints"];
+const KNOWN: [&str; 5] = ["styles", "rewrite", "compress", "hints", "test_note"];
 
 #[derive(Debug, PartialEq)]
 pub struct Config {
@@ -31,6 +31,9 @@ pub struct Config {
     /// `hints`: add a line naming the project's dependencies to the code style (LANG-02).
     /// Off by default until LANG-06 measures it; only the user's own file can turn it on.
     pub hints: bool,
+    /// `test_note`: the code style's line about the project's tests. On by default; any file
+    /// can turn it off (LANG-06 measures it with and without).
+    pub test_note: bool,
     /// Malformed files, wrong value types and unknown keys. `lagom status` shows them,
     /// and `LAGOM_DEBUG` prints them on stderr.
     pub problems: Vec<String>,
@@ -218,6 +221,15 @@ impl Config {
             }
         }
 
+        let mut test_note = true;
+        for (name, map) in &layers {
+            match map.get("test_note") {
+                None | Some(Value::Bool(true)) => {}
+                Some(Value::Bool(false)) => test_note = false,
+                Some(_) => problems.push(format!("{name}: `test_note` must be true or false")),
+            }
+        }
+
         // `LAGOM_REWRITE` alone decides on or off.
         let rewrite = match env_rewrite {
             Some(v) => !matches!(
@@ -235,6 +247,7 @@ impl Config {
             compress_keep,
             compress_lossless,
             hints: hints_on && !hints_off,
+            test_note,
             problems,
         }
     }
@@ -252,6 +265,14 @@ impl Config {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn the_test_note_is_on_until_any_file_turns_it_off() {
+        let off = map(json!({"test_note": false}));
+        assert!(Config::from_layers(None, None, None, None).test_note);
+        assert!(!Config::from_layers(None, None, Some(("project", &off)), None).test_note);
+        assert!(!Config::from_layers(None, None, None, Some(("user", &off))).test_note);
+    }
 
     #[test]
     fn hints_are_off_until_the_users_own_file_turns_them_on() {

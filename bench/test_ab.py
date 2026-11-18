@@ -268,6 +268,44 @@ class Harness(unittest.TestCase):
         self.assertIn("python/slugify", names)
         self.assertNotIn("python", names, "a shared runner isn't a task")
 
+    @unittest.skipUnless(LAGOM, "build lagom first (cargo build)")
+    def test_arm_flags_turn_the_hint_on_and_the_test_note_off(self):
+        # LANG-06: the code style with and without the dependency hint and the test-policy line.
+        [task] = ab.load_tasks(os.path.join(HERE, "tasks", "rust"), ["off-by-one"])
+
+        def injected(arm):
+            base, work = ab.workspace(task)
+            try:
+                os.makedirs(os.path.join(work, "tests"), exist_ok=True)   # so the test note has something to say
+                ab.prepare(work, "fake", arm, task, LAGOM)
+                env = ab.agent_env(base, arm, task["dir"], "fake")
+                payload = json.dumps({"cwd": work, "source": "startup", "session_id": "s"})
+                out = subprocess.run([LAGOM, "hook", "claude", "session-start"], input=payload, env=env,
+                                     capture_output=True, text=True).stdout
+                return json.loads(out)["hookSpecificOutput"]["additionalContext"]
+            finally:
+                shutil.rmtree(base)
+
+        hint = "Rust project with no dependencies: prefer std"
+        note = "Rust project with tests"
+        plain = injected("lagom:terse+lean-code")
+        self.assertIn("lagom: terse", plain)
+        self.assertIn("lagom: lean-code", plain)
+        self.assertIn(note, plain)
+        self.assertNotIn(hint, plain)
+        both = injected("lagom:lean-code@hints")
+        self.assertIn(hint, both)
+        self.assertIn(note, both)
+        neither = injected("lagom:lean-code@no-test-note")
+        self.assertNotIn(note, neither)
+        self.assertNotIn(hint, neither)
+
+    def test_arm_syntax_is_checked(self):
+        self.assertEqual(ab.parse_arms("baseline,lagom:terse+lean-code@hints"), ["baseline", "lagom:terse+lean-code@hints"])
+        for bad in ["lagom:terse@loud", "lagom:+lean-code", "lagom:a b"]:
+            with self.subTest(arm=bad), self.assertRaises(ab.UsageError):
+                ab.parse_arms(bad)
+
     def test_codex_commands_and_events(self):
         cmd = ab.command("codex", "codex", "do it", "terse-control", "gpt-x", True, None)
         self.assertEqual(cmd[:2], ["codex", "exec"])

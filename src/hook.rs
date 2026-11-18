@@ -308,13 +308,7 @@ fn pre_tool(agent: Agent, payload: &Value, cwd: &Path, bin: &str) -> Option<Valu
             }
             // Claude Code reads a project's local settings from the folder the session
             // started in (and its repository root), not from wherever Claude has `cd`-ed to.
-            let project = std::env::var_os("CLAUDE_PROJECT_DIR").map(PathBuf::from);
-            let Some(rules) = claude_rules(
-                cwd,
-                project.as_deref(),
-                &crate::install::claude_dir(),
-                &claude_managed_dir(),
-            ) else {
+            let Some(rules) = claude_user_rules(cwd) else {
                 // A managed settings file or server-managed policy cache we can't read
                 // might deny this command.
                 return skip("a managed settings file can't be read");
@@ -511,6 +505,18 @@ fn flag_anywhere(v: &Value, key: &str, depth: usize) -> bool {
     };
     map.get(key) == Some(&json!(true))
         || (depth > 0 && map.values().any(|c| flag_anywhere(c, key, depth - 1)))
+}
+
+/// The Claude Code permission rules that apply in `cwd`, read as the pre-tool hook reads
+/// them; `None` when a policy file can't be read.
+pub(crate) fn claude_user_rules(cwd: &Path) -> Option<Rules> {
+    let project = std::env::var_os("CLAUDE_PROJECT_DIR").map(PathBuf::from);
+    claude_rules(
+        cwd,
+        project.as_deref(),
+        &crate::install::claude_dir(),
+        &claude_managed_dir(),
+    )
 }
 
 /// Collect Claude Code's permission rules the way Claude Code applies them, or `None`

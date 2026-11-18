@@ -1490,6 +1490,7 @@ fn every_command_rejects_an_unknown_flag_with_its_usage() {
         &["experiment", "status", "--bogus"],
         &["experiment", "stop", "--bogus"],
         &["discover", "--bogus"],
+        &["permissions", "suggest", "--bogus"],
         &["bench", "compress", "--bogus"],
     ];
     for args in cases {
@@ -1778,4 +1779,48 @@ fn stats_filters_select_events_and_sessions() {
     assert_eq!(runs(&["--days", "60"]), 2);
     assert_eq!(runs(&["--days", "5"]), 0);
     assert_eq!(runs(&["--all-time"]), 2);
+}
+
+#[test]
+fn permissions_suggest_prints_rules_and_writes_nothing() {
+    let home = sandbox("permissions-suggest");
+    let log = home.join(".claude/projects/p/s.jsonl");
+    fs::create_dir_all(log.parent().unwrap()).unwrap();
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/transcripts/claude-permissions.jsonl"),
+        &log,
+    )
+    .unwrap();
+    let settings = home.join(".claude/settings.json");
+    let before = r#"{"permissions": {"allow": ["Bash(rg:*)"]}}"#;
+    fs::write(&settings, before).unwrap();
+
+    let said = text(&lagom(&home, &["permissions", "suggest"], None));
+    for expected in [
+        "\"Bash(git log:*)\"",
+        "\"Bash(git status:*)\"",
+        "\"Bash(tree:*)\"",
+        "\"Shell(tree)\"",
+        "Shell(git) would also allow git push",
+    ] {
+        assert!(said.contains(expected), "missing {expected} in:\n{said}");
+    }
+    for unexpected in [
+        "Bash(rg",
+        "Shell(rg",
+        "Bash(find",
+        "Bash(git push",
+        "Bash(ls",
+    ] {
+        assert!(
+            !said.contains(unexpected),
+            "{unexpected} suggested:\n{said}"
+        );
+    }
+    assert_eq!(
+        fs::read_to_string(&settings).unwrap(),
+        before,
+        "never writes a rule"
+    );
 }

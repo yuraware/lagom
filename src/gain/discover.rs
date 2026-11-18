@@ -252,9 +252,138 @@ pub fn analyze(calls: &[Call], wrapped: rewrite::Wrapped) -> Report {
     r
 }
 
+/// Commands, as [`command_key`] names them, that only read, whatever their other
+/// arguments: a `Bash(<key>:*)` rule for one of them can't allow a change. `find` (`-delete`,
+/// `-exec`) and `git branch` (`-D`) are left out on purpose (HK-10).
+const READ_ONLY: &[&str] = &[
+    "git log",
+    "git status",
+    "git diff",
+    "git show",
+    "git blame",
+    "git grep",
+    "git ls-files",
+    "ls",
+    "tree",
+    "rg",
+    "grep",
+    "cargo metadata",
+    "cargo tree",
+    "docker ps",
+    "docker images",
+    "docker logs",
+    "kubectl get",
+    "kubectl describe",
+    "kubectl logs",
+    "pip list",
+    "pip show",
+    "pip3 list",
+    "pip3 show",
+    "npm ls",
+    "go list",
+    "go env",
+    "brew list",
+    "brew info",
+];
+/// Programs that only read in every use, so a Cursor `Shell(<program>)` rule, which names
+/// the program alone, allows nothing more.
+const READ_ONLY_PROGRAMS: &[&str] = &["ls", "tree", "rg", "grep"];
+/// Fewer runs than this aren't worth a rule.
+pub const SUGGEST_MIN_RUNS: usize = 3;
+
+/// A read-only command that ran often but wasn't compressed because no allow rule matched.
+#[derive(Debug, PartialEq)]
+pub struct Suggestion {
+    pub key: String,
+    pub runs: usize,
+    pub bytes: usize,
+    /// For `permissions.allow` in Claude Code's settings.
+    pub claude_rule: String,
+    /// For Cursor's `cli-config.json`, only when the whole program only reads.
+    pub cursor_rule: Option<String>,
+}
+
+/// Allow rules worth adding (HK-10): read-only commands Lagom could have compressed, that
+/// ran at least [`SUGGEST_MIN_RUNS`] times and that `allowed` (the user's own rules) doesn't
+/// already permit. Most output first. Lagom only suggests; it never writes a rule.
+pub fn suggest(
+    calls: &[Call],
+    wrapped: rewrite::Wrapped,
+    allowed: impl Fn(&str) -> bool,
+) -> Vec<Suggestion> {
+    let mut groups: BTreeMap<String, (usize, usize)> = BTreeMap::new();
+    for call in calls {
+        let Call::Shell { command, bytes } = call else {
+            continue;
+        };
+        if command.contains("lagom run") || command.contains("lgm run") {
+            continue;
+        }
+        // A rule only helps a command Lagom would rewrite; after `cd <dir> &&`, the
+        // command that runs is the one a rule must allow.
+        if rewrite::skip_reason(command, wrapped).is_some() {
+            continue;
+        }
+        let main = rewrite::split_cd(command).map_or(command.as_str(), |(_, cmd)| cmd);
+        let key = command_key(main);
+        if !READ_ONLY.contains(&key.as_str()) || allowed(main) {
+            continue;
+        }
+        let g = groups.entry(key).or_default();
+        g.0 += 1;
+        g.1 += bytes;
+    }
+    let mut out: Vec<Suggestion> = groups
+        .into_iter()
+        .filter(|(_, (runs, _))| *runs >= SUGGEST_MIN_RUNS)
+        .map(|(key, (runs, bytes))| Suggestion {
+            claude_rule: format!("Bash({key}:*)"),
+            cursor_rule: READ_ONLY_PROGRAMS
+                .contains(&key.as_str())
+                .then(|| format!("Shell({key})")),
+            key,
+            runs,
+            bytes,
+        })
+        .collect();
+    out.sort_by(|a, b| b.bytes.cmp(&a.bytes).then(a.key.cmp(&b.key)));
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn suggests_rules_for_read_only_commands_on_a_recorded_log() {
+        let text = include_str!("../../tests/fixtures/transcripts/claude-permissions.jsonl");
+        let calls = claude_calls(text);
+        // The user already allows `rg`.
+        let got = suggest(&calls, rewrite::Wrapped::default(), |cmd| {
+            cmd.starts_with("rg ")
+        });
+        let keys: Vec<(&str, usize, usize)> = got
+            .iter()
+            .map(|s| (s.key.as_str(), s.runs, s.bytes))
+            .collect();
+        // `git log` once ran compressed, `git log | head` can't be rewritten, `git push`
+        // isn't read-only, `find` is never suggested, and `ls` ran only twice.
+        assert_eq!(
+            keys,
+            [
+                ("git log", 3, 18_000),
+                ("tree", 3, 9_000),
+                ("git status", 3, 6_000)
+            ]
+        );
+        assert_eq!(got[0].claude_rule, "Bash(git log:*)");
+        assert_eq!(got[0].cursor_rule, None, "Shell(git) would allow git push");
+        assert_eq!(got[1].cursor_rule.as_deref(), Some("Shell(tree)"));
+        assert_eq!(
+            got[2].claude_rule, "Bash(git status:*)",
+            "the command after `cd <dir> &&`"
+        );
+    }
 
     #[test]
     fn finds_uncompressed_outputs_reasons_and_rereads() {

@@ -24,9 +24,6 @@ concurrency:
   group: python-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  MATURIN_VERSION: "1.16.0"
-
 jobs:
   version:
     runs-on: ubuntu-latest
@@ -77,6 +74,11 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
+      - name: Read the maturin version from requirements-ci.txt
+        run: |
+          v=$(sed -n 's/^maturin==//p' bindings/python/requirements-ci.txt)
+          [ -n "$v" ] || { echo "::error file=bindings/python/requirements-ci.txt::no maturin==<version> line"; exit 1; }
+          echo "MATURIN_VERSION=$v" >> "$GITHUB_ENV"
       - name: Build the wheel
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
@@ -100,7 +102,7 @@ jobs:
         run: |
           python -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/python" -m pip install --quiet --no-index dist/*.whl
-          "$RUNNER_TEMP/venv/bin/python" -m pip install --quiet pytest==8.4.2
+          "$RUNNER_TEMP/venv/bin/python" -m pip install --quiet -c requirements-ci.txt pytest
           "$RUNNER_TEMP/venv/bin/lagom" --version
           "$RUNNER_TEMP/venv/bin/lgm" --version
           LAGOM_WHEEL_INSTALLED=1 "$RUNNER_TEMP/venv/bin/python" -m pytest -q tests
@@ -132,6 +134,11 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
+      - name: Read the maturin version from requirements-ci.txt
+        run: |
+          v=$(sed -n 's/^maturin==//p' bindings/python/requirements-ci.txt)
+          [ -n "$v" ] || { echo "::error file=bindings/python/requirements-ci.txt::no maturin==<version> line"; exit 1; }
+          echo "MATURIN_VERSION=$v" >> "$GITHUB_ENV"
       - name: Build the source distribution
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
@@ -143,7 +150,7 @@ jobs:
         working-directory: bindings/python
         run: |
           python -m venv "$RUNNER_TEMP/venv"
-          "$RUNNER_TEMP/venv/bin/python" -m pip install --quiet "maturin==$MATURIN_VERSION"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install --quiet -c requirements-ci.txt maturin
           "$RUNNER_TEMP/venv/bin/python" -m pip install --quiet --no-build-isolation dist/*.tar.gz
           "$RUNNER_TEMP/venv/bin/lagom" --version
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

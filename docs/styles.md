@@ -5,9 +5,11 @@ A style is a set of rules injected at session start. Built-in:
 - **`terse`:** say less. Answer first, no filler, exact technical details kept; full clarity for security warnings and destructive steps.
 - **`lean-code`:** write less code. Need → existing code → standard library → installed dependency → the smallest new code, plus a list of things never to cut (validation, error handling, security).
 
+- **`lean-code-reach`** (a candidate, not a default): `lean-code`, plus finding every place a change must reach before writing (callers, tests, fixtures, config, exports), finishing the callers and tests it breaks, and one or two closing lines on what wasn't checked and any risk. The A/B benchmark compares it with `lean-code` before it could become a default. Try it with `lagom style use terse lean-code-reach`.
+
 Default: `terse` + `lean-code`.
 
-With `lean-code` active, Lagom also adds one line about the project when it finds tests in a Rust or Python project (`tests/` folders, `#[cfg(test)]` modules, pytest, `test_*.py` files, also inside workspace members and packages): the agent is asked to follow that pattern. When it finds none, it adds nothing, so a search that missed the tests can't tell the agent to skip them.
+With `lean-code` (or `lean-code-reach`) active, Lagom also adds one line about the project when it finds tests in a Rust or Python project (`tests/` folders, `#[cfg(test)]` modules, pytest, `test_*.py` files, also inside workspace members and packages): the agent is asked to follow that pattern. When it finds none, it adds nothing, so a search that missed the tests can't tell the agent to skip them.
 
 ## Use
 
@@ -37,7 +39,7 @@ Lagom looks for style files in this order:
 2. `~/.config/lagom/styles/<name>.md`.
 3. The built-in styles.
 
-A file with a built-in name (`terse`, `lean-code`) replaces that style.
+A file with a built-in name (`terse`, `lean-code`, `lean-code-reach`) replaces that style.
 
 Active styles come from the first of these that is set:
 1. `LAGOM_STYLES` (for example `LAGOM_STYLES=terse`).

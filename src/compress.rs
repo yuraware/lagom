@@ -49,9 +49,12 @@ impl Limits<'_> {
         }
     }
 
-    /// [`is_important`], or holding one of the user's keep patterns.
+    /// [`is_important`], a line the error rule protects ([`is_error_priority`], such as
+    /// `npm ERR!`), or holding one of the user's keep patterns. Lines that are important are
+    /// never folded, shortened or summarized away (QA-06 found `npm ERR!` lines folded).
     fn important(&self, line: &str) -> bool {
         is_important(line)
+            || is_error_priority(line)
             || self
                 .keep
                 .iter()
@@ -185,13 +188,29 @@ pub fn is_error_line(line: &str) -> bool {
         "exception in thread",
         "segmentation fault",
     ];
-    let bytes = line.as_bytes();
-    MARKERS.iter().any(|m| {
-        let m = m.as_bytes();
-        bytes.windows(m.len()).any(|w| w.eq_ignore_ascii_case(m))
-    }) || line
-        .split(|c: char| !c.is_ascii_alphanumeric())
-        .any(|w| w == "FAILED" || w == "FAIL")
+    with_lowercase(line, |lower| MARKERS.iter().any(|m| lower.contains(m)))
+        || line
+            .split(|c: char| !c.is_ascii_alphanumeric())
+            .any(|w| w == "FAILED" || w == "FAIL")
+}
+
+/// Runs `f` on `line` in ASCII lowercase, copied on the stack for normal lines, so each
+/// word is then found with std's fast substring search. This runs on every line of big
+/// outputs.
+fn with_lowercase<R>(line: &str, f: impl FnOnce(&str) -> R) -> R {
+    let mut stack = [0u8; 512];
+    let heap;
+    let lower: &[u8] = if line.len() <= stack.len() {
+        let buf = &mut stack[..line.len()];
+        buf.copy_from_slice(line.as_bytes());
+        buf.make_ascii_lowercase();
+        buf
+    } else {
+        heap = line.to_ascii_lowercase().into_bytes();
+        &heap
+    };
+    // ASCII lowercasing keeps UTF-8 valid.
+    f(std::str::from_utf8(lower).unwrap_or_default())
 }
 
 /// True if `text` is already Lagom's output: its last line is the recall footer that
@@ -306,7 +325,13 @@ fn collapse_repeats(mut lines: Vec<String>, limits: Limits, lossy: &mut bool) ->
         }
         let exact = j - i;
         if exact > 1 && !lines[i].is_empty() {
-            out.push(format!("{}  [×{exact}]", std::mem::take(&mut lines[i])));
+            let mark = format!("  [×{exact}]");
+            // Only when the count is shorter than the repeats: `.` twice stays as it is.
+            if exact * (lines[i].len() + 1) > lines[i].len() + mark.len() + 1 {
+                out.push(std::mem::take(&mut lines[i]) + &mark);
+            } else {
+                out.extend(lines[i..j].iter_mut().map(std::mem::take));
+            }
             i = j;
             continue;
         }
@@ -318,9 +343,20 @@ fn collapse_repeats(mut lines: Vec<String>, limits: Limits, lossy: &mut bool) ->
             run_end[i]
         };
         let similar = k - i;
-        if similar >= 4 && has_shape_mark && !limits.lossless && !limits.important(&lines[i]) {
+        // Only when the note is shorter than the lines it replaces.
+        let note =
+            (similar >= 4 && has_shape_mark && !limits.lossless && !limits.important(&lines[i]))
+                .then(|| format!("… [{} similar lines]", similar - 2))
+                .filter(|note| {
+                    lines[i + 1..k - 1]
+                        .iter()
+                        .map(|l| l.len() + 1)
+                        .sum::<usize>()
+                        > note.len() + 1
+                });
+        if let Some(note) = note {
             out.push(std::mem::take(&mut lines[i]));
-            out.push(format!("… [{} similar lines]", similar - 2));
+            out.push(note);
             out.push(std::mem::take(&mut lines[k - 1]));
             *lossy = true;
             i = k;
@@ -368,9 +404,17 @@ fn shorten_line(line: String, limits: Limits, lossy: &mut bool) -> String {
     if count <= max_chars || limits.important(&line) {
         return line;
     }
+    let mark = format!(" …[+{} chars]", count - max_chars);
+    let end = line
+        .char_indices()
+        .nth(max_chars)
+        .map_or(line.len(), |(i, _)| i);
+    // Only when it's shorter: a line a few characters over the limit stays whole.
+    if line.len() - end <= mark.len() {
+        return line;
+    }
     *lossy = true;
-    let keep: String = line.chars().take(max_chars).collect();
-    format!("{keep} …[+{} chars]", count - max_chars)
+    format!("{}{mark}", &line[..end])
 }
 
 /// Lines that must survive compression: errors, failures, warnings, file:line locations.
@@ -395,22 +439,7 @@ pub fn is_important(line: &str) -> bool {
     if line.as_bytes().contains(&b':') && has_file_location(line) {
         return true;
     }
-    // Lowercase once (on the stack for normal lines), then use std's fast substring
-    // search for each word. This runs on every line of big outputs.
-    let mut stack = [0u8; 512];
-    let heap;
-    let lower: &[u8] = if line.len() <= stack.len() {
-        let buf = &mut stack[..line.len()];
-        buf.copy_from_slice(line.as_bytes());
-        buf.make_ascii_lowercase();
-        buf
-    } else {
-        heap = line.to_ascii_lowercase().into_bytes();
-        &heap
-    };
-    // ASCII lowercasing keeps UTF-8 valid.
-    let lower = std::str::from_utf8(lower).unwrap_or_default();
-    WORDS.iter().any(|w| lower.contains(w))
+    with_lowercase(line, |lower| WORDS.iter().any(|w| lower.contains(w)))
 }
 
 /// Matches `name.ext:12` style locations used by compilers, linters and stack traces.
@@ -833,10 +862,36 @@ mod tests {
 
     #[test]
     fn exact_repeats_get_a_count() {
-        let raw = "warn: x\nok\nok\nok\nend";
+        let raw = "warn: x\nok\nok\nok\nok\nend";
         let c = compress(raw, false);
-        assert_eq!(c.text, "warn: x\nok  [×3]\nend");
+        assert_eq!(c.text, "warn: x\nok  [×4]\nend");
         assert!(!c.lossy);
+        // Only when the count is shorter: `ok` three times is 9 bytes, `ok  [×3]` 10.
+        let raw = "warn: x\nok\nok\nok\nend";
+        assert_eq!(compress(raw, false).text, raw);
+    }
+
+    #[test]
+    fn nothing_is_replaced_by_a_longer_note() {
+        // 11 characters over the limit: ` …[+11 chars]` would be longer than the cut.
+        let line = "x".repeat(411);
+        assert_eq!(compress(&line, false).text, line);
+        let line = "x".repeat(500);
+        assert!(compress(&line, false).text.ends_with(" …[+100 chars]"));
+        // Three short similar lines are shorter than `… [3 similar lines]`.
+        let raw: String = (16..=20).map(|i| format!("ok {i}\n")).collect();
+        assert_eq!(compress(&raw, false).text, raw);
+    }
+
+    #[test]
+    fn npm_errors_are_never_folded() {
+        // Found by QA-06: four `npm ERR!` lines that differ only in a number were folded
+        // into `… [2 similar lines]` without being counted as error lines.
+        let raw: String = [413, 441, 429, 465]
+            .iter()
+            .map(|c| format!("npm ERR! code E{c}\n"))
+            .collect();
+        assert_eq!(compress(&raw, true).text, raw);
     }
 
     #[test]

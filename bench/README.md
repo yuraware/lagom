@@ -66,13 +66,20 @@ python3 -I bench/ab.py --agent fake --repeats 2                     # free dry r
 python3 -I bench/ab.py --agent claude --arms baseline,terse-control,lagom:terse \
     --repeats 3 --budget-usd 20 [--model sonnet] [--task py-off-by-one,py-add-flag]
 python3 -I bench/ab.py --agent codex --max-runs 12 ...              # Codex reports no cost
+python3 -I bench/ab.py --agent claude --auth local --model qwen3-coder \
+    --arms baseline,lagom:terse --task py-off-by-one,py-add-flag      # free smoke run on Ollama
 ```
+
+- **Sign-in (`--auth`):**
+  - `api` (the default) uses `ANTHROPIC_API_KEY` (`OPENAI_API_KEY` for Codex) and needs `--budget-usd`.
+  - `login` removes any key and endpoint from the agent's environment, so it uses your own subscription. Costs are then list-price estimates, not what the plan bills, and the report says so. On a rate limit the harness waits (`--backoff`, doubling, `--max-retries`) and retries; `--resume` continues an interrupted run without repeating finished ones. Whether your plan's terms allow benchmark runs on a login is your decision, before a published number uses it.
+  - `local` runs Claude Code against a local model through Ollama's Anthropic-compatible API (`--local-url`, default `http://localhost:11434`, Ollama 0.14 or later), or Codex with `--oss`. It needs `--model`, costs nothing, writes to `bench/results/<date>-local/`, and exits 1 unless every output parsed and every Lagom run injected its style. Local results are never published.
 
 - **Arms:** `baseline`; `terse-control`, with only the instruction "Answer concisely." (Claude Code `--append-system-prompt`, Codex `developer_instructions`); and `lagom:<style>`, with Lagom's hooks and that style in the run's project settings. The honest comparison is Lagom against the terse control.
 - **A run:** the task's `fixture/` is copied to a fresh folder outside any git repository; the agent runs headless with JSON output; the task's `hidden/` checks are copied in afterwards and decide pass or fail. Arms are interleaved and their order rotates per task and repeat. One throwaway call per model comes first, so no arm pays the cold cache write.
 - **Isolation:** Claude Code runs with `--setting-sources project --strict-mcp-config --no-session-persistence` and permissions bypassed, never `--bare` (it skips hooks). Lagom's user config and stats are swapped for the run's own (`XDG_CONFIG_HOME`, `LAGOM_HOME`), and non-Lagom arms set `LAGOM_DISABLE=1`.
 - **Commands:** a task that allows Bash runs it in Claude Code's own sandbox (`"sandbox": {"enabled": true, "allowUnsandboxedCommands": false}` in the run's settings): writes stay in the run's folder and the network goes through an empty allow-list. Tasks that don't allow Bash pass `--disallowedTools Bash`. Codex runs with `--sandbox workspace-write`.
 - **Spend:** `--budget-usd` is required for Claude Code. No run starts once it is reached, each call gets `--max-budget-usd` with what is left, and a run that reports no cost stops the harness. A paid run refuses to start if the selftest fails.
-- **Results:** one JSON line per run in `bench/results/<date>/runs.jsonl` (not committed): status (`ok`, `agent_error`, `bad_output`, `timeout`), pass, cost, turns, durations, tokens from `modelUsage` (which counts subagents), and for Lagom arms how often the style was injected and output compressed. A failed or timed-out run is recorded, never dropped.
+- **Results:** one JSON line per run in `bench/results/<date>/runs.jsonl` (not committed): the auth mode, status (`ok`, `agent_error`, `bad_output`, `timeout`, `rate_limited`), pass, cost, turns, durations, tokens from `modelUsage` (which counts subagents), and for Lagom arms how often the style was injected and output compressed. A failed or timed-out run is recorded, never dropped.
 
 A task is a folder in `bench/tasks/`: `task.json` (`prompt`, `check` as an argument list, `bash`), `fixture/`, `hidden/` and `solution/`. The selftest requires the fixture alone to fail its checks and fixture plus solution to pass.

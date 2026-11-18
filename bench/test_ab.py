@@ -39,9 +39,9 @@ class Harness(unittest.TestCase):
         with open(os.path.join(self.out, "runs.jsonl")) as f:
             return [r for r in map(json.loads, f) if r["kind"] == kind]
 
-    def calls(self):
+    def calls(self, field="argv"):
         with open(self.argv_log) as f:
-            return [json.loads(line) for line in f]
+            return [json.loads(line)[field] for line in f]
 
     def broken_tasks(self):
         """A copy of the sample tasks where the fixture already passes its check."""
@@ -108,22 +108,22 @@ class Harness(unittest.TestCase):
         self.assertEqual(row["lagom"]["injections"], 1)
 
     def test_a_paid_run_refuses_to_start_when_the_selftest_fails(self):
-        r = self.ab("--agent", "claude", "--agent-bin", FAKE, "--arms", "baseline", "--budget-usd", "1",
-                    tasks=self.broken_tasks())
+        r = self.ab("--agent", "claude", "--agent-bin", FAKE, "--auth", "login", "--arms", "baseline",
+                    "--budget-usd", "1", tasks=self.broken_tasks())
         self.assertEqual(r.returncode, 1)
         self.assertIn("no paid run starts", r.stderr)
         self.assertFalse(os.path.exists(self.argv_log), "the agent was never called")
 
     def test_a_paid_run_stops_when_spend_cant_be_tracked(self):
-        r = self.ab("--agent", "claude", "--agent-bin", FAKE, "--arms", "baseline", "--budget-usd", "1",
-                    mode="garbage")
+        r = self.ab("--agent", "claude", "--agent-bin", FAKE, "--auth", "login", "--arms", "baseline",
+                    "--budget-usd", "1", mode="garbage")
         self.assertIn("reported no cost", r.stderr)
         self.assertEqual(len(self.rows()), 1)
 
     def test_usage_errors(self):
         for args, message in [
-            (["--agent", "claude"], "--budget-usd is required"),
-            (["--agent", "codex"], "--max-runs is required"),
+            (["--agent", "claude", "--auth", "login"], "--budget-usd is required"),
+            (["--agent", "codex", "--auth", "login"], "--max-runs is required"),
             (["--agent", "fake", "--arms", "lagom"], "unknown arm"),
             (["--agent", "fake", "--arms", "lagom:terse", "--lagom-bin", "/nonexistent/lagom"], "need the lagom binary"),
             (["--agent", "fake", "--task", "nope"], "no such task: nope"),
@@ -141,6 +141,61 @@ class Harness(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertIn("inside a git repository", r.stderr)
 
+    def test_each_auth_mode_signs_the_agent_in_its_own_way(self):
+        env = {"ANTHROPIC_API_KEY": "sk-test", "ANTHROPIC_BASE_URL": "https://proxy.example"}
+        self.ab("--agent", "fake", "--auth", "login", "--arms", "baseline", "--task", "py-add-flag", env=env)
+        login = self.calls("env")[-1]
+        self.assertEqual((login["ANTHROPIC_API_KEY"], login["ANTHROPIC_BASE_URL"]), (None, None))
+        self.assertTrue(all(r["auth"] == "login" for r in self.rows()))
+        os.remove(self.argv_log)
+        r = self.ab("--agent", "fake", "--auth", "local", "--model", "qwen3-coder", "--arms", "baseline",
+                    "--task", "py-add-flag", env=env)
+        local = self.calls("env")[-1]
+        self.assertEqual(local, {"ANTHROPIC_API_KEY": "", "ANTHROPIC_AUTH_TOKEN": "ollama",
+                                 "ANTHROPIC_BASE_URL": "http://localhost:11434"})
+        self.assertIn("Auth: local (local model: for checking the harness only, never published)", r.stdout)
+        self.assertIn("local smoke check ok", r.stdout)
+
+    def test_a_local_smoke_run_fails_when_the_style_isnt_injected_or_output_doesnt_parse(self):
+        r = self.ab("--agent", "fake", "--auth", "local", "--model", "m", "--arms", "baseline",
+                    "--task", "py-add-flag", mode="garbage")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("py-add-flag baseline: the agent's output didn't parse", r.stdout)
+        if LAGOM:
+            shutil.rmtree(self.out)
+            # A Lagom binary that injects nothing: the style is off for every session.
+            r = self.ab("--agent", "fake", "--auth", "local", "--model", "m", "--arms", "lagom:none-such-style",
+                        "--task", "py-add-flag", "--lagom-bin", LAGOM)
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("the style was never injected", r.stdout)
+
+    def test_a_local_run_needs_no_budget_and_tolerates_no_cost(self):
+        r = self.ab("--agent", "claude", "--agent-bin", FAKE, "--auth", "local", "--model", "m",
+                    "--arms", "baseline", env={"FAKE_COST": "none"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(len(self.rows()), 2)
+
+    def test_api_mode_needs_a_key_and_local_mode_a_model(self):
+        env = dict(os.environ)
+        env.pop("ANTHROPIC_API_KEY", None)
+        r = subprocess.run([sys.executable, "-I", os.path.join(HERE, "ab.py"), "--agent", "claude",
+                            "--budget-usd", "1", "--arms", "baseline"], capture_output=True, text=True, env=env)
+        self.assertIn("--auth api needs ANTHROPIC_API_KEY", r.stderr)
+        self.assertIn("--auth local needs --model", self.ab("--agent", "fake", "--auth", "local").stderr)
+
+    def test_a_rate_limit_waits_retries_and_a_resumed_run_skips_finished_runs(self):
+        state = os.path.join(self.tmp, "state")
+        os.makedirs(state)
+        r = self.ab("--agent", "fake", "--auth", "login", "--arms", "baseline", "--task", "py-add-flag",
+                    "--backoff", "0", mode="ratelimit-once", env={"FAKE_STATE": state})
+        self.assertIn("rate limited; waiting 0 s", r.stderr)
+        statuses = [x["status"] for x in self.rows()]
+        self.assertIn("rate_limited", statuses)
+        self.assertEqual(statuses[-1], "ok")
+        before = len(self.calls())
+        self.ab("--agent", "fake", "--auth", "login", "--arms", "baseline", "--task", "py-add-flag", "--resume")
+        self.assertEqual(len(self.calls()), before + 1, "only the warm-up ran: the finished run was skipped")
+
     def test_codex_commands_and_events(self):
         cmd = ab.command("codex", "codex", "do it", "terse-control", "gpt-x", True, None)
         self.assertEqual(cmd[:2], ["codex", "exec"])
@@ -148,6 +203,8 @@ class Harness(unittest.TestCase):
             self.assertIn(flag, cmd)
         self.assertIn('developer_instructions="Answer concisely."', cmd)
         self.assertIn("--dangerously-bypass-hook-trust", ab.command("codex", "codex", "x", "lagom:terse", None, True, None))
+        local = ab.command("codex", "codex", "x", "baseline", "m", True, None, "local")
+        self.assertEqual(local[local.index("--oss"):local.index("--oss") + 3], ["--oss", "--local-provider", "ollama"])
         events = "\n".join(json.dumps(e) for e in [
             {"type": "thread.started"},
             {"type": "turn.completed", "usage": {"input_tokens": 100, "cached_input_tokens": 60, "output_tokens": 7}},

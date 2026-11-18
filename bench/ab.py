@@ -24,7 +24,16 @@ arm pays the cold cache write. Claude Code runs with --setting-sources project
 writes stay in the run's folder and no network leaves it. Codex runs with
 --sandbox workspace-write. Tokens are read from `modelUsage`, which counts subagents.
 
-Results: one JSON line per run in bench/results/<date>/runs.jsonl.
+Auth modes (BEN-21): `--auth api` uses ANTHROPIC_API_KEY (OPENAI_API_KEY for Codex) and
+`--budget-usd`; `--auth login` uses the agent's own subscription login, so costs are
+list-price estimates, and on a rate limit the harness waits and retries; `--auth local`
+runs Claude Code against a local model through Ollama's Anthropic-compatible API (Codex
+with --oss), costs nothing, and checks that hooks fire, the style is injected and the
+JSON parses. Local results are never published. `--resume` skips runs already in the
+results file, so an interrupted run continues where it stopped.
+
+Results: one JSON line per run in bench/results/<date>/runs.jsonl (bench/results/<date>-local
+for local runs), each with its auth mode.
 """
 import argparse
 import datetime
@@ -36,6 +45,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -43,6 +53,8 @@ CONTROL = "Answer concisely."
 ISOLATION = ["--setting-sources", "project", "--strict-mcp-config", "--no-session-persistence"]
 WARMUP_PROMPT = "Reply with the single word OK."
 CHECK_TIMEOUT = 300
+LOCAL_URL = "http://localhost:11434"   # Ollama; no /v1: that path is its OpenAI layer
+RATE_LIMIT_MARKERS = ("rate limit", "rate_limit", "usage limit", "429", "overloaded")
 
 
 class UsageError(Exception):
@@ -175,7 +187,7 @@ def prepare(work, agent, arm, task, lagom_bin):
 
 # ---------- agents ----------
 
-def command(agent, agent_bin, prompt, arm, model, bash, budget_left):
+def command(agent, agent_bin, prompt, arm, model, bash, budget_left, auth="api"):
     if agent == "codex":
         cmd = [agent_bin, "exec", "--json", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config",
                "--sandbox", "workspace-write"]
@@ -185,6 +197,8 @@ def command(agent, agent_bin, prompt, arm, model, bash, budget_left):
             cmd += ["-c", f"developer_instructions={json.dumps(CONTROL)}"]
         if arm.startswith("lagom:"):
             cmd += ["--dangerously-bypass-hook-trust"]
+        if auth == "local":
+            cmd += ["--oss", "--local-provider", "ollama"]
         return cmd + [prompt]
     cmd = [agent_bin, "-p", prompt, "--output-format", "json", *ISOLATION, "--permission-mode", "bypassPermissions"]
     if agent == "fake":
@@ -275,8 +289,14 @@ def lagom_activity(lagom_home):
     return counts
 
 
-def agent_env(base, arm, task_dir, agent):
+def agent_env(base, arm, task_dir, agent, auth="api", local_url=LOCAL_URL):
     env = dict(os.environ)
+    if auth == "login":
+        # Without a key or another endpoint, the agent signs in with its own login.
+        for var in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "OPENAI_API_KEY", "CODEX_API_KEY"):
+            env.pop(var, None)
+    elif auth == "local" and agent != "codex":
+        env.update(ANTHROPIC_BASE_URL=local_url, ANTHROPIC_AUTH_TOKEN="ollama", ANTHROPIC_API_KEY="")
     env["LAGOM_HOME"] = os.path.join(base, "lagom-home")       # this run's stats only
     env["XDG_CONFIG_HOME"] = os.path.join(base, "config")      # no user Lagom styles or config
     env.pop("LAGOM_STYLES", None)
@@ -296,14 +316,16 @@ def one_run(args, task, arm, repeat, budget_left):
     base, work = workspace(task)
     try:
         prepare(work, args.agent, arm, task, args.lagom_bin)
-        env = agent_env(base, arm, task["dir"], args.agent)
-        cmd = command(args.agent, args.agent_bin, task["prompt"], arm, args.model, task["bash"], budget_left)
+        env = agent_env(base, arm, task["dir"], args.agent, args.auth, args.local_url)
+        cmd = command(args.agent, args.agent_bin, task["prompt"], arm, args.model, task["bash"], budget_left, args.auth)
         started = datetime.datetime.now(datetime.timezone.utc)
         code, out, err = run_agent(cmd, work, env, args.timeout)
         wall_ms = int((datetime.datetime.now(datetime.timezone.utc) - started).total_seconds() * 1000)
         parsed = (parse_codex if args.agent == "codex" else parse_claude)(out)
         if code is None:
             status = "timeout"
+        elif (code != 0 or parsed is None or parsed["is_error"]) and rate_limited(out + err):
+            status = "rate_limited"
         elif parsed is None:
             status = "bad_output"
         elif code != 0 or parsed["is_error"]:
@@ -312,7 +334,8 @@ def one_run(args, task, arm, repeat, budget_left):
             status = "ok"
         passed, check_tail = run_check(task, work)
         row = {"kind": "run", "ts": started.isoformat(timespec="seconds"), "agent": args.agent,
-               "model": args.model, "task": task["name"], "arm": arm, "repeat": repeat, "status": status,
+               "auth": args.auth, "model": args.model, "task": task["name"], "arm": arm, "repeat": repeat,
+               "status": status,
                "exit_code": code, "passed": passed, "wall_ms": wall_ms, **(parsed or {}),
                "lagom": lagom_activity(env["LAGOM_HOME"]) if arm.startswith("lagom:") else None}
         row.pop("is_error", None)
@@ -325,14 +348,27 @@ def one_run(args, task, arm, repeat, budget_left):
         shutil.rmtree(base, ignore_errors=True)
 
 
+def rate_limited(text):
+    lower = text.lower()
+    return any(m in lower for m in RATE_LIMIT_MARKERS)
+
+
 def warmup(args, budget_left):
     """One throwaway call, so no arm pays the cold cache write."""
     base = tempfile.mkdtemp(prefix="lagom-ab-warmup-")
     try:
-        cmd = command(args.agent, args.agent_bin, WARMUP_PROMPT, "baseline", args.model, False, budget_left)
-        code, out, _ = run_agent(cmd, base, agent_env(base, "baseline", None, args.agent), args.timeout)
+        cmd = command(args.agent, args.agent_bin, WARMUP_PROMPT, "baseline", args.model, False, budget_left, args.auth)
+        env = agent_env(base, "baseline", None, args.agent, args.auth, args.local_url)
+        wait = args.backoff
+        for _ in range(args.max_retries + 1):
+            code, out, err = run_agent(cmd, base, env, args.timeout)
+            if code == 0 or not rate_limited(out + err):
+                break
+            print(f"ab: rate limited during the warm-up; waiting {wait:.0f} s", file=sys.stderr)
+            time.sleep(wait)
+            wait = min(wait * 2, 3600)
         parsed = (parse_codex if args.agent == "codex" else parse_claude)(out) or {}
-        return {"kind": "warmup", "agent": args.agent, "model": args.model, "exit_code": code,
+        return {"kind": "warmup", "agent": args.agent, "auth": args.auth, "model": args.model, "exit_code": code,
                 "cost_usd": parsed.get("cost_usd"), "models": parsed.get("models", [])}
     finally:
         shutil.rmtree(base, ignore_errors=True)
@@ -348,8 +384,25 @@ def schedule(tasks, arms, repeats):
     return cells
 
 
-def summary(rows, arms):
-    lines = ["", f"{'arm':<20} {'runs':>4} {'passed':>6} {'median cost':>12} {'median turns':>13}"]
+AUTH_NOTES = {
+    "api": "API key: costs are Claude Code's estimates at list prices",
+    "login": "subscription login: costs are list-price estimates, not what the plan bills",
+    "local": "local model: for checking the harness only, never published",
+    "fake": "fake agent: a dry run",
+}
+
+
+def smoke_problems(rows):
+    """What a local smoke run must show: parsable output, and hooks that inject the style."""
+    problems = [f"{r['task']} {r['arm']}: the agent's output didn't parse" for r in rows if r["status"] == "bad_output"]
+    problems += [f"{r['task']} {r['arm']}: the style was never injected" for r in rows
+                 if r["arm"].startswith("lagom:") and not (r.get("lagom") or {}).get("injections")]
+    return problems
+
+
+def summary(rows, arms, auth):
+    lines = ["", f"Auth: {auth} ({AUTH_NOTES[auth]})",
+             f"{'arm':<20} {'runs':>4} {'passed':>6} {'median cost':>12} {'median turns':>13}"]
     for arm in arms:
         rs = [r for r in rows if r["arm"] == arm]
         costs = sorted(r["cost_usd"] for r in rs if r.get("cost_usd") is not None)
@@ -372,8 +425,13 @@ def main(argv):
     p.add_argument("--max-runs", type=int, help="stop after this many runs (required for codex: it reports no cost)")
     p.add_argument("--model")
     p.add_argument("--timeout", type=int, default=900, help="seconds per run (default 900)")
+    p.add_argument("--auth", choices=["api", "login", "local"], help="how the agent signs in (default api; fake: none)")
+    p.add_argument("--local-url", default=LOCAL_URL, help=f"the local model server for --auth local (default {LOCAL_URL})")
+    p.add_argument("--backoff", type=float, default=60, help="seconds to wait after a rate limit, doubling each time")
+    p.add_argument("--max-retries", type=int, default=6, help="rate limits in a row before giving up")
+    p.add_argument("--resume", action="store_true", help="skip runs already in the results file")
     p.add_argument("--lagom-bin", default=shutil.which("lagom") or "lagom")
-    p.add_argument("--out", default=os.path.join(HERE, "results", datetime.date.today().isoformat()))
+    p.add_argument("--out", help="results folder (default bench/results/<date>, with -local for local runs)")
     p.add_argument("--selftest", action="store_true", help="run every task's references and stop")
     args = p.parse_args(argv)
     try:
@@ -387,9 +445,16 @@ def main(argv):
         arms = parse_arms(args.arms)
         if args.repeats < 1:
             raise UsageError("--repeats must be at least 1")
-        if args.agent == "claude" and args.budget_usd is None:
-            raise UsageError("--budget-usd is required for claude")
-        if args.agent == "codex" and args.max_runs is None:
+        args.auth = args.auth or ("fake" if args.agent == "fake" else "api")
+        if args.agent == "claude" and args.auth != "local" and args.budget_usd is None:
+            raise UsageError("--budget-usd is required for claude (except with --auth local)")
+        if args.auth == "api" and args.agent == "claude" and not os.environ.get("ANTHROPIC_API_KEY"):
+            raise UsageError("--auth api needs ANTHROPIC_API_KEY (or use --auth login for your Claude login)")
+        if args.auth == "api" and args.agent == "codex" and not (os.environ.get("OPENAI_API_KEY") or os.environ.get("CODEX_API_KEY")):
+            raise UsageError("--auth api needs OPENAI_API_KEY (or use --auth login)")
+        if args.auth == "local" and not args.model:
+            raise UsageError("--auth local needs --model, a model the local server has (e.g. qwen3-coder)")
+        if args.agent == "codex" and args.auth != "local" and args.max_runs is None:
             raise UsageError("--max-runs is required for codex: it reports no cost, so a budget can't be checked")
         if inside_git(tempfile.gettempdir()):
             raise UsageError(f"{tempfile.gettempdir()} is inside a git repository: set TMPDIR elsewhere")
@@ -408,9 +473,19 @@ def main(argv):
             print("ab: the selftest fails, so no paid run starts:\n" + "\n".join(problems), file=sys.stderr)
             return 1
 
+    day = datetime.date.today().isoformat()
+    args.out = args.out or os.path.join(HERE, "results", day + ("-local" if args.auth == "local" else ""))
     os.makedirs(args.out, exist_ok=True)
     results = os.path.join(args.out, "runs.jsonl")
     spent, rows = 0.0, []
+    done = set()
+    if args.resume and os.path.exists(results):
+        with open(results) as f:
+            for r in map(json.loads, f):
+                if r.get("kind") == "run" and r.get("status") != "rate_limited":
+                    done.add((r["task"], r["arm"], r["repeat"]))
+                    spent += r.get("cost_usd") or 0
+                    rows.append(r)
     budget_left = lambda: None if args.budget_usd is None else args.budget_usd - spent
 
     def record(row):
@@ -422,14 +497,27 @@ def main(argv):
     record(w)
     cells = schedule(tasks, arms, args.repeats)
     for n, (repeat, task, arm) in enumerate(cells, 1):
+        if (task["name"], arm, repeat) in done:
+            continue
         if args.budget_usd is not None and spent >= args.budget_usd:
             print(f"ab: budget of ${args.budget_usd:.2f} reached after {n - 1} of {len(cells)} runs", file=sys.stderr)
             break
         if args.max_runs is not None and n > args.max_runs:
             print(f"ab: --max-runs {args.max_runs} reached", file=sys.stderr)
             break
-        row = one_run(args, task, arm, repeat, budget_left())
-        if row.get("cost_usd") is None and args.agent == "claude":
+        row, wait = one_run(args, task, arm, repeat, budget_left()), args.backoff
+        for _ in range(args.max_retries):
+            if row["status"] != "rate_limited":
+                break
+            record(row)   # kept, so the results show the pause
+            print(f"ab: rate limited; waiting {wait:.0f} s, then retrying {task['name']} {arm}", file=sys.stderr)
+            time.sleep(wait)
+            row, wait = one_run(args, task, arm, repeat, budget_left()), min(wait * 2, 3600)
+        if row["status"] == "rate_limited":
+            record(row)
+            print(f"ab: still rate limited after {args.max_retries} retries: stopping; rerun with --resume", file=sys.stderr)
+            break
+        if row.get("cost_usd") is None and args.agent == "claude" and args.auth != "local":
             record(row)
             print(f"ab: run {n} reported no cost ({row['status']}), so spend can't be tracked: stopping", file=sys.stderr)
             break
@@ -438,8 +526,12 @@ def main(argv):
         record(row)
         print(f"[{n}/{len(cells)}] {task['name']} {arm}: {row['status']}, "
               f"{'passed' if row['passed'] else 'failed'}, spent ${spent:.4f}", file=sys.stderr)
-    print(summary(rows, arms))
+    print(summary(rows, arms, args.auth))
     print(f"\n{len(rows)} runs, ${spent:.4f} spent (warm-up included). Results: {results}")
+    if args.auth == "local":
+        problems = smoke_problems(rows)
+        print("\n".join(["local smoke check failed:"] + problems) if problems else "local smoke check ok")
+        return 1 if problems else 0
     return 0
 
 

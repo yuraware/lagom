@@ -8,8 +8,10 @@ FAKE_AGENT_MODE picks what it does (default `solve`):
   garbage  print text that isn't JSON
   error    print an error result and exit 1
   hang     sleep until the harness's timeout kills it
-FAKE_COST is the cost it reports per run (default 0.01). AB_FAKE_ARGV_LOG, if set, gets
-one JSON line with the arguments of each call. In a folder whose .claude/settings.json
+  ratelimit-once  report a rate limit on the first call, then solve (state in FAKE_STATE)
+FAKE_COST is the cost it reports per run (default 0.01; `none` reports no cost).
+AB_FAKE_ARGV_LOG, if set, gets one JSON line per call: its arguments and the sign-in
+variables it saw. In a folder whose .claude/settings.json
 has Lagom's hooks, it runs the SessionStart hook the way Claude Code would, so the
 harness sees whether the style was injected.
 """
@@ -37,10 +39,21 @@ def run_session_start_hooks(cwd):
 def main(argv):
     log = os.environ.get("AB_FAKE_ARGV_LOG")
     if log:
+        seen = {k: os.environ.get(k) for k in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL")}
         with open(log, "a") as f:
-            f.write(json.dumps(argv) + "\n")
+            f.write(json.dumps({"argv": argv, "env": seen}) + "\n")
     mode = os.environ.get("FAKE_AGENT_MODE", "solve")
-    cost = float(os.environ.get("FAKE_COST", "0.01"))
+    cost = None if os.environ.get("FAKE_COST") == "none" else float(os.environ.get("FAKE_COST", "0.01"))
+    if mode == "ratelimit-once" and "Reply with the single word OK." in argv:
+        mode = "solve"   # the warm-up: rate-limit the first real run instead
+    if mode == "ratelimit-once":
+        marker = os.path.join(os.environ["FAKE_STATE"], "rate-limited")
+        if not os.path.exists(marker):
+            open(marker, "w").close()
+            print(json.dumps({"type": "result", "subtype": "error_during_execution", "is_error": True,
+                              "result": "API Error: 429 rate limit exceeded", "total_cost_usd": 0}))
+            return 1
+        mode = "solve"
     cwd = os.getcwd()
     run_session_start_hooks(cwd)
     if mode == "hang":

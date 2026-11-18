@@ -5,12 +5,12 @@ each run in a fresh folder and judged by hidden checks. Standard library only.
     python3 -I bench/ab.py --selftest
     python3 -I bench/ab.py --agent fake --arms baseline,terse-control,lagom:terse --repeats 2
     python3 -I bench/ab.py --agent claude --arms baseline,terse-control,lagom:terse \\
-        --repeats 3 --budget-usd 20 [--model sonnet] [--task py-off-by-one,py-add-flag]
+        --repeats 3 --budget-usd 20 [--model sonnet] [--task smoke/py-off-by-one,smoke/py-add-flag]
 
 Arms: `baseline`; `terse-control`, with only the instruction "Answer concisely."; and
 `lagom:<style>`, with Lagom's hooks and that style installed in the run's folder.
 
-A task is a folder in bench/tasks/ with task.json (`prompt`, `check` as an argument
+A task is a folder under bench/tasks/ (grouped in suites: smoke/, rust/, …) with task.json (`prompt`, `check` as an argument
 list, `bash`: whether the agent may run commands), fixture/ (what the agent starts
 with), hidden/ (the checks, copied in only after the agent stops) and solution/ (a
 reference the checks must pass). `--selftest` runs every task's references: the
@@ -64,11 +64,15 @@ class UsageError(Exception):
 # ---------- tasks ----------
 
 def load_tasks(root, only=None):
+    """Every folder under `root` with a task.json, named by its path (`rust/off-by-one`)."""
     tasks = []
-    for name in sorted(os.listdir(root)):
-        d = os.path.join(root, name)
+    for d, dirs, files in sorted(os.walk(root)):
+        dirs[:] = sorted(x for x in dirs if x not in ("fixture", "hidden", "solution"))
+        if "task.json" not in files:
+            continue
+        name = os.path.relpath(d, root).replace(os.sep, "/")
         meta_path = os.path.join(d, "task.json")
-        if not os.path.isfile(meta_path) or (only and name not in only):
+        if only and name not in only:
             continue
         with open(meta_path) as f:
             meta = json.load(f)

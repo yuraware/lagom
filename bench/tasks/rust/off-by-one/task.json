@@ -1,0 +1,12 @@
+{
+  "prompt": "window_sums in src/lib.rs should return the sum of every run of k consecutive values, but the last run is always missing. Fix it.",
+  "check": [
+    "cargo",
+    "test",
+    "--offline",
+    "--quiet",
+    "--test",
+    "hidden"
+  ],
+  "bash": true
+}

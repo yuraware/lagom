@@ -1,0 +1,12 @@
+{
+  "prompt": "Implement std::fmt::Display for Point in src/lib.rs so a point prints as (x, y), for example (3, -4).",
+  "check": [
+    "cargo",
+    "test",
+    "--offline",
+    "--quiet",
+    "--test",
+    "hidden"
+  ],
+  "bash": true
+}

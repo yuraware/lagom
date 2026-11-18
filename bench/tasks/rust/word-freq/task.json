@@ -1,0 +1,12 @@
+{
+  "prompt": "word_frequencies in src/lib.rs counts \"The\" and \"the,\" as different words. Make it ignore case and the punctuation around words; an apostrophe inside a word (don't) stays. Tokens that are only punctuation aren't words.",
+  "check": [
+    "cargo",
+    "test",
+    "--offline",
+    "--quiet",
+    "--test",
+    "hidden"
+  ],
+  "bash": true
+}

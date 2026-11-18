@@ -1,0 +1,12 @@
+{
+  "prompt": "The Fibonacci iterator from fib() in src/lib.rs panics after a while. Make it yield every Fibonacci number that fits in a u64, starting 0, 1, 1, 2, and then stop (return None) instead of panicking.",
+  "check": [
+    "cargo",
+    "test",
+    "--offline",
+    "--quiet",
+    "--test",
+    "hidden"
+  ],
+  "bash": true
+}

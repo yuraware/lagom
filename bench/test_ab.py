@@ -16,6 +16,7 @@ import ab  # noqa: E402
 
 ROOT = os.path.dirname(HERE)
 FAKE = os.path.join(HERE, "fake_agent.py")
+SMOKE = os.path.join(HERE, "tasks", "smoke")
 LAGOM = next((p for p in (os.path.join(ROOT, "target", d, "lagom") for d in ("debug", "release"))
               if os.path.exists(p)), None)
 
@@ -31,7 +32,7 @@ class Harness(unittest.TestCase):
 
     def ab(self, *args, mode="solve", env=None, tasks=None):
         e = dict(os.environ, FAKE_AGENT_MODE=mode, AB_FAKE_ARGV_LOG=self.argv_log, **(env or {}))
-        cmd = [sys.executable, "-I", os.path.join(HERE, "ab.py"), "--tasks", tasks or os.path.join(HERE, "tasks"),
+        cmd = [sys.executable, "-I", os.path.join(HERE, "ab.py"), "--tasks", tasks or SMOKE,
                "--out", self.out, *args]
         return subprocess.run(cmd, capture_output=True, text=True, env=e, timeout=300)
 
@@ -46,7 +47,7 @@ class Harness(unittest.TestCase):
     def broken_tasks(self):
         """A copy of the sample tasks where the fixture already passes its check."""
         tasks = os.path.join(self.tmp, "tasks")
-        shutil.copytree(os.path.join(HERE, "tasks"), tasks)
+        shutil.copytree(SMOKE, tasks)
         shutil.copytree(os.path.join(tasks, "py-add-flag", "solution"), os.path.join(tasks, "py-add-flag", "fixture"),
                         dirs_exist_ok=True)
         return tasks
@@ -195,6 +196,17 @@ class Harness(unittest.TestCase):
         before = len(self.calls())
         self.ab("--agent", "fake", "--auth", "login", "--arms", "baseline", "--task", "py-add-flag", "--resume")
         self.assertEqual(len(self.calls()), before + 1, "only the warm-up ran: the finished run was skipped")
+
+    @unittest.skipUnless(shutil.which("cargo"), "needs cargo")
+    def test_every_rust_task_fails_without_its_solution_and_passes_with_it(self):
+        r = self.ab("--selftest", tasks=os.path.join(HERE, "tasks", "rust"))
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("selftest ok: 10 tasks", r.stdout)
+
+    def test_tasks_are_found_in_suite_folders(self):
+        names = [t["name"] for t in ab.load_tasks(os.path.join(HERE, "tasks"))]
+        self.assertIn("smoke/py-add-flag", names)
+        self.assertIn("rust/off-by-one", names)
 
     def test_codex_commands_and_events(self):
         cmd = ab.command("codex", "codex", "do it", "terse-control", "gpt-x", True, None)

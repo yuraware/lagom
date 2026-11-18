@@ -1513,3 +1513,66 @@ fn every_command_rejects_an_unknown_flag_with_its_usage() {
         !home.join(".lagom").exists() || fs::read_dir(home.join(".lagom")).unwrap().count() == 0
     );
 }
+
+#[test]
+fn lagom_debug_explains_a_silent_hook_without_logging_the_payload() {
+    let home = sandbox("debug");
+    let hook = |stdin: &str, debug: bool| -> Output {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_lagom"));
+        cmd.args(["hook", "claude", "pre-tool"])
+            .env("HOME", &home)
+            .env_remove("LAGOM_HOME")
+            .env_remove("LAGOM_DEBUG")
+            .env_remove("LAGOM_DISABLE")
+            .env_remove("LAGOM_REWRITE")
+            .env_remove("CLAUDE_CONFIG_DIR")
+            .env_remove("CLAUDE_PROJECT_DIR")
+            .current_dir(&home)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        if debug {
+            cmd.env("LAGOM_DEBUG", "1");
+        }
+        let mut child = cmd.spawn().unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(stdin.as_bytes())
+            .unwrap();
+        child.wait_with_output().unwrap()
+    };
+    let log = home.join(".lagom/debug.log");
+
+    // Off by default: nothing on stderr, no log.
+    let quiet = hook("secret-token-123 not json", false);
+    assert!(quiet.status.success() && quiet.stdout.is_empty() && quiet.stderr.is_empty());
+    assert!(!log.exists());
+
+    let out = hook("secret-token-123 not json", true);
+    assert!(out.status.success());
+    assert!(out.stdout.is_empty(), "stdout stays silent");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("hook claude pre-tool: payload ignored: not JSON (25 bytes)"),
+        "{err}"
+    );
+
+    // A decision line for a command that is left alone, without the command's text.
+    let payload =
+        json!({"tool_input": {"command": "git log --author=secret-name | head"}, "cwd": home});
+    let out = hook(&payload.to_string(), true);
+    assert!(out.stdout.is_empty());
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("pre-tool claude: left alone: pipes"), "{err}");
+
+    let logged = fs::read_to_string(&log).unwrap();
+    assert!(logged.contains("payload ignored: not JSON") && logged.contains("left alone: pipes"));
+    for secret in ["secret-token-123", "secret-name", "git log"] {
+        assert!(
+            !logged.contains(secret) && !err.contains(secret),
+            "{secret} leaked"
+        );
+    }
+}

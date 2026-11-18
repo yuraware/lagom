@@ -62,10 +62,8 @@ impl Config {
         );
         problems.append(&mut config.problems);
         config.problems = problems;
-        if std::env::var_os("LAGOM_DEBUG").is_some() {
-            for p in &config.problems {
-                eprintln!("lagom: config: {p}");
-            }
+        for p in &config.problems {
+            crate::debug::log(format_args!("config: {p}"));
         }
         config
     }

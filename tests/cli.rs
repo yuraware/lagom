@@ -1576,3 +1576,51 @@ fn lagom_debug_explains_a_silent_hook_without_logging_the_payload() {
         );
     }
 }
+
+#[test]
+fn rewrite_extra_and_exclude_change_which_programs_are_wrapped() {
+    let home = sandbox("wrapped-programs");
+    let repo = home.join("repo");
+    fs::create_dir_all(repo.join(".lagom")).unwrap();
+    let hook = |command: &str| {
+        let payload = json!({"tool_name": "Bash", "cwd": repo, "permission_mode": "bypassPermissions",
+                             "tool_input": {"command": command}});
+        let mut child = Command::new(env!("CARGO_BIN_EXE_lagom"))
+            .args(["hook", "claude", "pre-tool"])
+            .env("HOME", &home)
+            .env_remove("CLAUDE_CONFIG_DIR")
+            .env_remove("XDG_CONFIG_HOME")
+            .env_remove("LAGOM_REWRITE")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(payload.to_string().as_bytes())
+            .unwrap();
+        text(&child.wait_with_output().unwrap()).contains("run -- ")
+    };
+    assert!(!hook("just build") && hook("docker ps") && hook("git log"));
+
+    let user = home.join(".config/lagom/config.json");
+    fs::create_dir_all(user.parent().unwrap()).unwrap();
+    fs::write(
+        &user,
+        r#"{"rewrite": {"extra": ["just"], "exclude": ["docker"]}}"#,
+    )
+    .unwrap();
+    assert!(hook("just build"), "added by the user");
+    assert!(!hook("docker ps"), "excluded by the user");
+
+    // A project file may exclude, but not add.
+    fs::write(
+        repo.join(".lagom/config.json"),
+        r#"{"rewrite": {"extra": ["make2"], "exclude": ["git"]}}"#,
+    )
+    .unwrap();
+    assert!(!hook("git log"), "excluded by the project");
+    assert!(!hook("make2 all"), "a project can't add programs");
+}

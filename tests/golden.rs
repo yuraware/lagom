@@ -8,7 +8,7 @@
 use std::fs;
 use std::path::Path;
 
-use lagom::compress::{Limits, compress};
+use lagom::compress::compress;
 use serde_json::Value;
 
 #[test]
@@ -34,7 +34,7 @@ fn compressor_golden_fixtures() {
         let meta: Value =
             serde_json::from_str(&fs::read_to_string(case.join("meta.json")).unwrap()).unwrap();
         let failed = meta["exit_code"].as_i64().unwrap_or(0) != 0;
-        let compressed = compress(&input, failed, Limits::default());
+        let compressed = compress(&input, failed);
         let out = compressed.text;
         // Compress what the agent sees again: unchanged. A lossy result carries the
         // recall footer `lagom run` adds; a lossless one must be a fixed point by itself.
@@ -43,7 +43,7 @@ fn compressor_golden_fixtures() {
         } else {
             out.clone()
         };
-        if compress(&seen, failed, Limits::default()).text != seen {
+        if compress(&seen, failed).text != seen {
             failures.push(format!("{name}: compressing the output again changed it"));
         }
 

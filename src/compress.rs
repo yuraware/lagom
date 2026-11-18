@@ -12,12 +12,12 @@ mod search;
 
 /// Output budget. Failed commands get double, so errors are never squeezed out.
 #[derive(Clone, Copy, Debug)]
-pub struct Limits {
-    pub max_lines: usize,
-    pub head: usize,
-    pub tail: usize,
-    pub max_important: usize,
-    pub max_line_chars: usize,
+struct Limits {
+    max_lines: usize,
+    head: usize,
+    tail: usize,
+    max_important: usize,
+    max_line_chars: usize,
 }
 
 impl Default for Limits {
@@ -55,7 +55,8 @@ pub struct Compressed {
 }
 
 /// Compress raw command output. `failed` means a non-zero exit code.
-pub fn compress(raw: &str, failed: bool, limits: Limits) -> Compressed {
+pub fn compress(raw: &str, failed: bool) -> Compressed {
+    let limits = Limits::default();
     if is_compressed(raw) {
         // Compressing twice must change nothing (and must not drop more lines).
         return Compressed {
@@ -472,7 +473,7 @@ mod tests {
         raw.push_str("src/main.rs:9:5: error: cannot find value `x`\n");
         raw.push_str("2026-11-08T10:00:00Z ERROR worker crashed\n");
         raw.push_str(&(0..100).map(|i| format!("note {i}\n")).collect::<String>());
-        let c = compress(&raw, true, Limits::default());
+        let c = compress(&raw, true);
         assert!(
             c.text.contains("error: cannot find value `x`"),
             "error kept"
@@ -493,7 +494,7 @@ mod tests {
             raw.push_str(&format!("src/f{i}.rs:1:1: error: bad thing {i}\n"));
         }
         raw.push_str(&(0..100).map(filler).collect::<String>());
-        let c = compress(&raw, true, Limits::default());
+        let c = compress(&raw, true);
         let shown = c
             .text
             .lines()
@@ -520,7 +521,7 @@ mod tests {
                 raw.push_str("2026-11-08T10:33:20.000Z WARN  slow query took 1532ms\n");
             }
         }
-        let c = compress(&raw, false, Limits::default());
+        let c = compress(&raw, false);
         assert!(
             c.text.contains("ERROR database connection lost"),
             "{}",
@@ -609,7 +610,7 @@ mod tests {
         raw.push_str(&hidden.join("\n"));
         raw.push('\n');
         raw.push_str(&(0..400).map(|i| format!("tail {i}\n")).collect::<String>());
-        let ok = compress(&raw, false, Limits::default());
+        let ok = compress(&raw, false);
         assert!(ok.errors_despite_success);
         let kept = hidden
             .iter()
@@ -619,18 +620,17 @@ mod tests {
             kept > Limits::default().max_important,
             "kept {kept} error lines"
         );
-        assert!(!compress("all good\n", false, Limits::default()).errors_despite_success);
+        assert!(!compress("all good\n", false).errors_despite_success);
         // Colored error lines count too (cargo and many tools color `error`).
         assert!(
             compress(
                 "\x1b[1m\x1b[31merror\x1b[0m\x1b[1m: could not compile\x1b[0m\n",
-                false,
-                Limits::default()
+                false
             )
             .errors_despite_success
         );
         assert!(
-            !compress(&raw, true, Limits::default()).errors_despite_success,
+            !compress(&raw, true).errors_despite_success,
             "already a failure"
         );
     }
@@ -641,7 +641,7 @@ mod tests {
             .map(|i| format!("row {i} value {}\n", i * 7 % 13))
             .chain(["src/app.rs:9: error: boom\n".to_string()])
             .collect();
-        let once = compress(&raw, true, Limits::default());
+        let once = compress(&raw, true);
         assert!(once.lossy);
         // What `lagom run` hands the agent: the output plus its recall footer.
         let footed = format!(
@@ -649,18 +649,15 @@ mod tests {
             once.text
         );
         assert!(is_compressed(&footed));
-        let twice = compress(&footed, true, Limits::default());
+        let twice = compress(&footed, true);
         assert_eq!(twice.text, footed);
         assert!(!twice.lossy);
 
         // Output that dropped nothing (only exact repeats folded) is a fixed point.
         let raw = "a\na\na\nb\nc\n";
-        let once = compress(raw, false, Limits::default());
+        let once = compress(raw, false);
         assert!(!once.lossy);
-        assert_eq!(
-            compress(&once.text, false, Limits::default()).text,
-            once.text
-        );
+        assert_eq!(compress(&once.text, false).text, once.text);
     }
 
     #[test]
@@ -686,7 +683,7 @@ mod tests {
             .chain(["… [88 similar lines]\n".to_string()])
             .chain((0..400).map(|i| format!("more {i} text {}\n", i * 13 % 7)))
             .collect();
-        let c = compress(&raw, false, Limits::default());
+        let c = compress(&raw, false);
         assert!(c.lossy, "the output must still be compressed");
         assert!(c.text.lines().count() < raw.lines().count() / 2);
     }
@@ -697,9 +694,9 @@ mod tests {
         let raw: String = (0..300)
             .map(|i| format!("pkg/m{}.py:{i}:1: F401 `os` imported but unused\n", i % 10))
             .collect();
-        let as_search = compress(&raw, false, Limits::default());
+        let as_search = compress(&raw, false);
         assert!(as_search.text.contains("matches in 10 files"));
-        let failed = compress(&raw, true, Limits::default());
+        let failed = compress(&raw, true);
         assert!(!failed.text.contains("matches in"), "{}", failed.text);
         let kept = failed.text.lines().filter(|l| l.contains("F401")).count();
         assert!(kept > 100, "kept only {kept} findings");
@@ -713,7 +710,7 @@ mod tests {
             .map(|i| format!("src/mod_{i}.rs:{i}:fn handler_{i}()\n"))
             .collect();
         let start = std::time::Instant::now();
-        let c = compress(&raw, false, Limits::default());
+        let c = compress(&raw, false);
         assert!(c.lossy);
         assert!(
             c.text.contains("src/mod_0.rs (1)"),
@@ -723,7 +720,7 @@ mod tests {
         let trace: String = (0..100_000)
             .map(|i| format!("  at src/mod_{i}.rs:{i} in handler_{i}\n"))
             .collect();
-        let c = compress(&trace, false, Limits::default());
+        let c = compress(&trace, false);
         assert!(c.lossy && c.text.contains("at src/mod_0.rs:0 in handler_0"));
         assert!(
             start.elapsed() < std::time::Duration::from_secs(5),
@@ -735,7 +732,7 @@ mod tests {
     #[test]
     fn short_clean_output_is_unchanged() {
         let raw = "On branch main\nnothing to commit, working tree clean\n";
-        let c = compress(raw, false, Limits::default());
+        let c = compress(raw, false);
         assert_eq!(c.text, raw);
         assert!(!c.lossy);
     }
@@ -749,14 +746,14 @@ mod tests {
     #[test]
     fn progress_bar_keeps_final_state() {
         let raw = "Downloading 10%\rDownloading 50%\rDownloading 100%\ndone\n";
-        let c = compress(raw, false, Limits::default());
+        let c = compress(raw, false);
         assert_eq!(c.text, "Downloading 100%\ndone\n");
     }
 
     #[test]
     fn exact_repeats_get_a_count() {
         let raw = "warn: x\nok\nok\nok\nend";
-        let c = compress(raw, false, Limits::default());
+        let c = compress(raw, false);
         assert_eq!(c.text, "warn: x\nok  [×3]\nend");
         assert!(!c.lossy);
     }
@@ -766,7 +763,7 @@ mod tests {
         let raw: String = (1..=10)
             .map(|i| format!("Compiling crate{i} v0.{i}.0\n"))
             .collect();
-        let c = compress(&raw, false, Limits::default());
+        let c = compress(&raw, false);
         assert_eq!(
             c.text,
             "Compiling crate1 v0.1.0\n… [8 similar lines]\nCompiling crate10 v0.10.0\n"
@@ -786,7 +783,7 @@ mod tests {
                 raw.push_str("src/main.rs:42: error: something broke\n");
             }
         }
-        let c = compress(&raw, false, Limits::default());
+        let c = compress(&raw, false);
         assert!(c.lossy);
         assert!(c.text.contains("src/main.rs:42: error: something broke"));
         assert!(c.text.contains("line 0 is fine"));
@@ -802,8 +799,8 @@ mod tests {
         let raw: String = (0..200)
             .map(|i| format!("step {i} {}\n", "y".repeat(i % 5)))
             .collect();
-        assert!(compress(&raw, false, Limits::default()).lossy);
-        assert!(!compress(&raw, true, Limits::default()).lossy);
+        assert!(compress(&raw, false).lossy);
+        assert!(!compress(&raw, true).lossy);
     }
 
     #[test]
@@ -811,7 +808,7 @@ mod tests {
         let raw: String = (1..=6)
             .map(|i| format!("error: test {i} failed\n"))
             .collect();
-        let c = compress(&raw, true, Limits::default());
+        let c = compress(&raw, true);
         assert_eq!(c.text, raw);
     }
 

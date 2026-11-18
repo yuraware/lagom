@@ -395,7 +395,8 @@ fn set_mode(path: &Path, mode: u32) {
     let _ = (path, mode);
 }
 
-fn now_secs() -> u64 {
+/// Unix time in seconds.
+pub fn now_secs() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -461,8 +462,8 @@ pub fn project_id(dir: &Path) -> Option<String> {
 /// size, so the stats never take much more than twice this. 16 MiB holds months of events.
 const STATS_CAP: u64 = 16 * 1024 * 1024;
 
-/// Every recorded event, oldest first: the rotated file, then the current one.
-pub fn read_stats() -> String {
+/// Every recorded line, oldest first: the rotated file, then the current one.
+fn read_stats() -> String {
     let dir = lagom_dir();
     let mut text = fs::read_to_string(dir.join("stats.1.jsonl")).unwrap_or_default();
     if let Ok(current) = fs::read_to_string(dir.join("stats.jsonl")) {
@@ -471,12 +472,22 @@ pub fn read_stats() -> String {
     text
 }
 
-/// Append one event to `stats.jsonl`. Errors are ignored: stats must never break a command.
-pub fn record(event: serde_json::Value) {
-    record_for(event, &Attribution::default());
+/// Calls `f` with each recorded event, oldest first. Lines that aren't JSON, and events
+/// from a newer Lagom (`v` above 1), are skipped. The one parser of `stats.jsonl`.
+pub fn for_each_stat(mut f: impl FnMut(&serde_json::Value)) {
+    for line in read_stats().lines() {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        if v["v"].as_u64().is_some_and(|ver| ver > 1) {
+            continue; // written by a newer Lagom
+        }
+        f(&v);
+    }
 }
 
-/// Like [`record`], tagged with agent, session and project.
+/// Append one event to `stats.jsonl`, tagged with agent, session and project. Errors are
+/// ignored: stats must never break a command.
 pub fn record_for(mut event: serde_json::Value, who: &Attribution) {
     if let Some(obj) = event.as_object_mut() {
         obj.insert("v".into(), 1.into());
@@ -503,11 +514,7 @@ pub fn record_for(mut event: serde_json::Value, who: &Attribution) {
 pub fn session_styles() -> (std::collections::HashMap<String, String>, Option<u64>) {
     let mut out = std::collections::HashMap::new();
     let mut since: Option<u64> = None;
-    let text = read_stats();
-    for line in text.lines() {
-        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
-            continue;
-        };
+    for_each_stat(|v| {
         if v["session"].is_string() {
             if let Some(ts) = v["ts"].as_u64() {
                 since = Some(since.map_or(ts, |s| s.min(ts)));
@@ -517,19 +524,19 @@ pub fn session_styles() -> (std::collections::HashMap<String, String>, Option<u6
             if let Some(session) = v["session"].as_str() {
                 out.insert(session.to_string(), crate::gain::HOLDOUT.to_string());
             }
-            continue;
+            return;
         }
         if v["kind"] != "inject" {
-            continue;
+            return;
         }
         let (Some(session), Some(styles)) = (v["session"].as_str(), v["styles"].as_array()) else {
-            continue;
+            return;
         };
         let names: Vec<&str> = styles.iter().filter_map(|s| s.as_str()).collect();
         if !names.is_empty() {
             out.insert(session.to_string(), names.join("+"));
         }
-    }
+    });
     (out, since)
 }
 
@@ -559,17 +566,7 @@ pub struct Bucket {
 
 pub fn totals() -> Totals {
     let mut t = Totals::default();
-    let text = read_stats();
-    for line in text.lines() {
-        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
-            continue;
-        };
-        if v.get("v")
-            .and_then(|x| x.as_u64())
-            .is_some_and(|ver| ver > 1)
-        {
-            continue; // written by a newer Lagom
-        }
+    for_each_stat(|v| {
         let n = |k: &str| v.get(k).and_then(|x| x.as_u64()).unwrap_or(0);
         let agent = match v.get("agent").and_then(|a| a.as_str()) {
             Some(a) => a,
@@ -612,7 +609,7 @@ pub fn totals() -> Totals {
             }
             _ => {}
         }
-    }
+    });
     t
 }
 

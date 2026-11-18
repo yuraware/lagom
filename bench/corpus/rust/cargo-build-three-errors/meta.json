@@ -1,1 +1,1 @@
-{"exit_code": 101, "must_keep": ["error[E0277]", "error[E0308]", "error[E0425]", "src/main.rs:5", "could not compile"]}
+{"exit_code": 101, "must_keep": ["error[E0277]", "error[E0308]", "error[E0425]", "src/main.rs:5", "could not compile", "error: could not compile `rs` (bin \"rs\") due to 3 previous errors", "error[E0277]: a value of type `Vec<u32>` cannot be built from an iterator over elements of type `&u32`", "error[E0308]: mismatched types", "error[E0425]: cannot find function `undefined_fn` in this scope"]}

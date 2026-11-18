@@ -1,1 +1,1 @@
-{"exit_code": 128, "must_keep": ["fatal:"]}
+{"exit_code": 128, "must_keep": ["fatal:", "fatal: ambiguous argument 'no-such-branch': unknown revision or path not in the working tree."]}

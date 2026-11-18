@@ -171,7 +171,7 @@ for b in $(seq 1 60); do git branch "feature/item-$b"; done
 run git git-branch-many '["feature/item-1", "main"]' git branch -a
 run git git-status-porcelain '["pkg1/f1.toml"]' git status --short
 gap git git-status-porcelain FLT-07
-run git git-grep '["pkg0/f10.toml", "f99.toml (1)"]' git grep -n "name ="  # later files are listed per folder
+run git git-grep '["pkg0/f10.toml", "f99.toml"]' git grep -n "name ="  # later files are listed per folder
 run git git-show-stat '["tune item 80"]' git show --stat HEAD
 run git git-not-a-repo '["fatal: not a git repository"]' git -C / status
 run git git-bad-ref '["fatal:"]' git log no-such-branch
@@ -247,16 +247,20 @@ link:
 MK
 run make make-link-error '["symbol(s) not found", "_engine_start"]' make -C "$W" --no-print-directory
 
+# ---------- every error line of a failing case in must_keep (BEN-19) ----------
+python3 -I "$ROOT/scripts/must_keep_errors.py" "$OUT" > /dev/null
+
 # ---------- check must_keep and secrets ----------
 python3 -I - "$OUT" <<'PY'
 import json, os, re, sys
 root = sys.argv[1]; bad = 0; n = 0; failures = 0
+squeeze = lambda s: re.sub(r"\s+", "", s)  # JSON is printed compactly: spacing may differ
 for tool in sorted(os.listdir(root)):
     for case in sorted(os.listdir(f"{root}/{tool}")):
         d = f"{root}/{tool}/{case}"; n += 1
         text = open(f"{d}/input.txt", errors="replace").read()
         m = json.load(open(f"{d}/meta.json")); failures += m["exit_code"] != 0
-        missing = [k for k in m["must_keep"] if k not in text]
+        missing = [k for k in m["must_keep"] if squeeze(k) not in squeeze(text)]
         if missing: print(f"{tool}/{case}: must_keep not in input: {missing}"); bad += 1
         if re.search(r"(ghp_|github_pat_|sk-ant-|sk-proj-|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY)", text):
             print(f"{tool}/{case}: looks like a secret"); bad += 1

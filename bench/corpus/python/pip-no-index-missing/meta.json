@@ -1,1 +1,1 @@
-{"exit_code": 1, "must_keep": ["notarealpkg-zzz"]}
+{"exit_code": 1, "must_keep": ["notarealpkg-zzz", "ERROR: Could not find a version that satisfies the requirement notarealpkg-zzz (from versions: none)", "ERROR: No matching distribution found for notarealpkg-zzz"]}

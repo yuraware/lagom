@@ -12,15 +12,17 @@ mod search;
 
 /// Output budget. Failed commands get double, so errors are never squeezed out.
 #[derive(Clone, Copy, Debug)]
-struct Limits {
+struct Limits<'a> {
     max_lines: usize,
     head: usize,
     tail: usize,
     max_important: usize,
     max_line_chars: usize,
+    /// The user's `compress.keep` substrings: lines holding one count as important (CMP-11).
+    keep: &'a [String],
 }
 
-impl Default for Limits {
+impl Default for Limits<'_> {
     fn default() -> Self {
         Limits {
             max_lines: 120,
@@ -28,19 +30,29 @@ impl Default for Limits {
             tail: 50,
             max_important: 40,
             max_line_chars: 400,
+            keep: &[],
         }
     }
 }
 
-impl Limits {
+impl Limits<'_> {
     fn for_failure(self) -> Self {
         Limits {
             max_lines: self.max_lines * 2,
             head: self.head * 2,
             tail: self.tail * 2,
             max_important: self.max_important * 2,
-            max_line_chars: self.max_line_chars,
+            ..self
         }
+    }
+
+    /// [`is_important`], or holding one of the user's keep patterns.
+    fn important(&self, line: &str) -> bool {
+        is_important(line)
+            || self
+                .keep
+                .iter()
+                .any(|k| !k.is_empty() && line.contains(k.as_str()))
     }
 }
 
@@ -56,7 +68,16 @@ pub struct Compressed {
 
 /// Compress raw command output. `failed` means a non-zero exit code.
 pub fn compress(raw: &str, failed: bool) -> Compressed {
-    let limits = Limits::default();
+    compress_keeping(raw, failed, &[])
+}
+
+/// [`compress`], where lines holding one of the `keep` substrings (the user's
+/// `compress.keep`) count as important, like error lines.
+pub fn compress_keeping(raw: &str, failed: bool, keep: &[String]) -> Compressed {
+    let limits = Limits {
+        keep,
+        ..Limits::default()
+    };
     if is_compressed(raw) {
         // Compressing twice must change nothing (and must not drop more lines).
         return Compressed {
@@ -105,10 +126,10 @@ pub fn compress(raw: &str, failed: bool) -> Compressed {
         };
     }
     let lines = log::collapse(lines, limits, &mut lossy);
-    let lines = collapse_repeats(lines, &mut lossy);
+    let lines = collapse_repeats(lines, limits, &mut lossy);
     let lines: Vec<String> = lines
         .into_iter()
-        .map(|l| shorten_line(l, limits.max_line_chars, &mut lossy))
+        .map(|l| shorten_line(l, limits, &mut lossy))
         .collect();
     let lines = keep_head_tail_important(lines, limits, &mut lossy);
 
@@ -234,7 +255,7 @@ fn normalize_lines(s: &str) -> Vec<String> {
 /// Exact repeats become one line with a count (no information lost).
 /// Runs of 4+ lines that differ only in numbers (progress, counters) keep
 /// their first and last line.
-fn collapse_repeats(mut lines: Vec<String>, lossy: &mut bool) -> Vec<String> {
+fn collapse_repeats(mut lines: Vec<String>, limits: Limits, lossy: &mut bool) -> Vec<String> {
     let n = lines.len();
     // One pass each: shapes, then where each run of same-shape lines ends. Scanning the
     // run again from every line was quadratic on output where nothing collapses
@@ -270,7 +291,7 @@ fn collapse_repeats(mut lines: Vec<String>, lossy: &mut bool) -> Vec<String> {
             run_end[i]
         };
         let similar = k - i;
-        if similar >= 4 && has_shape_mark && !is_important(&lines[i]) {
+        if similar >= 4 && has_shape_mark && !limits.important(&lines[i]) {
             out.push(std::mem::take(&mut lines[i]));
             out.push(format!("… [{} similar lines]", similar - 2));
             out.push(std::mem::take(&mut lines[k - 1]));
@@ -311,12 +332,13 @@ fn shape_key(line: &str) -> (u64, bool) {
     (hash, has_mark)
 }
 
-fn shorten_line(line: String, max_chars: usize, lossy: &mut bool) -> String {
+fn shorten_line(line: String, limits: Limits, lossy: &mut bool) -> String {
+    let max_chars = limits.max_line_chars;
     if line.len() <= max_chars {
         return line; // bytes >= chars, so it already fits
     }
     let count = line.chars().count();
-    if count <= max_chars || is_important(&line) {
+    if count <= max_chars || limits.important(&line) {
         return line;
     }
     *lossy = true;
@@ -413,7 +435,7 @@ fn keep_head_tail_important(lines: Vec<String>, limits: Limits, lossy: &mut bool
         .filter(|(e, k)| **e && !**k)
         .count();
     for (i, line) in middle.iter().enumerate() {
-        if slots > 0 && !keep[i] && is_important(line) {
+        if slots > 0 && !keep[i] && limits.important(line) {
             keep[i] = true;
             slots -= 1;
         }
@@ -462,6 +484,34 @@ fn is_error_priority(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_kept_pattern_survives_the_line_budget() {
+        // A team's own failure marker, with no error word in it, in the middle of a long run.
+        // Lines that differ in words, not only in numbers, so repeat collapsing can't
+        // shrink them and the line budget applies.
+        let words = [
+            "alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf",
+        ];
+        let mut raw: String = (0..300)
+            .map(|i| format!("{} handled {}\n", words[i % 7], words[(i / 7) % 7]))
+            .collect();
+        let middle = raw.match_indices('\n').nth(149).unwrap().0 + 1;
+        raw.insert_str(middle, "ACME-0042 contract violated\n");
+        let default = compress(&raw, false);
+        assert!(
+            default.lossy && !default.text.contains("ACME-0042"),
+            "dropped by default"
+        );
+        let keep = ["ACME-".to_string()];
+        let kept = compress_keeping(&raw, false, &keep);
+        assert!(
+            kept.text.contains("ACME-0042 contract violated"),
+            "{}",
+            kept.text
+        );
+        assert!(kept.text.len() < raw.len() / 2, "the rest is still cut");
+    }
 
     #[test]
     fn errors_outrank_warnings_and_overflow_is_announced() {

@@ -43,6 +43,16 @@ A pre-tool hook turns a simple command such as `git log --stat` into `lagom run 
 
 A project file can only turn rewriting off: `{"rewrite": true}` in a repository doesn't undo your own `false`. `LAGOM_REWRITE=on` overrides any config file that turned rewriting off. Commands you run by hand with `lagom run` are always compressed.
 
+## Always keep your own markers
+
+Lines with an error word, a warning or a `file:line` location are always kept. Add your team's own markers to `~/.config/lagom/config.json` or the project's `.lagom/config.json`:
+
+```json
+{"compress": {"keep": ["SECURITY", "ACME-"]}}
+```
+
+A line that contains one of these plain substrings (matched exactly, case included) is treated like an error line: kept when the middle of a long output is cut, never shortened, never folded into a repeat. Patterns from both files add up.
+
 ## Choose the programs
 
 Lagom wraps a built-in list of programs whose output is usually long (git, cargo, npm, pytest, go, rg, docker, …). Change it in `~/.config/lagom/config.json`:

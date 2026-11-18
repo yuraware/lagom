@@ -10,7 +10,7 @@ Thanks for helping. Lagom is small on purpose, so keep changes focused. Everyone
 - **Propose a style.** Styles are Markdown files, so try yours locally first (see [docs/styles.md](docs/styles.md)) and say how you tested it.
 - **Fix something.** For anything larger than a small fix, open an issue first so we can agree on the approach.
 
-Security problems are reported privately through GitHub's private vulnerability reporting (the repository's Security tab), never in a public issue.
+Security problems are reported privately through GitHub's private vulnerability reporting (the repository's Security tab; see [SECURITY.md](SECURITY.md)), never in a public issue.
 
 ## Development
 

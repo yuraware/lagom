@@ -1,0 +1,13 @@
+Downloading model.bin [                    ] 0%Downloading model.bin [#                   ] 5%Downloading model.bin [##                  ] 10core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "nameÿ„ "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": "item-2", "tags": ["a", "b"]}, {"id": 3, "£name": "item-3", "tags": ["a", "b"]}, {"id": 4, "name": "item-4", "tags": ["a",?"b"]}, {"id": 5, "name": "item-5", "tags": ["a", "b"]}, {"id": 6, "name": "item-6", "tags": ["a", "b"]}, {"id": 7, "name": "item-7", "tags": ["a", "b"diff --git a/Cargo.lock b/Cargo.lock
+index a453966..be5f8ff 100644
+--- a/Cargo.lock
++++ b/Cargo.loe = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = cksum = "29666d0abbfad1e3d"9tttttttttg modelum = "20068b",
+ ]
+({"items": [{"id": 0, "nameÿ„ "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": "item-2", "tags": ["a", "b]"}, {"id": 3, "£name": "item-3", "tags": ["a", "b"]}, {"id": 4, "name": "item-4", "tags": ["a",?"b"]}, {"id": 5, "name": "item-5", "tags": ["a", "b"]}, {"id": 6, "name": "item-6", "tags": ["a", "b"]}, {"id": 7, "name": "item-7", "tags": ["a", "b"diff --git a/Cargo.lock b/Cargo.lock
+index a453966..be5f8ff 100644
+--- a/Cargo.lock
++++ b/Cargo.loatedecated inflight@1.0.6: This module is not support0.6: Thisy tree

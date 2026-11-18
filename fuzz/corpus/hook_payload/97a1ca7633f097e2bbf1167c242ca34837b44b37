@@ -1,0 +1,19 @@
+{
+  "conversation_id": "cm1",
+  "generation_id": "g-1",
+  "workspace_roots": [
+    "<HOME>&/repo"
+  ],
+  "hnversation_id": "cm1",
+  "generation_id": "g-1",
+  "workspace_roots": [
+    "<HOME>&/repo"
+  ],
+  "hook_event_name": "preToolYse",
+  "tool_name": "Shell",
+  "tool_inpu_event_name": "preToolYse",
+  "tool_name": "Shell",
+  "tool_input": {
+    "command": "git log -5"
+  }
+}

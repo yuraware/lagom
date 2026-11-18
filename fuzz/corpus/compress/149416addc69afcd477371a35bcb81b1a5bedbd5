@@ -1,0 +1,43 @@
+   Compiling crate_ok v0.1.0 (/work/crate_ok)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.26s
+     Running unittests src/lib.rs (target/debug/deps/crate_ok-8763b4af8dda6207)
+
+running 60 tests
+test tests::adds_0 ... ok
+test tests::adds_10 ... ok
+test tests::adds_1 ... ok
+test tests::adds_12 ... ok
+test tests::adds_13 ... ok
+test tests::adds_11 ... ok
+test tests::adds_14 ... ok
+test tests::adds_15 ... ok
+test tests::adds_16 ... ok
+test tests::adds_17 ... ok
+test tests::adds_18 ... ok
+test tests::adds_19 ... ok
+test tests::adds_2 ... ok
+test tests::adds_20 ... ok
+test tests::adds_21 ... ok
+test tests::adds_22 ... ok
+test tests::adds_23 ... ok
+test tests::adds_24 ... ok
+test tests::adds_25 ... ok
+testtree/pkg_0/mod_0.py:1:def handler_0_0_0(request):
+tree/pkg_0/mod_0.py:4:def handler_0_0_1(request):
+tree/pkg_0/mod_0.py:7:def handler_0_0_2(request):
+tree/pkg_0/mod_0.py:10:def handler_0_0_3(request):
+tree/pkg_0/mod_0.py:13:def handler_0_0_4(request):
+tree/pkg_0/mod_0.py:16:def handler_0_0_5(request):
+tree/quest):
+tree/pkg_0/mod_0.py:r2:def handler_0_0_7(request):
+tree/pkg_0/mod_1.py:1:def handler_0_1_0(request):
+tree/pkg_0/mod_1.py:4:def handler_0_1_1(request):
+tree/pkg_0/mod_1.py:7:def handler_0_1 tests::adds_26 ... ok
+test tests::adds_27 ... ok
+test tests::adds_28 ... ok
+test tests::adds_29 ... ok
+test tests::adds_3 ... ok
+test tests::adds_30 ... ok
+test tests::adds_31 ... ok
+test tests::_2(request):
+tree/adpkdsg

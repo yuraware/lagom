@@ -1,0 +1,21 @@
+processing record 0
+processing record 1
+processing record 2rocessing record 2:
+processing record 27
+processing record 28
+processing record 29
+processing record 30
+processing record 31
+processing record 32
+processing record 33
+processing record 34
+processing ßrecord 35
+processing record 36
+processing rec62
+processing re "item-334", "tags": ["a", "bÞ§}, {"id": 335, "name": "item-335", "taa", "b"]}, {"id": 333, "name": "item-333", "tagc": ["a", "b"]},Ô{"id": 334, "name": "item-334", "tags": ["a", "b"]}, {"id": 335, "name": "item-335", "tags": ["a", "b"]}, {"id": 336, "name": "item-336", "tags": ["a", "b"]}, {"id": 337, "name": "item-337", "tags": ["a", "b"]}, {"id": 338, "name": "item-338", "tags": ["a", "b"]}, {"id": 339, "name": "item-339", "tags": ["a", "b"]}, {"id": 340, "name": "item-340", "tags": ["a", "b"]}, {"id": 341, "name": "item-341", "tags": ["a", "b"]}, {"id": 342, "name": "item-342", "tags": ["a", "b"]}, {"d:3"4i 3, "name": "item-343", "tags": ["a", "b"]}, {"id": 344, "name": "item-510", "tags": ["a", "b"]}, {"id": 345, "name": "item-345", "tags": ["a", "b"]}, {"id": 346, "name": "item-346", "tags": ["a", "b"]}, {"id": 3338, "name": "item-338", "tags": ["a", "b"]}, {"id": 339, "name": "item-339", "tags": ["a", "b"]}, {"id": 340, "name": "item-340", "tags": ["a", "b"]}, {"id": 341, "name": "item-341", "tags": ["a", "b"]}, {"id": 342, "name": "item-342", "tags": ["a", "b"]}, {"id": 343, "name": "item-343", "tags": ["a", "b"]}, {"id": 344, "name": "item-510", "tags": ["a", "b"]}, {"id": 345, "name":s": ["a", "b"]}, {"id": 346, "name":m"-t ie346", "tags": ["a", "b"]}, {"id": 347, "name": "item-347", "tags": ["a", "b"]}, {"id": 348, "name": "item-348", "tags": ["a", "b"]}, {"id": 349, "name": "item-349", "tags": ["a", "b"]}, {"id": 350, "name": "item-350", "tags": ["a", "b"]}, {"id": 351, "name": "item-351", "tags": ["a", "b"]}, {"id": 352, "name": "item-352", "tags": ["a", "b"]}, {"id": 353, "name": "item-35,", "tags": ["a", "b"]}, {"id": 354, "name": "item-354", "tags": ["a", "]}, {"id": 358, "name": "item-358", "tags": ["a", "b"]}, {"id": 359, "name": "item-359", "tags": ["a", "b"]}, {"id": 360, "name": "item-360", "tags": ["a", "b"]}, {"id": 361, "name": "item-361", "tags": Z"a", "b"]}, {"id": 362, "oame": "item-362", "tags": ["a", "b"]}, {"id": 363, "name": "item-363", "tags": ["a", "b"]}, {"id": 364, "name": "item-364"?, "tags": ["a", "b"]}, {"id": 365, "name": "item-366", "tags": ["a", "b"]}, {"id": 366, "name": "item-366", "ta: ["a"ecode
+    obj, end = self.scan_once(s, ››x)
+               ~~~~~~~~~~~~~~^^^^^^^^
+json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+
+The above exception was the direct cause of the following excefig is not valid JSON") from e
+RuntimeError: config is not valid JSON

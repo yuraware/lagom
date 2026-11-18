@@ -1,0 +1,7 @@
+{
+
+  "permission_mode":"bypassPermissions",
+   "tool_input": {
+   "command": "cargo te",
+  "to_": { }  }
+}

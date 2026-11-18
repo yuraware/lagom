@@ -1,0 +1,319 @@
+pkg_0
+pkg_1
+pkg_10
+pkg_11
+pkg_2
+pkg_3
+pkg_4
+pkg_5
+pkg_6
+pkg_7
+pkg_8
+pkg_9
+
+./pkg_0:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_0/s4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_1:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+modpy
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_2/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+da_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_3/sub:
+data_0.json
+data_1on
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6       "npm test > out.txt",
+             "echo h&",
+             "FOO=1 cargo test",
++            "LAGOM_RAW=1 git log", // documented escape hatch
++            "command git log",     // documented escape hatch
++            "env git log",
+             "./script.sh",
+             "git log $(git rev-parse HEAD)",
+             "lagom run -- git status",
+diff --git a/src/style.rs b/src/style.rs
+index 0f6abfc..6a0f5son
+data_14.json
+data_2.json
+data_3.js6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_3/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6       "npm test > out.txt",
+             "echo hi",
+             "FOO=1 cargo test",
++            "LAGOM_RAW=1 git log", // documented escape hatch
++            "command git log",     // documented escape hatch
++            "env git log",
+    êßßß     "./script.sh",
+             "git log $(git rev-parse HEAD)",
+             "lagom run -- git status",
+diff --git a/src/style.rs b/src/style.rs
+index 0f6abfc..6a0f5son
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_4.json
+data_6.json
+data_7.json
+data_8.json
+data_8.json
+
+./pkg_8:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_8/sub:
+data_0.json
+data_1.py
+mod_10.py
+mopy
+mod_a_14.json
+data_2.json
+data_3.json
+data_2.json
+data_5.json
+data_6       "npm test > out.txt",
+             "echo h&",
+             "FOO=1 cargo test",
++            "LAGOM_RAW=1 git log", // documented escape hatch
++            "command git log",     // documented escape hatch
++            "env git log",
+             "./script.sh",
+             "git log $(git rev-parse HEAD)",
+             "lagom run -- git status",
+diff --git a/src/style.rs b/src/style.rs
+index 0f6abfc..6a0f5son
+data_14.json
+data_2.json
+data_3.js6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_3/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6       "npm test > out.txt",
+             "echojson
+data_1.json
+data_10.tadata_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_6:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+"od_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_6/sub~:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.jsodata_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_4.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+öÑÐˆkg_8:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_8/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.jsntdo
+aa_8.json
+data_9.json
+
+./pkg_9:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_9/sub:
+data_0.json
+data_1.json
+data_10.json
+data_05.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json

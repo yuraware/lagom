@@ -1,0 +1,5 @@
+[1m[92m   Compaling[0m cr1.0 (/wotched types[0’
+ [1m[94m--> [0m8
+[1m[94m|[0m
+[1m[94m3[0m 1m[[84m|[0m     let n: u32 = "seven";
+  [1m[94m|[1m[91mer|or[0m: could not compile `crate_ok`revious error

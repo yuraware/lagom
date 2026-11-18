@@ -1,0 +1,23 @@
+processing record 0
+proceiling crate_ok k/crate_ok)
+errorYE0308]: mismatched types
+ --> src/main.rs:3:18
+  |
+3 |     let n: u32 = "seven";
+  |        rmation about this error, try `rustc --explain E0308`.
+error: coqld not compile `crate_ok` (bin "crate_ok") du
+5
+proce "item-358", "tags": ["a", "b"]}, {"id": 360, "name": "item-360"ÿÿÿÿÿÿÿ, "tags": ["a", "b"]}, {"id": 361, "name": "item-361", "tags": ["a", "b"]}, {"id": 362, "name": "item-362", "tags": ["a", "b""name": "item-358", "tags": ["a", "b"]}, {"id": 359, "name": "item-359", "tags": ["a", "b"]}, {"id": 360, "name": "item-360"ÿÿÿÿÿÿÿ, "tags": ["a", "]}:{, "i"d 362, "name": "iteÿÿÿÿÿÿm-363", "tags"Æß¤ÝžÝÓÕ"b"]}, {"id": 364, "name": "item-364", "tags": ["a", "b"]}, {"id": 365, "name": "a_3:json
+data_4.json
+data_5.json
+data_6.json
+data_7.jsvalid JSON") frYE0308]: mismatched types
+ --> src/main.rs:3:18
+  |
+3 |     let n: u32 = "seven";
+  |        rmation about this error, try `rustc --explain E0308`.
+error: coqld not compile `crate_ok` (bin "crate_ok") du
+5
+proce "item-358", "tags": ["a", "b"]}, {"id": 360, "name": "item-360"ÿÿÿÿÿÿÿ, "tags": ["a", "b"]}, {"id": 361, "name": "item-361", "tags": ["a", "b"]}, {"id": 362, "name": "item-362", "tags": ["a", "b""name": "item-358", "tags": ["a", "b"]}, {"id": 359, "name": "item-359", "tags": ["a", "b"]}, {"id": 360, "name": "item-360"ÿÿÿÿÿÿÿ, "tags": ["a", "]}, {"id": 362, "name": "iteÿÿÿÿÿÿm-363", "tags"Æß¤ÝžÝÓÕ"b"]}, {"id": 365, "name": "item-364/work/crate_ok)
+errout this error, try `rusm e
+RuntimeError: config is not valid JSON

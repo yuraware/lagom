@@ -1,0 +1,122 @@
+pkg_0
+pkg_1
+pkg_10
+pkg_11
+pkg_2
+pkg_3
+pkmod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_0/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json.com/rus0"
+ source = "registry+https://github.com-rust-lang/crates.io-index"
+-checksum =es = [
+- "foldhash",
+  "indexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"i2.py
+mo%d_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_5/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_6:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py"ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"i2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_5/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_6:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py,
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.p10.json
+data_11.json
+data_12.js3d"97c4dcon
+d(614a4

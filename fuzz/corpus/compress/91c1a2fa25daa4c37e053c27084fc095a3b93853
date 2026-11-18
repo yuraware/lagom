@@ -1,0 +1,17 @@
+dif]}, {"id": 3, "nam6, "name": "iteÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿxmap",
+ ", "tags": ["a", "b"]}, {"id": 7, "name"f --git a/diff --git a/Cargo.lock ÿÿÿÿÿÿÿÿÿÿÿm-6", "tags": ["a", "b"]}, {"id": 7, "name": "item-7", "tags": ["a"ags": ["a", "bÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ"]}, {"id": 6, "name": "item-eÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿxmap",
+ ", "tags": ["a", "b"]}, {"id": 7, "name": "item-7", "tags": ["a", "b"diff --git a/Cargo.lock b/Cargo.lock
+index a453966..be5f8ff 1com/rust- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": -item-2", "tags": ["a",rd64 "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "étem-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": -item-2", "tags": ["a",rd64 +0100
+
+    add f96 to mod_21.rs44
+--- a/Cargoomelock
+ fol+++ b/Caderr

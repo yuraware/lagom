@@ -1,0 +1,11 @@
+{
+ 
+  "model": "gpt-.5",
+  "hook_event_name": "Sesstart",
+  "source": "com%00-802",
+  "tranript_path": "1rosonl",
+  "cwxd": "<repo",
+  "model": "gpt-5.5",
+  "hook_event_name": "SesnStart",
+"source": "compact"
+}

@@ -1,0 +1,15 @@
+{
+  
+  "tool_input": {
+    "command": "git 00-002",
+  "trth": "<HOME>//1/",
+  "cw0": "<Hpo",
+  "model": "g",
+  "event_name": "PreToolUse",
+  "too_name": "Bash",
+  "too_b": {"commant": "cargoace"
+ },
+  "tool_use_id": "]ca@@ a command"
+  },
+  "seOid": "toolu_08"
+}

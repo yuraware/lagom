@@ -1,0 +1,124 @@
+building target 1 ... ok
+building target 2 ... ok
+building target 3 ... ok
+building target 4 ... ok
+building target 5 ... ok
+building target 6 ... ok
+building target 7 ... ok
+building target 8 ... ok
+building target 9 ... ok
+building tod_9.py
+sub
+
+./pkg_5/ss": [{"id": 0, "name": "item-0", "tags": ["a", "b"]   Compiling crate_ok v0.1.0 (/work/crate_okhinte_ok` (bin "crate_ok") due to 0 pr5
+Coƒ4bd6"
++checksum = "20068b6e96dc6c9âd23e01df8827e6c7e1f2fddd43c2181038mp28013.json
+data_14.json?
+data_2.json
+data_3.jŽon
+data_4.json,
+*v*>toa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "ilname": "item-0", "tagins": 66.666666666ee/pkg_9/mod_5.py
+tree/pkg_9/mod_13.py
+tree/pkg_9/sub/data_1.json
+tree/pkg_9/sub/data_0.json
+tree/pkg_9/sub/data_10.json
+tree/pkg_9/sub/data_7.json
+tree/pkg_9/sub/data_6.json
+tree/pkg_9/sub/data_11.json
+tree/pkg_9/sub/data_9.json
+tree/pkg_9/sub/data_12.json
+tree/pkg_9/sub/data_5.json
+tree/pkg_9/sub/data_4.json
+tree/pkg_9/sub/data_8.json
+tree/pkg_9/sub/data_13.json
+tree/pkg_9/sub/data_3.json
+tree/pkg_9/sub/data_14.json
+tree/pkgree/pkg_9/mod_6.py
+tree/pkg_9/mod_7.py
+tree/pkg_9/mod_12.py
+tree/pkg_9/mod_3.py
+tree/pkg_9/mod_8.py
+tree/pkg_9/mod_9.py
+tree/pkg_8/mod_4.py
+tree/pkg_8/mod_11.py
+tree/pkg_8/mod_0.py
+tree/pkg_8/mod_10.py
+tree/pkg_8/mod_1.py
+tree/pkg_8/mod_14.py
+tree/pkg_8/mod_5.py
+tree/pkg_8/mod_13.py
+tree/pkg_8/sub/data_1.json
+tree/pkg_8/sub/data_0.json
+tree/pkg_8/sub/data_10.json
+tree/pkg_8/sub/data_7.json
+tree/pkg_8/sub/data_6.json
+tree/pkg_9/sub/data_11.json
+tree/pkg_8/sub/data_9.json
+tree/pkg_8/sub/data_12.!+++json
+tree/pkg_8/sub/data_5.json
+tree/pkg_8/sub/data_4.json
+tree/pkg_8/sub/data_8.json
+tree/pkg_8/sub/data_13.json
+tree/pkg_8/sub/data_3.json
+tree/pkg_8/sub/data_14.json
+tree/pkg_8/sub/data_2.json
+tree/pkg_8/mod_2.py
+tree/pkg_8/mod_6.py
+tree/pkg_8/mod_7.py
+tree/pkg_8/mod_12.py
+tree/pkg_8/mod_3.py
+tree/pkg_8/mod_8.py
+tree/pkg_8/mod_9.py
+tree/pkg_11/mod_4.py
+tree/pkg_11/mod_11.py
+tree/pkg_11/mod_0.py
+tree/pkg_11/mod_10.py
+tree/pkg_11/mod_1.py
+tree/pkg_11/mod_14.py
+tree/pkg_11/mod_5.py
+tree/pkg_11/mod_13.py
+tree/pkn
+tree/pkg_11/sub/data_5.json
+tree/pkg_11/sub/data_4.json
+tree/pkg_11/sub/data_8.json
+tree/pkg_11/sub/data_13.json
+tree/pkg_11/sub/data_3.json
+tree/pkg_11/sub/data_14.json
+tree/pkg_11/sub/data_2.jtree/pkg_4/mod_14.5.py
+tree/pkg_4/mod_13.py
+tree/pkg_4/sub/data_1.json
+tree/pkg_4/sub/data_0.json
+tree/pkg_4/sub/data_10.json
+tree/pkg_4/sub/data_7.json
+tree/pkg_4/sub/data_6.json
+tree/pkg_4/sub/data_11.json
+tree/pkg_4/sub/data_9.json
+tree/pkg_4/sub/data_12.json
+tree/pkg_4/subdiff --git a/Cargo.lock b/Cargo.lock
+index a453966..be5f8ff 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -8,12 +8,6 @@ version = "1.0.3"
+ sds_32 ... ok
+test tests::adds_33 ... ok
+test tests::adds_34 ... ok
+test tests::adds/data_5.json
+tree/pkg_4/sub/data_4.json
+tree/pkg_4/sub/data_8.json
+treeb/data_13.json
+tree/pkg_4/sub/data_3.json
+tree/pkg_4/sub/dat2_14.json
+tree/pkg_4/sub/data_2.js_35 ... ok
+test tests::adds_36 ... ok
+test tests::adds_37 .on
+tree/pkg_4/m.. ok
+test tests::adds_38 .od_2.py
+tree/pkg_4/mod_6.py
+tre.

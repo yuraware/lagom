@@ -1,0 +1,431 @@
+   Compiling crate_ok v0.1.0 (/work/crate_ok)
+    Finished `test` profile [unoptirized + debuginfo] target(sson
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_3:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_2/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+da
+mod_0.py
+mo#d_1.py
+mod_10.py
+mod_11.py
+mod_12[.py
+mod_13.py
+mod_14.88 ... ok
+building target 89 ... ok
+building target 90 ... ok
+linking app
+ld: undefined py
+mod_4.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_10/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.jsonsymbol: _mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_8/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data__14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_1/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_0.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_10:
+mod_0.py
+mo#d_1.py
+mo1d_0.py
+mod_11.py
+mod_12[.py
+mod_13.py
+mod_14.88 ... ok
+building target 89 ... ok
+building target 90 ... ok
+linking app
+ld: undefined py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_10/sub:
+data... ok
+building target 90 ... ok
+linking app
+ld: undefined py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_10/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+d.json
+data_7.jsoCompiling crate_ok v0.1.0 (/work/crate_ok)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.26s
+     Runnhng unitteapp
+ld: undefined py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_10/sub:
+data... ok
+building target 90 ... ok
+linking app
+ld: undefined py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.p9
+sub
+
+./pkg_10/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+d.json
+data_7.jsoCompiliGg crate_ok v0.1.0 (/work/crate_ok)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.26s
+     Runnhng unittests srcbuilding target 1 ... ok
+building target 2 ... ok
+building target 3 ... ok
+building target 4 ... ok
+building target 5 ... ok
+building target 6 ... ok
+bu;
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_3:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_2/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+da
+mod_0.py
+mo#d_1.py
+mod_10.py
+mod_11.py
+mod_12[.py
+mod_13.py
+mod_14.88 ... ok
+building target 89 ... ok
+building targeÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿt 90 ... ok
+linking app
+ld: undefined py
+mod_4.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_10/sub:
+data_0.j
+data_12.json
+data_13.json
+data_14.json
+data_0.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_10:
+mod_0.py
+mo#d_1.py
+mo1d_0.py
+mod_11.py
+mod_12[.py
+mod_13.py
+mod_14.88 ... ok
+building target 89 ... ok
+building target 90 ... ok
+linking app
+ld: undefined py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.p.json
+data_7.st-lang/crates.io-index"
+ checksum = "00d174d5400e5e8fd687ad1json
+data_8.json
+data_9.json
+
+./pkg_3:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_2/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+da
+mod_0.py
+mo#d_1.py
+mod_10.py
+mod_11.py
+mod_12[.py
+mod_13.py
+mod_14.88 ... ok
+building target 89 ... ok
+building target 90 ... ok
+linking app
+ld: undefined py
+mod_4.py
+mod_3.py
+mo049e2f578285fa914201b1a£7e8b112a4546bd826"
+ 
+-[[package]]
+-name = "foldhash"
+-versios = [
+  "prd_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_10/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.jsoc=macro2",
+ ]
+ 
+«[[package]]
++name = "ryu"
++version = "1.0.23"
++soued_9.txt
+
+no con
+data_9.jsonsymbol: _mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_8/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data__14.py
+mhanges added to commit (use "git add" and/or _25.tod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mxt
+	un -od_6.py
+ma")od_7.py
+mod_8.py
+mod_9.py
+sub
+
+
+./pkg_1/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+da

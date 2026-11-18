@@ -1,0 +1,101 @@
+processing record 0
+processing record 1
+proces0sing record 2
+processing record 3
+processing record 4
+processing record 5
+processing record 6
+processing record 7
+processing record 8
+processing record 9
+processing record 10
+processing record 11
+processing record 12
+processing record 13
+processing record 14
+processing record 15
+processing record 16
+processing record 17
+processing record 18
+processing record 19
+processing record 20
+processing record 21
+processing record 22
+processing record 23
+processing record 24
+processing record 25
+processing record 26
+processing record 27
+processing record 28
+processing record 29
+processing record 30
+processing record 31
+processing record 32
+processing record 33
+processing record 34
+processing record 35
+processing record 36
+processing record 37
+processing record 38
+processing record 39
+processing record 40
+processing record 41
+processing record 42
+processing record 43
+processing record 44
+processing record 45
+processing record 46
+processing record 47
+processing record 48
+processing record 49
+processing record 50
+processing record 51
+processing record 52
+processing record 53
+processing record 54
+processing record 55
+processing record 56
+processing record 57
+processing record 58
+processing record 59
+processing record 60
+processing record 61
+processing record 62
+processing record 63
+processing record 64
+processing record 65
+processing record 66
+processing record 67
+processing record 68
+processing record 69
+processing record 70
+processing record 71
+processing record 72
+processing record 73
+processing record 74
+processing record 75
+processing record 76
+processing record 77
+processing record 78
+processing record 79
+processing record 80
+processing record 81
+processing record 82
+processing record 83
+processing record 84
+processing record 85
+proce "item-359", "tags": ["a", "b"]}, {"id": 360, "name": "item-360"ÿÿÿÿÿÿÿ, "tags": ["a", "b"]}, {"id": 361, "name": "item-361", "tags": ["a", "b"]}, {"id": 362, "name": "item-362", "tags": ["a", "b""name": "item-358", "tags": ["a", "b"]}, {"id": 359, "name": "item-359", "tags": ["a", "b"]}, {"id": 360, "name": "item-360"ÿÿÿÿÿÿÿ, "tags": ["a", "]}, {"id": 363, "name": "item-363", "tags": ["a", "b"]}, {"id": 364, "name": "item-364", "tags": ["a", "b"]}, {"id": 365, "name": "item-365", "tags": ["a", "b"]}, {"id": 366, "name": "item-366", "tags": ["a",~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/decoder.py", line 361, in raw_decode
+    obj, end = self.scan_once(s, idx)
+               ~~~~~~~~~~~~~~^^^^^^^^
+json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/work/chain.py", line 9, in <module>
+    load("{bad")
+    ~~~~^^^^^^^^
+  File "/work/chain.py", line 6, in load
+    raintimeError("config is not valid JSON") from e
+RuntimeError: config is not valid JSON

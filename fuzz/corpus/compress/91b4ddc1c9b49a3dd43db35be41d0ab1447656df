@@ -1,0 +1,28 @@
+processing recor
+processing record 1
+p.08.1"
+@@ -67,6 +61,12 @@ dependencges = [
+  "proc-macro2",
+ ]
+ 
++[[package]]
++name = "ryu"
++version = "1.0.23"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9775ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
++
+ [[package]]
+ e an m="s=Ï"00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112achr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {";id": 1, "nithub.com/rust-lang/crates.io-index"
+ chhub.com/rust-labcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++checksu- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "nithub.com/rust-lang/crates.io-index"
+ checksumagent>/<even 3, "name": "item-3", "tags": ["a", "b"]}, {"id": 4, "name": "item-4", "tags": ["a",?"b"]}, {"id": 5, "name": "item-5", "tags": ["a", "b"]}, {"idtags": ["a", "b"]}, {"id": 360, "name": "item-360", "tags": [["a"ØßÝÝ¢‚Ó {"id": 362, "name": "item-362", "taos": ["a", "b"]}, { is not valid JSON") from e
+RuntimeError: config isttps://github.com/rust-lang/crr

@@ -1,0 +1,8 @@
+{
+"permission_mode": "bypassPermissions",
+  "tool_input": {
+    "command": "cargo test",
+    "d": -200000
+  },
+  "totool_use_id": "t01"
+}

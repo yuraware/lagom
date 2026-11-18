@@ -1,0 +1,37 @@
+   Compiling crate_ok v0.1.0 (/work/crate_ok)
+erÿÿÿÿÿÿÿ8]: mismatched types
+ --> src/main.rs:3:18
+  |
+3 see/pkg_9/sub/data1.json
+tree/pk.json
+tree/pkg_11/sub/data_0.json
+tree/pkg_11/sub/data_10.json
+tree/pkg_11/sub/data_7.json
+tree/pkg_11/sub/data_6.json
+tree/pkg_11/sub/data_11.json
+tree/pkg_11/sub/data_9.json
+tree/pkg_11/sub/data_12.json
+tree/b/data_14.json
+tree/pkg_11/sub/data_2.js_6/sub/data_14.json
+tree/pkg_6/sub/data_2.json
+tree/pkg_6/mod_2.py
+tree/pkg_6/mod_6.py
+tree/pkg_6/mod_7.py
+tree/pkg_6/mod_12.py
+tree/pkg_6/mod_3.py
+tree/pk6/mod_9.py:tree/pkg_1/mod_4.py
+tree/pkg_1/mod_11.py
+tree/pkg_1/mod_0.py
+tree/pkg_1/mod_10.py
+tree/pkg_1/mod_1.py
+tree/pkg_1/mod_14.py
+tree/pkg_1/mod_5.py
+tree/pkg_1/mod_13.py
+tree/pkg_1/sub/data_1.json
+tree/pkg_1/sub/data_0.json
+tree/pkg_1/sub/data_10.json
+tree/pkg_1/sub/data_7.json
+tree/pkg_1/sub/data_6.json
+tree/pkg_1/sub/data_11.json    |
+  |            expectein 0E0308`.
+error: could not compile `crate_ok` (bin "crate_ok") due to 1 previous error

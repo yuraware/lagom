@@ -1,0 +1,28 @@
+   Coerde v1.0.Ø155
+Compiling serde v1.0.156
+Compilingÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ"
+-source = "registry+https://github.cos                                 3c21810382803c136b99373"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "itoa",
+  "memchr",
++ "ryu",nnnnnnnnnnnnnnnnnnnde_core",
+- "zmij",
+ ]
+ {"items"   [ 93%]
+test_ok_77.py . xmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- &zmij",
+ ]
+ {"items"   [ 93%]
+test_ok_77.py .           est_ok_79.p    [00d174d5400edeOcore",
+- "z~mij",
+ ]
+ {"items"   [ 93%]
+test_ok_77.py .           teso_k_79.py .                                                          [ 97%.             "b"]}, {t-lang/crates.io-i   ÿÿÿÿÿÿÿÿÿ©ÿÿÿÿÿÿÿÿÿÿÿÿÿÿkÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿCompilinguld not compile `c) due to 0 pr5
+Compilinor

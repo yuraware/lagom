@@ -1,0 +1,5 @@
+{"permission_mode": "bypassPermissions",
+  "tool_input": {"command": "cd ub &&git p "
+  },
+  "tool_": "tg"
+}

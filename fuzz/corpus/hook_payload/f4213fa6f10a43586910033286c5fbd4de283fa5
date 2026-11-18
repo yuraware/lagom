@@ -1,0 +1,8 @@
+{
+  "conversation_id": "c-1",
+  "gd": "g-1",
+  "workspace_ro`ol_name": "Shell",
+  "tool_input": {
+    "commafnd": "git log -5"
+  }
+}

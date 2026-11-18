@@ -1,0 +1,141 @@
+   Coerdesource = "registry+https://github.com/rust-lang/crates.io-index"
+-che -67,6 +61,12 @@ dependencies =  
+[ "proc-macro2",
+ ]
+ 
+´[[package]]
++name = "ryu"
++version = "1.0.23"
++source = "registry+https://github.com/rus0"
+ source = "registry+https://gi{hub.com/rust-lang/crates.io-index"
+-checksum = e"7e9:00:57 2026 +0100
+
+    add f117 to mod_17
+
+ src/mod_17.rs | 1 +
+ 1 file//////////////////////////////////////////////////////////////// changed, 1 insertion(+)
+
+commit 534313bedae9bd572e212f660b6a124d890232cnsertion(+)
+od_19
+
+ src/mod_19.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+cThu Jan 1 00:00:48 2026 +0100
+
+    add f108 to mod_8
+
+ src/mod_8.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 46e2ffee66dcc48ae2aa421deb453e9d8facbc67
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:a", "b"]}, {"id": 2st-lang/crates.io-index"
+-che -67,6 +61,12 @@ dependencies = [
+  "proc-macro2",
+ ]
+ 
+´[[package]]
++name = "ryu"
++version = "1.0.23"
++source = "registry+https://github.com/rus0"
+ source = "registry+https://github.com/rust-lang/cr`tes.io-index"
+-checksum = e"7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++che10382803c136b99373"
+ dependencies = [
+-ç "foldhash",
+  "indexmap",
+  "îtoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": d, 1 insertion(+)
+
+cThu Jan 1 00:00:48 2026 +0100
+
+    add f108 to mod_8
+
+ src/mod_8.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 46e2ffee66dcc48ae2aa421deb453e9d8facbc67
+Author: Dev <dev@example.com>
+Date:   Thu Jan 10:48 2026 +0100
+
+    add f108 to mod_8
+
+ src/mod_8.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 46e2ffee66dcc48ae2aa421deb453e9d8facbon
+data_9.jsonˇˇˇˇˇˇˇ6:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_6/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_7:
+mod_0.py
+mod_1.py
+moe_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+modi5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sutps://github.com/rus0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = e"7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++che10382803c136b99373"
+ dependencies = [
+-ç "foldhash",
+  "indexmap",
+  "îtoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- ata_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.jso"zminj

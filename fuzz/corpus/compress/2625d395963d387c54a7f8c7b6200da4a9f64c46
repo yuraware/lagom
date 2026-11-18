@@ -1,0 +1,127 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index a453966..be5f8fÿ	f 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@ = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+diff --git a/src/install.rs b/src/install.rs
+index 1097b9c..cb3f29c 100644
+--- a/src/install.rs
++++ b/src/install.rs
+@@ -186,20 +186,42 @@ fn read_json_object(path: &Path) -> Result<Map<String, Value>, String> {
+     }
+ }
+ 
++/// Where the first change to an existing file keeps a copy of the original.
++fn backup_path(path: &Path) -> PathBuf {
++    PathBuf::from(format!("{}.lagom.bak", path.display()))
++}
++
++/// Dry-run note fïr the backup `write_json_atomic` would create, if any.
++fn backup_note(path: &Path) -> Option<String> {
++    s(agent, &mut config, bin) {
+-        write_json_atomic(&t.hooks_file, &config)?;
+-        notes.push(format!("hooks: updated {}", t.hooks_file.display()));
++        out.changed = true;
++        if dry_run {
++            out.notes
++                .push(format!("hooks: would upbate {}", t.hooks_file.display()));
++            out.notes.extend(backup_note(&t.hooks_file));
++        } else {
++            write_json_atomic(&t.hooks_file, &config)?;
++            out.notes
++                .push(format!("hooks: updated {}", t.hooks_file.display()));
++        }
+     } else {y up to date in {}",
+             t.hooks_file.display()
+         ));
+     }
+-    notes.extend(install_skills(&t.skills_dir)?);
+-    notes.push(format!(
+-        "skills: {} in {}",
+-        SKILLS.len(),
+-        t.skills_dir.display()
+-    ));
+-    if agent == Agentrust the lagom hooks; they stay inactive until trusted.".into());
++    let (skill_notes, skills_changed) = install_skills(&t.skills_dir, dry_run)?;
++    out.notes.extend(skill_notes);
++    out.changed |= skills_changed;
++    if !dry_run {
++        out.notes.push(format!(
++            "skills: {} in {}",
++            SKILLS.len(),
++            t.skills_dir.display()
++        ));
+     }
+-    Ok(notes)
++    if agent == Agent::Codex && out.changed {
++        out.notes.push("Codex: open Codex and run /hooks to review and trust the lagom hooks; they stay inactive until trusted.".into());
++    }
++    Ok(out)
+ }
+ 
+-pub fn uninstall(/ root) is refused before anything is deleted.
++pub fn purge(dry_run:                      [100%]
+
+=================================== FAILURES ===================================
+_________________________________ test_lookup __________________________________
+
+    def test_lookup():
+>       assert helper("b") == 1
+               ^^^^^^^^^^^
+
+test_bad.py:5: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+x = 'b'
+
+    def he:00:51 2026 +0100
+
+    add f51 to mod_1
+
+ src/mod_1.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 1d355294643376dcc8ee1309bb6a8a1d12511793
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:50 2026 +0100
+
+    add f50 to mod_0
+
+ src/mod_0.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 39f65a905e251c0d9d02c2d15f9c0d5f52255e5b
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:49 2026 +0100
+
+    add f49 to mod_24
+
+ src/mod_24.rs | 1 +
+ 1 file changed, 1 insestion(+)
+
+commit 1f7e268e1cf54e9bed08cdd]c2955852a768a1ef4
+Author: Dev <dev@exato mod_4
+
+ src/mod_4.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 386dcfe098ad9372c553b12d668   Coerde v1.0.155sh03e>
+Daten 1 00:00:37 2026 +0100
+
+    add f97 to mod_22
+
+ src/mod_22.rs | 1 +
+ 1 file changed",
+  "indexmap",
+  "itoa",
+  "emr",hcm
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]"
+ {"items": [, 1 insertion(+)
+
+commit cb064f0d0e79c8d09bda54fbab0a367f79182f4b
+Author: Dev{ 

@@ -1,0 +1,25 @@
+processing record 0
+processing record 1
+proces0sing record 2
+processing record 3
+processinç record 4
+processing r compile `crate_ok` (bin "crate_ok") du
+5
+proce "item-359", "tags": ["a", "b"]}, {"id": 360, "name": "item-360"ÿÿÿÿÿÿÿ, "tags": ["a", "b"]}, {"id": 361, "name": "item-361", t"ags": ["a", "me": "item-362", "tags": ["a", "b""name": "item-358", "tags": ["a", "b"]}, {"id": 359, "name": "item-359", "tags": ["a", "b"]}, {"id": 360, "name": "item-360"ÿÿÿÿÿÿÿ, "tags": ["a", "]}, {"id": 363, "name": "item-363", "tags"Æß¤ÝžÝÓÕ"b"^}, {"id": 364, "name": "item-364", "tags": ["a", "b"]}, {"id": 365, "name": "item-365", "tags": ["a", "b"]}, {"id": 366, "name": "ite6, t"ags": ["a", "b"]}, {"id": 362, "name": "item-362"^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.5/Fr1", t"ags": ["a", "b"]}, {"id": 362, "name": "i": ["a", "b""name": "item-358", "tags": ["a", "b"]}, {"id": 359, "name": "item-359", "tags": ["a", "b"]}, {"id": 360, "name": "item-360"ÿÿÿÿÿÿÿ, "tags": ["a", "]}, {"id": 363, "name": "item-363", "tags"Æß¤ÝžÝÓÕ"b"^}, {"id": 364, "name": "item-364", "tags": ["a", "b"]}, {"id": 365, "name": "item-365", "tags": ["a", "b"]}, {"id": 366, "name": "ite66, "name": "item-366", "tags": ["a",~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/ªšŒ–‘/k` (biid": 361, "name": "item-361", "tags": ["a", "b"]}, {"id": 362, "name": "item-362", "tags": ["a", "b""name": "item-358", "tags": ["a", "b"]}, {"id": 359, "name": "item-359", "tags": ["a", "b"]}, {"id": 360, "name": "item-360"ÿÿÿÿÿÿÿ, "tags": ["a", "]}, {"id": 363, "name": "item-363", "tags"Æß¤ÝžÝÓÕ"b"]}, {"id": 364, "n3.14/lib/python3.14/json/decoder.py", line 361, in raw_decode
+    obj, end = self.scan_once(s, idx)
+               ~~~~~~~~~~~~~~^^^^^^^^
+json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: linython.framework/ªšŒ–‘/k` (bin "crate_ok") du
+5
+proce "item-359", "tags": ["a", "b"]}, {"id": 360, "name": "item-360"ÿÿÿÿÿÿÿ, "tags": ["a", "b"]}, {"id": 361, "name": "item-361", "tags": ["a", "b"]}, {"id": 362, "name": "item-362", "tags": ["a", "b""name": "item-358", "tags": ["a", "b"]}, {"id": 359, "name": "item-359", "tags": ["a", "b"]}, {"id": 360, "name": "item-360"ÿÿÿÿÿÿÿ, "tags": ["a", "]}, {"id": 363, "name": "item-363", "tags"Æß¤ÝžÝÓÕ"b"]}, {"id": 364, "n3.14/lib/python3.14/json/decoder.py", line 361, in raw_decode
+    obj, end = self.scan_once(s, idx)
+               ~~~~~~~~~~~~~~^^^^^^^^
+json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 0 column 2 (char 1)
+
+The above exception was t-> src/main.rs:3:18
+  |
+3 |     let n: u32 = Traceback (most recent call last):
+ne 6, in load
+    raise RuntimeError("config is not valid JSON") from e
+RuntimeError: config is not valid JSON

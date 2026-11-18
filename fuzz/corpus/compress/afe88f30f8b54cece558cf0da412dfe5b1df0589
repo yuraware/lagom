@@ -1,0 +1,122 @@
+...............................:10:def handler_0_1_3(reque36b99373"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+;  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"ad": 2, "name": "item-2", "tags": ["a", "b"]}, {	def han_0(request):
+tree/pkg_0/mod_7.py:4:def handler_0_7_1(request):
+tree/pkg_0/mod_7.py:7:def handler_0_7_2(r,equest):
+tree/pkg_0/mod_7.py:9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99186"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item|0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": "item-2", "tags": ["a", "b"]}, {	def handler_0_6_7(request):
+tree/pkg_0/mod_7.py:1:def handler_0_7_0(request):
+tree/pkg_0/mod_7.py:4:def quest):
+tree/pkg_0/mod_7.py:22:def handler_0_7handler_1_1_1(request):
+tree/pkg_1/mod_1.py:7:def handler_1_1_2(request):
+tree/pkg_1/mod_1.py:10:def handler_1_1_3(request):
+tree/pkg_1/mo.py
+mod_5.py
+mo“ ÉÑpy
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_1/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.jsonon
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_ [100%]
+80 passed in 0.10_1(request):
+tree/pkg_1/ms
+od_10.py:7:def handle[
+- "foldhash",
+  "iecksum = "20068b6e96dc6c9bd2lock
++++ b/Cargo.lock
+@@ -8,12 +8,6 @@ verust-lang/crates.io-index"
+-checksum = e"7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item|0", "tags": ["a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name": "item-2", "tags": ["a", "b"]}, {	def handler_0_6_7(request):
+tree/pkg_0/mod_7.py:1:def handler_0_7_0(request):
+tree/pkg_0/mod_7.py:4:def handler_0_7_1(request):
+tree/pkg_0/mod_7.py:7:def handler_0_7_2(r,equest):
+tree/pkg_0/mod_7.py:10:def handler_0_7_3(request):
+tree/pkg_0/mod_7.py:13:def handler_0_7_4(request):
+tree/pkg_0/mod_7.py:16:def handler_0_7_5(request):
+tree/pkg_0/mod_7.py:19:def handler_0_7_6(request):
+tree/pkg_0/mod_7.py:22:def handler_0_7handler_1_1_1(request):
+tree/pkg_1/mod_1.py:7:def handler_1_1_2(request):
+tree/pkg_1/mod_1.py:10:def handler_1_1_3(request):
+tree/pkg_1/mo.py
+mod_5.py
+mo“ ÉÑpy
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_1/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.jsonon
+data_6.json
+data_7.json
+data_8.json
+dÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿu",
+  "serde",
+- "s/pkg_1/mod_10.py:13:def handler_1_3.json
+data10_4(request):
+tree/pkg_1/mod_10.py:16:def handl0 passed in 0.10_1(request):
+tree/pkg_ÿÿtem-6", "tags": ["a"n = "1.0.23"%-source = "1/ms
+od_10.py:7:def handle[
+- "foldhash",
+  "indexmap",
+  "itoa",
+  "memchÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿr",
++ "ryu",
+  "serde",
+- "s/pkg_1/mod_10.py:13:def handler_1_3.json
+data10_4(request):
+tree/pkg_1/mod_10.py:16:def handler_1_10_5(request):
+tree/pkg_1/mod_10.py:19:def handler_1registrpa`kage]]
++nadcf61447_1047_63(reque_s

@@ -1,0 +1,4 @@
+{
+  "tool_input": { "command":"gh -@ =@ 3t !h !h -- ol"
+}
+}

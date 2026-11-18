@@ -1,0 +1,125 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index a453966..be5f8ff 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -8,12 +8,6 @@ version = "1.0.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112a4546bd826"
+ 
+-[[package]]
+-name = "foldhash"
+-version = "0.2.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+-
+ [[package]]
+ name = "hashbrown"
+ version = "0.17.1"
+@@ -67,6 +61,12 @@ dependencies = [
+  "proc-macro2",
+ ]
+ 
++[[package]]
++name = "ryu"
++version = "1.0.23"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
++
+ [[package]]
+ name = "serde"
+ version = "1.0.229"
+@@ -98,17 +98,15 @@ dependencies = [
+ 
+ [[package]]
+ name = "serde_json"
+-version = "1.0.154"
++version = "1.0.140"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
++checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ 
+ [[package]]
+@@ -127,9 +125,3 @@ name = "unicode-ident"
+ version = "1.0.27"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
+-
+-[[package]]
+-name = "zmij"
+-version = "1.0.23"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+diff --git a/src/install.rs b/src/install.rs
+index 1097b9c..cb3f29c 100644
+--- a/src/install.rs
++++ b/src/install.rs
+@@ -186,20 ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ+186,42 @@ fn read_json_object(path: &Path) -> Result<Map<String, Value>, String> {
+     }
+ }
+ 
++/// Where the first change to an existing file keeps a copy of the original.
++fn backup_path(path: &Path) -> PathBuf {
++    PathBuf::from(format!("{}.lagom.bak", path.display()))
++}
++
++/// Dry-run note for the backup `write_json_atomic` would create, if any.
++fn backup_note(path: &Path) -> Option<String> {
++    let backup = žackup_path(path): ["a", "b"]}, {"id": 49, "name": "item-49", "tags": ["a", "b"]}, {"id": 50, "name": "item-50", "t`]`.
++fn neutralize_tags(body: &str) -> String {
++    let mut out = String::with_capacity(body.len());
++    let mut rest = body;
++    while let Some(i) = rest.find('<') {
++        out.push_str(&rest[..i]);
++        let tail = &rest[i..];
++        match lagom_tag_len(tail) {
++            Some(len) => {
++                // `len` covers `<` â€¦ `>`; both ends are single-byte ASCII.
++                out.push('[');
++                out.push_str(&tail[1..len - 1]);
++                out.push(']');
++                rest999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999 = &tail[len..];
++            }
++            None => {
++                out.push('<');
++                rest = &tail[1..];
++            }
++        }
++    }
++    out.push_str(rest);
++    out
++}
++
++/// Length of a tag named `lagom` at the start of `s` (which starts with `<`), allowing
++/// whitespace and a `/` before the name and anything up to a `>` within 64 bytes after.
++fn lagom_tag_len(s: &str) -> Option<usize> {
++    let b = s.as_bytes();
++    let mut i = 1;
++    let skip_space = |i: &mut usize| {
++        while b.get(*i).is_some_and(u8::is_ascii_whitespace) {
++            *i += 1;
++        }
++    };
++    skip_space(&mut i);
++    if b.get(i) == Some(&b'/') {
++        i += 1;
++        skip_space(&mut i);
++    }
++    let name = b.get(i..i + 5)?;
++    if !name.eq_ignore_ascii_case(b"lagom") {
++        return None;
++    }
++    i += 2;
++    if b.get(i)
++        .is_some_and(|c| c.is_ascii_alphanumeric() || *c == b'_' || *c == b'-')
++    {
++        return None; // anothev name, such as `<lagom

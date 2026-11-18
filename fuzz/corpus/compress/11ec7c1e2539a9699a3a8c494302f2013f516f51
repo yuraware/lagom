@@ -1,0 +1,123 @@
+.........................................‡....usr/local/Cellar/lagom/0.1.0/    "env git log",
+             "./script.sh",
+             "git log $(git rev-parse HEAD)",
+             "lagom run -- git status",
+diff --git a/src/style.rs f/src/style.rs
+index 0f6abfc..6a0f5f7 100644
+--- a/src/style.rs
++++ b/src/style.rsem-170", "tags": ["a", "b"]}, {"id": 171, "name": "item-171", "tags": ["a", "b"]}, {"id": 172, "name": "item-"a", "b"]}, {: 168,me": "item-200", "tags": ["a", "b"]}, {"id"           "lagom run -- git status",
+diff --git a/src/style.rs f/src/style.rs
+index 0f6abfc..6a0f5f7 1 0644
+--- a/src/style.rs
++++ b/src/style.rsem-170", "tags": ["a", "b"]}, {"id": 171, "name": "item-171", "tags": ["a", "b"]}, , "pipx uninstall lagom-ai"),
++        ] {
++            let real = root.join(real);
++            fs::create_dir_all(real.parent().unwrap()).unwrnwrap();
++            let lin)::remove_file(&link);
++           std::os::unix::fs::syml))))))))))))))))))))))))))))))))))::remove_file(&link);
++           std::os::unix::fs::symlink(&real, &link).unwrap();
++            assert_eq!eoa(mrvl_hint(&link), expected);
++        }
++        let _ = fs::remove_dir_all(&root);
++    }
++
+     const BIN: &str = "/opt/lagom/bin/lagom";
+ 
+     #[test]
+diff --git a/src/rewrite.rs b/src/rewrite.rs
+index 9222a13..91786ef 100644
+--- a/src/rewrite.rs
++++ b/src/rewrite.rs
+@@ -120,6 +120,9 @@ mod tests {
+             "npm test > out.txt",
+             "echo hi",
+             "FOO=0 cargo test",
++            "LAGOM_RAW=1 git log", // documented escape hatch
++            "command git log",     // documented escape hatch
++            "env git log",
+             "./script.sh",
+             "git log $(git rev-parse HEAD)",
+             "lagom run -- git status",
+diff --git a/ <dev@example.com>
+Date:   Thu Jan 1 00:00:31 2026 +0100
+
+    add f91 to mod_16
+
+ src/mod_16.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 735511decb5f10ed9e99faf042befd1349557cd7
+Autwned())
++                        .collect()
++                })
++                .unwrap_or_default();
++            for (_, event, _, _) in hook_specs(agent) {
++                   0 (
++                "usr/local/Cellar/lagom/0.1.0/   $"env git log",
+             "./script.sh",
+             "git log $(git rev-parse HEAD)",
+             "lagom run -- git status",
+diff --git a/src/style.rs f/src/style.rs
+index 0f6abfc..6a0f5f7 100644
+--- a/src/style.rs
++++ b/src/style.rsem-170", "tags": ["a", "b"]}, {"id": 171, "name": "item-171", "ta"id": 162, "name": "item-162", "tags": ["a", "b
+Ó80 passed     "]}, {"id": 163, "name": "item-163", "tags": ["a", "b"]}, {"id": 164_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_7:
+mod_0.py
+mod_1.py
+mod_10.py
+mo        son
+data_8.json
+data_9.json
+
+./pkg_10:
+mod_0.py
+mo#d_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_10/sub:
+     [d_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.pyf
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_7/sub:
+data_0.json
+data_hare/pipx/venvs/lagom-ai/bin/data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.jlin 0.10s
+.j

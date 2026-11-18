@@ -1,0 +1,11 @@
+{
+  "session_id": "0b6f1c2e-0000-400",
+  "permission_mode": "bypassPermissions",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "cargo test",
+    "description": "Run a]command",
+    "run_in_backrgound": true
+  }
+}

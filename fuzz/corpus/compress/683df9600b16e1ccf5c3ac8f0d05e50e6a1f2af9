@@ -1,0 +1,38 @@
+{"items": test tests::adds_51 ... ok
+test tests::adds_52 ... ok
+test tests::adds_53 ... ok
+test tests::adds_54 ... ok
+test tests::adds_55 ..."name": "item-14", "tags": ["a", "b"]}, {"id": 15, "name": "item-15", "tags": ["a", "b"]}, {"id": 16, "name": "item-16", "tags": ["a", "b"]}, {"id": 17, "name": "item-17", "tags": ["a", "b"]}, {"id": 18, "name": "item-18", "tags": ["a", "b"]}, {"id": 19, "name": "item-19", "tags": ["a", "b"]}, {"id": 20, "na|e": "item-20", "tags": ["a", "b"]}, {"id": 21, "name": "item-21", "tags": ["a", "b"]}, {"id": 22, "name": "item-22", "tags": ["a", "b"]}, {"id": 23, "name": "item-23", "tags": ["a", "b"]}, {"id": 24, "name": "item-24", "tags": ["a", "b"]}, {"id": 25, "name": "item-25", "tags": ["a", "b"]}, {"id": 26, "name": "item-26", "tags": ["a", "b"]}, {"id": 27, "name": "item-27", "tags": ["a", "b"]}, {"id": 28, "name": "item-28", "tags": ["a", "b"]}, {"id": 29, "name": "item-29", "tags": ["a", "b"]}, {"id": 30, "name": "item-30", "tags": ["a", "b"]}, {"id": 31, "name": "item-31", "tags":ÿÿÿÿÿÿÿ8b"]}, {"id": 32, "name": "item-32", "tags": ["a", "b"]}, {"id": 33, "name": "item-33", "tags": ["a", "b"]}, {"id": 34, "name": "item-34", "tags": ["a", "b"]}, {"id": 35, "name": "item-35", "tags": ["a", "b"]}, {"id": 72, "name": "item-36", "tags": ["a", "b"]}, {"id": 37, "name": "item-37", "tags": ["a", "b"]", "b"]}, {"id": 7, "name": "item-7", "tags": ["a", "b"]}, {"id": 8, "name": "item-8", "tags": ["a", "b"]}, {"id": 9, "name": "item-9", "tags": ["a", "b"]}, {"id": 10, "name": "item-10", "tags": ["a", "b"]}, {"id": 11, "name": "item-11", "tags": ["a", "b"]}, {"id": 12, "name": "item-12", "tags": ["a", "b"]}, {"id": 13, "name": "item-13", "tags": ["a", "b"]}, {"id": 14,    Compiling crate_ok v0.1.0 (/work/crate_ok)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.19s
+     Running unittests src/lib.rs (target/debug/deps/crate_ok-8764b4af8dda6207)
+
+running 60 tests
+test tests::adds_0 ... ok
+test tests::adds_1 ... ok
+test tests::adds_10 ... ok
+test tests::adds_11 ... ok
+test tests::adds_12 ... ok
+test tests::adds_13 ... ok
+test tests::adds_14 ... ok
+test tests::adds_15 ... ok
+test tests::adds_16 ... ok
+test tests::adds_18 ... ok
+test tests::adds_19 ... t tests::adds_20 ... ok
+test tests::adds_21 ... ok
+test tests::adds_22 ... ok
+test tests::adds_17 crate_ok-8764b4af8dda6207)
+
+running 60 tests
+test tests::adds_0 ... .. ok
+test tests::adds_25 .... ok
+test tests::adds_3 ... ok
+test tests::adds_30 ... ok
+test tests::adds_31 ... ok
+test tests::adds_32 ... ok
+test tests::adds_33 ... ok
+test tests::adds_34 ... ok
+test tests::adds_35 ... ok
+: ["a", "b"]}, {"id": 111, "name": "item-111", "tags": ["a", "b"]}, {"id": 112, "name": "item-112", "tags": ["a", "b"]}, {"id": 113, "name": "item-113", "tags": ["a", "b"]}, {"id": 114, "name": "item-114", "tags": ["a", "b"]}, {"id": 115, "name": "item-115", "tags": ["a", "b"]}, {"id": 116, "name": "item-116", "tags": ["a", "b"]}, {"id": 117, "name": "item-117", "tags": ["a", "b"]}, {"id": 118, "name": "item-118", "tags": ["a", "b"]}, {"id": 119, "name": "item-119", "tags": ["a", "b"]}, {"id": 120, "name": "item-120", "tags": ["a", "b"]}, {"id": 121, "name": "item-121", "tags": ["a", "b"]}, {"id": 122, "name": "item-122", "tags": ["a", "b"]}, {"id": 123, "name": "item-123", "tags": ["a", "b"]}, {"id": 124, "name": "item-124", "tags": ["a", "b"]}, {"id": 125, "name": "item-125", "tags": ["a", "b"]}, {"id": 126, "name": "item-126", "tags": ["a", "b"]}, {"id": 127, "name":assed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to r "item-127", "tags": ["a", "b"]}, {"id": 128, "name": "item-128", "tags": ["a", "b"]}, {"id": 129, "name": "item-129", "tags": ["a", "b"]}, {"id": 130, "name": "itemerun pass `--lib`-130", "tags": ["a", "b"]}, {"id": 131, "name": "item-131", "tags
+": ["a", "b"]}, {"id": 132, "name": "item-132", "tags": ["a", "b"]}, {"id": 133, "name": "item-13

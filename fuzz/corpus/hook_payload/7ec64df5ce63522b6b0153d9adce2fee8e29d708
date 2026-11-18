@@ -1,0 +1,12 @@
+{
+  "sesmodel": "gpt-5.5",
+  "hook_event_sion_id": "019a0000(0000000 002",
+  "transcript_path": "<HOME>/.codex/sessionq/2/02/E>/.code/repo",
+  "model": ".pt-2.5",
+  "hook_event_name": "PreToo)lcUse",
+  "tool_name": "Bash",
+  "toolbinput": {
+    "command": "cargo test --workspace"
+  },
+  "tool_use_id": "]call_1"
+}

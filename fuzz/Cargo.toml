@@ -1,0 +1,48 @@
+# Fuzz targets (QA-05), run with cargo-fuzz: `cargo fuzz run <target>` from the repository
+# root. A separate crate, so libfuzzer-sys never reaches the lagom binary or its
+# dependency budget (D-37).
+[package]
+name = "lagom-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+lagom = { path = ".." }
+serde_json = "1"
+
+# Not part of a workspace with the lagom crate.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "hook_payload"
+path = "fuzz_targets/hook_payload.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "compress"
+path = "fuzz_targets/compress.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "rewrite"
+path = "fuzz_targets/rewrite.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "style_frontmatter"
+path = "fuzz_targets/style_frontmatter.rs"
+test = false
+doc = false
+bench = false

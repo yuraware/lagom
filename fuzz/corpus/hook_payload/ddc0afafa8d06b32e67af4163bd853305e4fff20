@@ -1,0 +1,6 @@
+{
+  "conversation_id":  "preThll",
+  "tool_input": {
+    "command": "git log -5"
+  }
+}

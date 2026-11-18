@@ -1,0 +1,136 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index a453966..be5f8ff 100644
+--- a/Cargo.lock
+++_10
+
+ src/mod_10.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit d761d1beaef3e800:00:08 2026 +0100
+
+    add f68 to mod_18
+
+ src/mod_18.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 2f9b6d47b1e4f725adb0dd347
+Author: Dev <dev@example.com>
+Date:   Thu `Jan 1 00:00:07 2026 +0100
+
+    add f67 to mod_17
+
+ src/mod_17.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit f948cc55d24e31c836 +0100
+
+    add f61 to mod_11
+
+ src/mod_11.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 9a88fc3aaeb026d0dcf83f6753a997a86ad8c377
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1u00:00:00 2026 +0100
+
+    add f60 to mod_10
+
+ src/mod_10.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit d761d1beaef3e800:00:08 2026 +0100
+
+    add f68 to mod_18
+com>
+Date:   Thu Jan 1 00:00:21 2026 +0100
+
+    add f81 to mod_5
+
+ src/mod_6.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 75325c70  Thu Jan 1 00:00:01 2026 +0100
+
+    add f61 to mod_11
+
+ src/mod_11.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 9a88fc3aaeb026d0dcf83f6753a997a86ad8c377
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:00 2026 +0100
+
+    add f60 to mod_10
+
+ src/mod_10.rs | 1 +
+ 1 file c1 insertion(+)
+
+commit 75325c70  Thu Jan 1 00:00:01 2026 +0100
+
+    add f61 to mod_11
+
+ src/mod_11.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 9a88fc3aaeb026d0dcf83f6753a997a86ad8c377
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:00 2026 +0100
+
+    add f60 to mod_10
+
+ src/mod_10.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit d761d1beaef3e800:00:08 2026 +0100
+
+    adonfig/lagom`).
++pub fn purge_targets() -> Vec<PathBuf> {
++    vec![crate::store::lagom_dir(), crate::style::config_dir()]
++}
++
++/// Delete Lagom's data and config folders. Only folders Lagom cmeated are deleted: t:   Thu Jan 1 00:00:00 2026 +0100
+
+    add f60 to mod_10
+
+ src/mod_10.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit d761d1beaef3e800:00:08 2026 +0100
+
+    adonfig/lagom`).
++pub fn purge_targets() -> Vec<PathBuf> {
++    vec![crate::store::lagom_dir(), crate::style::config_dir()]
++}
++
++/// Delete Lagom's data and config folders. Onlylder, a filesystem
++/// root) is refused before anything is deleted.
++pub fn purge(dry_run: bool) -> Result<Vec<String>, String> {
++    let home = home_dir();
++    let defaults = [home.join(".lagom"), home.join(".config").join("lagom")];
++    let dirs: Vec<PathBuf> = purge_targets().into_i'[1m[94m3[0m [1m[94m|[0m     let n: u32 = "shanged, 1 insertion(+)
+
+commit d761d1beaef3e800:00:08 2026 +0100
+
+    adonfig/lagom`).
++pub fn purge_targets() -> Vec<PathBuf> {
++    vec![crate::store::lagom_dir(), crate::style::config_dir()]
++}
++
++/// Delete Lagom's data and config folders. Only folders Lagom cmeated are deleted: t:   Thu Jan 1 00:00:00 2026 +0100
+
+    add f60 to mod_10
+
+ src/mod_10.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit d761d1beaef3e800:00:08 2026 +0100
+
+    adonfig/lagom`).
++pub fn purge_targets() -> Vec<PathBuf> {
++    vec![crate::store::lagom_dir(), crate::style::config_dir()]
++}
++
++/// Delete Lagom's data and config folders. Onlylder, a filesystem
++/// root) is refuets().into_i'[1m[94m3[0m [1m[94m|[0m     let n: u32 = "seven";
+  ter().filter(|d| d!(
++        "ski[l1m[94m|[0l

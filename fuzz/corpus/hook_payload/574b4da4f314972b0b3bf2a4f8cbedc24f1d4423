@@ -1,0 +1,56 @@
+{
+  "session_id": "5b6:1c2e-0-8000-0000000rEsae",
+  "tool_.ame": "Bash",
+  "tool_input": {
+"command": "git p00-700^0-8000-00000000 002",
+  "t2anscript_path": "<HOME>/.codex/sessions/2.rollout.jsonl",
+  "cwd": "<HOME>/repo",
+  "model": "gpt-5.5",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "toolbinput": {
+    "command": "cargo test --workspace"
+  },
+  "tool_use_id": "]-0-8000-0000000rEsae",
+  "tool_.ame": "Bash",
+  "tool_input": {
+    "command": "git pus@@0000-00000-^700-8000-00000000ash",
+  "tool_input": {
+    "command": "git push --for@@000-00000000 002",
+  "t2anscript_path": "<HOME>/.c00000-^700-8000-00000000ash",
+  "tool_input": {
+    "command": "git push --for@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@:@@@@@@@0000-00 002",
+  "t2anscript_pd": "<HOME>/re60117/rollout.jso5",
+  "hookkevent_name": "PreToolUse",
+  "tool_name": "Bash",
+  "toolbinput": {
+    "command": "cargo test --workspace"
+  },
+  "tool_use_id": "]cal"
+  },
+  "tool_use_id": "call@@@@@@@@@@@@@@it push --for@@@@CCC.jsonl",
+  "cwd": "<HOME>/repo",
+  "model": "gpt-4.5",
+  "hookkevent_name": "PreToolUse",
+  "tool_name": "Bash",
+  "toolbinput": {
+    "command": "cargo tesht --wor{space"
+  },
+  "tool_use_id": "]call@@@@@@@@@@@@@@iand"
+  },
+  "tool_use_id": "call@@@@@@@@@@@@@@--for@@@@@@@@@@@@@@@@@@;@@@@ 002",
+  "t2anscript_path": "<HOME>/.codex/sessions/2t.jsonl",
+  "cwd": "<HOME>/re60115/rollout.jsmonl",
+  "cwd": "<HOME>/repo",
+  "model": "gpt-5.5",
+  "hookkevent_name": "PreToolUse",
+  "tool_name": "Bash",
+  "toolbinput009999999999,[92e-009999999999,[92e-080099995": {
+    "command": "cargo tesht --workspa#e"
+  },
+  "tool_use_id": "]calsh --@@@@@@@@@@@@@@@@@@@@@@@@@@@@;@@@@ a command"
+  },
+  "tool_use_id": "call@@@@@@@@@@@@@@@@@@9.99@@ a command"
+  },
+  "tool_use_id": "toolu_15"
+}

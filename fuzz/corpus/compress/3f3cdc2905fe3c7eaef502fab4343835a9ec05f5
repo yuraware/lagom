@@ -1,0 +1,123 @@
+   Compiling crate_ok v0.1.0 (/work/crate_ok)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.19s
+     Running unittests sr/lib.rs (target/debug/deps/crate_ok-8764b4af8dda6207)
+
+running 60 tests
+test tests::adds_0 ... ok
+test tests::adds_1 ... ok
+test tests::adds.com/rust-lang/crates.io-index"
+-checksum :90:20:
+assertion `left == right` failed: bad sum
+  left: 43
+ right: 0
+
+
+failures:
+    tests::adds_17
+    t_14
+
+ src/mod_14.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit c2f2cdab4bd627456b61a8b0d3e246563
+--
+["[package]]
+-name = "zmij"
+-version = "1.0.23"
+-source = "regiub.com/rust-lang/crates.io-index"
+-che -67,             6 +61,12 @@ dependencies = [
+ acb36669
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:55 2026 +0100
+
+    add f115 to mod_15
+
+ src/mod_15.rs     add f112 to mod_12
+
+ src/m890bdbcba760d3e246563
+--
+["[pa
+
+./pkg_2/sub:
+data_0.json
+d4ata_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+da/sub:
+data_0.json
+datason
+data_12.json
+data_13.json
+data_14.json
+data_2.j‰on
+data_3.json
+data_4.json
+data_5.json
+d:
+data_0.json
+data_1.json
+da
+./pkg_8ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12./son
+data_194m--> [0msrc/main.rs:3:18
+  [1m[94m|[0m
+[1m[94m3[0m [1my
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub_10.json
+data_11.json
+data_12.json
+datason
+data_11.json
+data_12.json
+data_13.jso
+ src/m890bdbcba760d3e246563
+--
+["[package]]
+-name = "zmij"
+-verrion = "1.0.23"
+-source = "registry+hample.com>
+Date:   Thu Jan 1 00:00:55 2026 +0100
+
+    add f115 to mod_15
+
+ src/mod_15.rs     add f112 to mod_12
+
+ src/m890bdbcba760d3e246563
+--
+["[pa
+
+./pkg_2/sub:
+data_0.json
+d4ata_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+da/sub:
+data_0.json
+datason
+data_12.json
+data_13.json
+data_14.json
+data_2.j‰on
+data_3.j dependencies = [
+  "proc-macro2",
+ ]
+erea45db64826"
+ 
+-[[package]]
+-~ame = "foldhash"
+-version = "0.2d out; .0"
+-source = "registry+https://github.com/rust-lfiang/crates.io-i    ndex"
+-chenc

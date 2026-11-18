@@ -1,0 +1,7 @@
+{
+ "conversation_id": "cmg-0",
+  "worname": "Shll",
+  "tool_input": {
+   "command": "git -2"
+  }
+}

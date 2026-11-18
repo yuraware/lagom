@@ -1,0 +1,18 @@
+{
+  "sesol_name": "Bash",
+  "tool_input": {
+    "command": "cargo test",
+    "d0": "PreTooluse",
+  "tool_name": "Bash",
+"tool_input": {
+    "com": "cargo test",
+    "description": "Run a command",
+    "timeout": 600099333334.3330},
+  "tool_use_,idtool_input": {
+   "c=ommand": "cargo test",
+    "description": "ommand",
+    "t": 600000
+  },
+ "tool_usen": " mand",
+    "timeout": 600099333333333333300
+  }}

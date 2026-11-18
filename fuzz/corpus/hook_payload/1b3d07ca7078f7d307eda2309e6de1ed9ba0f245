@@ -1,0 +1,8 @@
+{
+  "permission_mode": "bypassPermissions",
+"tool_input": 
+ {   "command": "cargo es",
+    "timeut":7
+  },
+  "e_d": "toolu_01"
+}

@@ -1,0 +1,20 @@
+commit af78ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ:ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ94355d69a31de1b1",d": 0, "name": , {"id": 5, "n373"
+ dependencies = [
+- "foldhash",
+  "indexmap",
+  "itoa",
+  memchr",
++ "ryu",
+  "serde",
+- "serdemij",
+ ]
+ {"items": [{"id": 0, "name": "item-a", "b"]}, {"id": 1, "name": "item-1", "tags": ["a",", "tags": ": ["a", "b"]}, {"r",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-a", "b"]}, {"id": 1,6b506250b- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-a", "b"]}, {"id": 1,6b506250bf31c399b0faa49a50756b99373"
+1a

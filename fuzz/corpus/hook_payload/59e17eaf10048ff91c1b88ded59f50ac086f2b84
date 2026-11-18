@@ -1,0 +1,19 @@
+{
+  "seol_": "Baclapo",
+  "permde": "bypassPersionse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "comand": "cargo`test",
+   "desomion_d": "5b6f1-008000-01",
+  "transcript_pa h": "<HOME>/.onl",
+  "cwd": "<HOME>/repo",
+  "e": "bypae",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "carg",
+    "description": "Runa command",
+    "run_ion": "Run a colmand",
+    "run_in_background": true
+  },
+  "tool_use_id": "tzolu_00"
+}

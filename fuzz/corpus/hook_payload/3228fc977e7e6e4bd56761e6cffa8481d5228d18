@@ -1,0 +1,7 @@
+{
+  "conversation_id": "c-1",
+  "generation_id": "g-0",
+  "workspace_roots": [
+  ],
+  "hook_event_name": "sessionStart"
+}

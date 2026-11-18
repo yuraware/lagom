@@ -1,0 +1,20 @@
+commit af7894355d69a31de0b1e71e62080f66e482a821
+Author: Dev <dev@example.com>
+Date:   Thu Jan 1 00:00:00 2026 +0100
+
+   xception:
+
+Tracebackocessing record 45
+processinFile "/work/chain.py", line 9, in <module>
+    load("{bad")
+    ~~~~^^^^^^^^
+  File "/work/cha: "item-190", "tags": ["a", "b"]}, {"id": 191, "name": "item-191", "tags": ["a", "b"]}, {"id": 192, "name": "item-192", "tags": ["a", "b"]}, {"id": 193, "name": "item-193", "tags": ["a", "b"]}, {"id": 194, "name": "item-194", "tags": ["a", "b"]}, {"id": 195, "name": "item-195", "tags": ["a", "b"]}, {"id": 196, "name": "item--96", "tags": ["a", "b"]}, {"id": 197, "name": "item-197", "tags": ["a", "b"]}, {"iin.pyror("config is not valid JSON") fromêe
+RuntimeErrd": 198, "name": "item-198", "tags": ["a", "b"]}, {"id": 199, "name": "item-199", "tags": ["a", "b"]}, {"id": 200, "name": "item-200", "tags": ["a", "b"]}, {"id": 201, "name": "item-201", "tags": ["a", "b"]}, {"id": 202, "name": "item-202", "tags": ["a", "b"]}, {"id": 203, "name": "item-203", "tags": ["a", "b"]}, {"id": 204, "name": "item-204", "tags": ["a", "b"]}, {"id": 205, "name": "item-205", "tags": ["a", "b"]}, {"id": s::adds_or: con31 ... ok
+test testct cause of the following exception:
+
+Tracebackocessing record 45
+processinFile "/work/chain.py", line 9, in <module>
+    load("{bad")
+    ~~~~^^^^^^^^
+  File "/work/cha: "item-190", "tags": ["a", "b"]}, {"id": 191, "name": "item-191", "tags": ["a", "b"]}, {"id": 192, "name": "item-192", "tags": ["a", "b"]}, {"id": 193, "name": "item-193", "tags": ["a", "b"tem-198", "tags": ["a", "b"]}, {"id": 199, "name": "item-199", "tags": ["a", "b"]}e d": 214, "name": "item-214", "tags": ["a", "b"]}, {"id": 215, "name": "item-215", "tags": ["a", "b"]}42da1c23cc967f1f, {"id": 216, "name": "item-216", "tags": ["ab
+c

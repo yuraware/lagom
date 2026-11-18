@@ -1,0 +1,241 @@
+On branch main
+.........................1.....................5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+.opkg_0/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_racked_14.txt
+	untracked_15.txt
+	untracked_16.7.txt
+	untracked_48.txt
+	untracked_49.txt
+	untrecdk5a_.txt
+	untracked_50.txt
+	untracked_51.txt
+	untracked_52.txt
+	untracked_53.txt
+	untracked_54.txt
+	untracked_55.y
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+
+data_5.json
+data_6.json
+data_7.jsonÿÿÿÿÿÿÿ
+data_8.json
+data_9.json
+
+./pkg_5:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py(mdo_2.py
+mod_3.py
+mod_4.py
+mod_5.p_11/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.jsoa_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_11:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+diff --git a/Cargo.lock b/C8argo.lock
+index a453966..be5f8ff 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -8,12 +8,6 @@ version = "1.0.3"
+ source = "registry+https://github.com…/C8argo.lock
+index a453966..be5f8ff 10json
+
+./pkg_5:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py(mdo_2.py
+mod_3.py
+mod_4.py
+mod_5.p_11/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.jsoa_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+dpy
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+diff --git a/Cargo.lock b/C8argo.lock
+index a453966..be5f8ff 10json
+
+./pkg_5:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py(mdo_2.py
+mod_3.py
+mod_4.py
+mod_5.p_11/sub:
+data_0.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_9.json
+data_9.json
+
+./pkg_11:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+diff --git a/Cargo.lock b/C8argo.lock
+index a453y
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.pyÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ
+sub
+
+./pkg_0/sub:
+data_0.json
+data_1.js‘‘õ”ata_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.json
+data_9.json
+
+./pkg_1:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+mod_5.py
+mod_6.py
+mod_7.py
+mod_8.py
+mod_9.py
+sub
+
+./pkg_1/sub:
+data_0.json
+data_1.json
+data_10.json
+data_11.json
+data_12.json
+data_13.json
+data_14.json
+data_2.jsome = "zmij"
+-version = "1.0.23"
+-source = "registry+hpy
+mod_to commit (ustt4e "git add" and/or "git commit -.a")

@@ -1,0 +1,33 @@
+[1m[92m   Compiling[0m crate_ok v0.1.0 (/work/crate_ok)
+[1m[91merror[E0308][0m[1m: mismatched types[0m
+ [1m[94m--> [0msrc/main.rs:3:18
+  [1m[94m|[0m
+[1m[94m3[0m [1m[94m|[0m     let n: u32 = "seven";
+  [1m[94m|[0m            [1m[94m---[0m   [1m[91m^^^^^^^[0m [1m[91mexpected `u32`, f types[0m
+ [1m[94m--> [0msrc/main.rs:3:18
+  [1m[94m|[0m
+[1m[94m3[0m [1m[94m|[0m     let n: u32 = "seven";²
+  [1m[94m|[0m            [1m[94m---[0m   [1m[91m^^^^^^^[0m [1m[91mexpected `u32`m            [1m[94m|[0m
+  [1m[94m|[0m            [1m[94mexpected due to this[0m
+
+[1mFor more information about this error,data_2.json
+data_3.json
+data_4.json
+data_5.json
+data_6.json
+data_7.json
+data_8.jPon
+data_2.json
+
+./pkg_7:
+mod_0.py
+mod_1.py
+mod_10.py
+mod_11.py
+mod_12.py
+mod_13.py
+mod_14.py
+mod_2.py
+mod_3.py
+mod_4.py
+k` (bin "crate_ok") due to 1 previous error

@@ -1,0 +1,33 @@
+{
+  "000000000?00": "Bash",
+  "tool_input": {
+    "command": "cargo test",
+    "dinpu|": {
+ "tiame": "Bash",
+  "tool_input": {
+    "cVmmad":3333333333333333333333000
+  },
+  "tool_use_id":  [
+    "<HOME>/repo"
+  ],
+  "hookt": 333333333333300
+  },
+  "tool_uu|": {
+ "tiamool_input": {
+    "cd": "cargo test",
+    "dit": {
+ "timeout ":600099333333.333333333333300
+  },
+  "tion": "nd",
+    "timeout": 63333333333333333333000
+  },
+  "tool_use_id":33300
+  },
+  "tool_usscriptionsscription": "Rum ca n-and",
+    "tiout": 6000933333333333333000
+  },
+ "toolts": [
+    "<Ho"
+  ],
+  "hook_event_nazzzzzzzzzzzzzzzzzzzzzzzzme": "sessionStart"
+}

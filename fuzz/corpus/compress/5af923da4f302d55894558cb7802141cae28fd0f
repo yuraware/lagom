@@ -1,0 +1,21 @@
+.........................................‡........‡...............",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "itee-0", "tags": ["a", "b"] ,}{"id": 1, "name": "item-1", "tags": ["a", "b"]}, {"id": 2, "name source = "registry+https://github.com/rust-lang/crates.io-indÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ 2, "name source = "registry+https://github.com/rust-lang/crÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿex"
+ checksum = "00d174d5400e5e8fd687ad1049e2f5sh",
+  "indexmap",
+  "itoa",
+  "memchr",
++ "ryu",
+  "serde",
+- "serde_core",
+- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"] ,}{"id": 1û "name": "- "zmij",
+ ]
+ {"items": [{"id": 0, "name": "item-0", "tags": ["a", "b"] ,}{"id": 1, "name": "item-1", "tÀÀÀÀÀÀÀÀÀÀÀÀÀÀÀÀÀÀÀÀÀÀ-lang/crates.io-index"
+ checksum = "a000000000000000000ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ7.b06195f9890bdbcba760d3e246563"py
+m
+-

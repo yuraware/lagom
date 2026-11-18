@@ -1,0 +1,7 @@
+{
+ "tool_input": {
+   "command":"go t", "rt": {
+   "d": true },
+  "tond": true
+ },
+"":""}

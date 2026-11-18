@@ -1,0 +1,24 @@
+   Compiling crate_ok v0.1.0 (/work/crate_ok)
+    Finished `test` profile [unoptimized + debuginfo] target(s) ihandler_0_0_3(request):
+tree/pkg_0/mod_0.py:13:def handler_0_0_4(request):
+tree/pkg_0/mod_0.py:16:def handler_0_0_5(request):
+tree/pkg_0/mod_0.py:19:def handler_0_0_6(request):
+tree/pkg_0/mod_0.py:22:def handler_0_0_7(request):
+tree/pkg_0/mod_1.py:1:def handler_0_1_0(request):
+tree/pkg_0/mod_1.py:4:def handler_0_1_1(request):
+tree/pkg_0/mod_1.py:7:def has_25 ... ok
+testtree/pkg_0/mod_0.py:1:def handler_0_0_0(request):
+tree/pkg_0/mod_0.py:4:def handler_0_0_1(request):
+tree/pkg_0/mod_0.py:7:def handler_0_0_2(request):
+tree/pkg_0/mod_0.py:10:def handler_0_0_3(request):
+tree/pkg_0/mod_0.py:13:def handler_0_0_4(request):
+tree/pkg_0/mod_0.py:16:def handler_0_0_5(request):
+tree/pkg_0/mod_0.py:19:def handler_0_0_6(request):
+tree/pkg_0/mod_0.py:22:def handler_0_0_7(request):
+tree/pkg_0/mod_1.py:1:def handler_0_1_0(request):
+tree/pkg_0/mod_1.py:4:defdds_29 ... ok
+test tests::adds_3 ... ok
+test tests::adds_30 ... ok
+test tests::adds_31 ... ok
+test tests::_2r(equest):
+tree/adpkdsg

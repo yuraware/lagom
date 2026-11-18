@@ -1,0 +1,9 @@
+{
+   "l_name": "",
+  "tool_input": {
+   "tol_input": {
+    "cion": "Run a command",
+    "ut": {
+    "command": "c(argo &test",
+    "toolu_01"
+}

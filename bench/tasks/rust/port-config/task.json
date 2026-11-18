@@ -1,0 +1,12 @@
+{
+  "prompt": "port() in src/lib.rs silently falls back to 8080 when PORT holds something invalid, such as \"80a\" or \"70000\". Change it to return Result<u16, String>: Ok(8080) when PORT isn't set, Ok(n) for a valid port from 1 to 65535, and otherwise an error whose message includes the bad value.",
+  "check": [
+    "cargo",
+    "test",
+    "--offline",
+    "--quiet",
+    "--test",
+    "hidden"
+  ],
+  "bash": true
+}

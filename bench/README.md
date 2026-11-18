@@ -64,10 +64,10 @@ On the scratch-project corpus and the golden cases (67 cases; the `compress` fam
 python3 -I bench/ab.py --selftest                                   # every task's references
 python3 -I bench/ab.py --agent fake --repeats 2                     # free dry run (bench/fake_agent.py)
 python3 -I bench/ab.py --agent claude --arms baseline,terse-control,lagom:terse \
-    --repeats 3 --budget-usd 20 [--model sonnet] [--task py-off-by-one,py-add-flag]
+    --repeats 3 --budget-usd 20 [--model sonnet] [--task smoke/py-off-by-one,smoke/py-add-flag]
 python3 -I bench/ab.py --agent codex --max-runs 12 ...              # Codex reports no cost
 python3 -I bench/ab.py --agent claude --auth local --model qwen3-coder \
-    --arms baseline,lagom:terse --task py-off-by-one,py-add-flag      # free smoke run on Ollama
+    --arms baseline,lagom:terse --task smoke/py-off-by-one,smoke/py-add-flag   # free smoke run
 ```
 
 - **Sign-in (`--auth`):**
@@ -82,4 +82,9 @@ python3 -I bench/ab.py --agent claude --auth local --model qwen3-coder \
 - **Spend:** `--budget-usd` is required for Claude Code. No run starts once it is reached, each call gets `--max-budget-usd` with what is left, and a run that reports no cost stops the harness. A paid run refuses to start if the selftest fails.
 - **Results:** one JSON line per run in `bench/results/<date>/runs.jsonl` (not committed): the auth mode, status (`ok`, `agent_error`, `bad_output`, `timeout`, `rate_limited`), pass, cost, turns, durations, tokens from `modelUsage` (which counts subagents), and for Lagom arms how often the style was injected and output compressed. A failed or timed-out run is recorded, never dropped.
 
-A task is a folder in `bench/tasks/`: `task.json` (`prompt`, `check` as an argument list, `bash`), `fixture/`, `hidden/` and `solution/`. The selftest requires the fixture alone to fail its checks and fixture plus solution to pass.
+A task is a folder under `bench/tasks/<suite>/`: `task.json` (`prompt`, `check` as an argument list, `bash`), `fixture/`, `hidden/` and `solution/`, named by its path (`rust/off-by-one`). `--tasks bench/tasks/rust` runs one suite. The selftest requires the fixture alone to fail its checks and fixture plus solution to pass.
+
+| Suite | Tasks | Checks |
+|---|---|---|
+| `smoke/` | 2 small Python tasks, for the mini run and the local smoke run | a hidden Python script |
+| `rust/` | 10 tasks on tiny dependency-free crates: an off-by-one, an overflow, a panicking iterator, case and punctuation in word counts, a CLI flag, a `Display` impl, panics turned into `Result`, a config value checked, a stable sort, and a field renamed across a crate | a hidden `cargo test --test hidden`; the agent may run commands (in the sandbox) |

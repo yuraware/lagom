@@ -1,0 +1,12 @@
+{
+  "prompt": "midpoint(a, b) in src/lib.rs panics when a + b doesn't fit in a u32. Make it correct for every pair of u32 values, rounding down.",
+  "check": [
+    "cargo",
+    "test",
+    "--offline",
+    "--quiet",
+    "--test",
+    "hidden"
+  ],
+  "bash": true
+}

@@ -1,0 +1,12 @@
+{
+  "prompt": "parse_duration in src/lib.rs panics on input it can't read. Change it to return Result<u64, String>: an error with a message for empty input, a missing or invalid number, or an unknown unit (and never a panic, whatever the input). Valid input must give the same numbers as before.",
+  "check": [
+    "cargo",
+    "test",
+    "--offline",
+    "--quiet",
+    "--test",
+    "hidden"
+  ],
+  "bash": true
+}

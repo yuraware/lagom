@@ -1,0 +1,12 @@
+{
+  "prompt": "Rename the `name` field of User to `display_name` everywhere in this crate, including new()'s parameter. Behavior must not change.",
+  "check": [
+    "cargo",
+    "test",
+    "--offline",
+    "--quiet",
+    "--test",
+    "hidden"
+  ],
+  "bash": true
+}

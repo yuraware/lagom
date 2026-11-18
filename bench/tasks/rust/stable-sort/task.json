@@ -1,0 +1,12 @@
+{
+  "prompt": "sort_people in src/lib.rs should sort people oldest first, and keep people of the same age in the order they were given. It does neither. Fix it.",
+  "check": [
+    "cargo",
+    "test",
+    "--offline",
+    "--quiet",
+    "--test",
+    "hidden"
+  ],
+  "bash": true
+}

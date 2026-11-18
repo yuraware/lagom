@@ -1,0 +1,12 @@
+{
+  "prompt": "linecount prints how many lines a file has, as `<n> lines`. Add a --words flag that prints the number of words instead, as `<n> words` (words are separated by whitespace). The flag may come before or after the file name. Without the flag the output must not change.",
+  "check": [
+    "cargo",
+    "test",
+    "--offline",
+    "--quiet",
+    "--test",
+    "hidden"
+  ],
+  "bash": true
+}

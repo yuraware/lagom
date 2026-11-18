@@ -1,0 +1,10 @@
+#[derive(Debug, Clone, PartialEq)]
+pub struct Person {
+    pub name: String,
+    pub age: u32,
+}
+
+/// Oldest first; people of the same age keep the order they were given in.
+pub fn sort_people(people: &mut [Person]) {
+    people.sort_by(|a, b| b.age.cmp(&a.age));
+}

@@ -10,7 +10,7 @@ One small Rust binary (~0.6 MB, no runtime, no daemon) that plugs into **Claude 
 - **Compressor.** Long command output is shortened before the agent reads it. The start, the end and the error, warning and `file:line` lines are kept first. Exit codes are unchanged; anything dropped stays available through `lagom recall <id>`.
 - **Skills.** `lagom`, `lagom-run`, `lagom-review`, `lagom-commit`, `lagom-stats`.
 
-Status: **0.1.0, first public preview.** Tested on macOS; Linux should work; Windows is not supported yet.
+Status: **0.1.1, a security fix for the first public preview.** Tested on macOS; Linux should work; Windows is not supported yet.
 
 ## Install
 

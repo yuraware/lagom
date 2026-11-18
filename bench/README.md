@@ -1,5 +1,7 @@
 # Benchmarks
 
+How the numbers are made, for readers outside the project: [docs/benchmark-methodology.md](../docs/benchmark-methodology.md).
+
 | What | Where |
 |---|---|
 | Hook, `lagom run` and compression speed | `bench/latency.sh` (hyperfine; exit 1 when a median is over budget) |

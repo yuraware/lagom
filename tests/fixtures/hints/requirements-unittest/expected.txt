@@ -1,0 +1,1 @@
+Python project. Prefer the standard library, then existing deps: numpy, pandas. No new packages without asking. Tests use unittest.

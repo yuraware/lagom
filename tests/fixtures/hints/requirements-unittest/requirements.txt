@@ -1,0 +1,6 @@
+# Runtime dependencies
+numpy>=1.26
+pandas==2.2.2  # data frames
+-r more.txt
+-e git+https://example.com/tool.git#egg=tool
+https://example.com/wheel.whl

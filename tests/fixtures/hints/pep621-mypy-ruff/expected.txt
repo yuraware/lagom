@@ -1,0 +1,1 @@
+Python project. Prefer the standard library, then existing deps: httpx, pydantic, SQLAlchemy, stripe. No new packages without asking. Type-checked with mypy: add type hints. Keep it clean under ruff. Tests use pytest.

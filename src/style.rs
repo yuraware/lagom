@@ -33,7 +33,7 @@ pub fn valid_name(name: &str) -> bool {
 }
 
 /// Nearest `.lagom/<rel>` walking up from `cwd`.
-fn find_project_file(cwd: &Path, rel: &str) -> Option<PathBuf> {
+pub(crate) fn find_project_file(cwd: &Path, rel: &str) -> Option<PathBuf> {
     cwd.ancestors()
         .map(|dir| dir.join(".lagom").join(rel))
         .find(|p| p.is_file())
@@ -112,52 +112,6 @@ pub fn strip_frontmatter(text: &str) -> String {
     t.trim().to_string()
 }
 
-fn read_styles_config(path: &Path) -> Option<Vec<String>> {
-    let v: serde_json::Value = serde_json::from_str(&fs::read_to_string(path).ok()?).ok()?;
-    let list = v.get("styles")?.as_array()?;
-    Some(
-        list.iter()
-            .filter_map(|s| s.as_str())
-            .map(String::from)
-            .collect(),
-    )
-}
-
-fn read_config_bool(path: &Path, key: &str) -> Option<bool> {
-    let v: serde_json::Value = serde_json::from_str(&fs::read_to_string(path).ok()?).ok()?;
-    v.get(key)?.as_bool()
-}
-
-/// Whether the pre-tool hook may rewrite commands to `lagom run`. Off with
-/// `LAGOM_REWRITE=off` (or `0`/`false`), or `"rewrite": false` in the user's
-/// `config.json` or the project's `.lagom/config.json`. A project file can only turn
-/// rewriting off: turning it off is always safe, so it needs no trust, but a cloned
-/// repository must not turn back on what the user turned off.
-pub fn rewrite_enabled(cwd: &Path) -> bool {
-    if let Ok(v) = std::env::var("LAGOM_REWRITE") {
-        return !matches!(
-            v.trim().to_ascii_lowercase().as_str(),
-            "0" | "off" | "false" | "no"
-        );
-    }
-    let off = |v: Option<bool>| v == Some(false);
-    let user = read_config_bool(&config_dir().join("config.json"), "rewrite");
-    let project =
-        find_project_file(cwd, "config.json").and_then(|p| read_config_bool(&p, "rewrite"));
-    !(off(user) || off(project))
-}
-
-/// Active style names. An empty list means "off".
-pub fn active(cwd: &Path) -> Vec<String> {
-    if let Ok(env) = std::env::var("LAGOM_STYLES") {
-        return parse_list(&env);
-    }
-    find_project_file(cwd, "config.json")
-        .and_then(|p| read_styles_config(&p))
-        .or_else(|| read_styles_config(&config_dir().join("config.json")))
-        .unwrap_or_else(|| DEFAULT_STYLES.iter().map(|s| s.to_string()).collect())
-}
-
 pub fn parse_list(s: &str) -> Vec<String> {
     s.split([',', ' '])
         .map(str::trim)
@@ -224,7 +178,7 @@ fn lagom_tag_len(s: &str) -> Option<usize> {
 
 /// Text injected at session start. Empty when styles are off.
 pub fn render(cwd: &Path) -> String {
-    let names = active(cwd);
+    let names = crate::config::Config::load(cwd).styles;
     let styles: Vec<Style> = names.iter().filter_map(|n| load(n, cwd)).collect();
     if styles.is_empty() {
         return String::new();
@@ -266,13 +220,13 @@ pub fn save_active(names: &[String], project_dir: Option<&Path>) -> std::io::Res
             crate::store::mark_dir(parent);
         }
     }
-    let mut v: serde_json::Value = fs::read_to_string(&path)
-        .ok()
-        .and_then(|t| serde_json::from_str(&t).ok())
-        .filter(|v: &serde_json::Value| v.is_object())
-        .unwrap_or_else(|| json!({}));
-    v["styles"] = json!(names);
-    fs::write(&path, serde_json::to_string_pretty(&v)? + "\n")?;
+    // A file that isn't valid JSON is the user's to fix: never replace it.
+    let mut v = crate::config::read_file(&path)
+        .map_err(std::io::Error::other)?
+        .unwrap_or_default();
+    v.insert("styles".into(), json!(names));
+    let text = serde_json::to_string_pretty(&serde_json::Value::Object(v))?;
+    fs::write(&path, text + "\n")?;
     Ok(path)
 }
 

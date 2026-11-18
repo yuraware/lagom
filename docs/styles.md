@@ -44,6 +44,8 @@ Active styles come from the first of these that is set:
 2. `.lagom/config.json` in the project.
 3. `~/.config/lagom/config.json`.
 
+A config file that isn't valid JSON is ignored, named by `lagom status`, and never overwritten: `lagom style use` refuses to save until you fix it. Unknown keys and wrong value types are listed there too.
+
 ## Turn off
 
 `lagom style use off` (or `--project` for one repo). `LAGOM_STYLES=off` for one session.

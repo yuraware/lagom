@@ -1438,3 +1438,32 @@ fn a_closed_pipe_ends_lagom_quietly_and_run_keeps_the_exit_code() {
     assert!(!stderr.contains("panicked"), "{stderr}");
     assert_eq!(status.code(), Some(3));
 }
+
+#[test]
+fn a_malformed_config_file_is_reported_and_never_overwritten() {
+    let home = sandbox("malformed-config");
+    let file = home.join(".config/lagom/config.json");
+    fs::create_dir_all(file.parent().unwrap()).unwrap();
+    let broken = "{\"styles\": [\"terse\",]  // a typo\n";
+    fs::write(&file, broken).unwrap();
+
+    let out = lagom(&home, &["style", "use", "lean-code"], None);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("not valid JSON"));
+    assert_eq!(
+        fs::read_to_string(&file).unwrap(),
+        broken,
+        "the file survives"
+    );
+
+    let status = text(&lagom(&home, &["status"], None));
+    assert!(
+        status.contains("config: ") && status.contains("not valid JSON"),
+        "{status}"
+    );
+    // Lagom ignores the bad file and keeps working with the defaults.
+    assert!(
+        status.contains("style terse") && status.contains("style lean-code"),
+        "{status}"
+    );
+}

@@ -934,6 +934,29 @@ fn cmd_stats(a: &Args) -> ExitCode {
 mod tests {
     use super::*;
 
+    #[test]
+    fn the_stats_skill_runs_the_cli_with_flags_it_has() {
+        let (_, skill) = install::SKILLS
+            .iter()
+            .find(|(name, _)| *name == "lagom-stats")
+            .unwrap();
+        assert!(skill.contains("`lagom stats --days 1`"));
+        assert!(skill.contains("exactly as it is"));
+        // Every flag the skill names must exist, so the skill can't drift from the CLI.
+        for flag in skill
+            .split(|c: char| c == '`' || c.is_whitespace())
+            .filter(|w| {
+                w.strip_prefix("--")
+                    .is_some_and(|f| f.starts_with(|c: char| c.is_ascii_alphabetic()))
+            })
+        {
+            assert!(
+                STATS_USAGE.contains(flag),
+                "the skill names {flag}, which lagom stats lacks"
+            );
+        }
+    }
+
     fn answer(input: &str) -> bool {
         let mut out = Vec::new();
         let yes = confirm("Install?", &mut input.as_bytes(), &mut out);

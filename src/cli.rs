@@ -675,9 +675,21 @@ fn cmd_experiment(args: &[String]) -> ExitCode {
                         holdout * 100.0
                     );
                     println!("See results any time with `lagom stats --experiment`.");
-                    println!(
-                        "Other tools that add answer rules at session start (Caveman, for example) run in both groups and blur the result: turn them off while it runs."
-                    );
+                    // Other tools' session-start text reaches both groups and blurs the
+                    // result (D-38): name the ones we can see.
+                    let others = crate::install::other_context_hooks();
+                    if others.is_empty() {
+                        println!(
+                            "Other tools that add answer rules at session start (Caveman, for example) run in both groups and blur the result: turn them off while it runs."
+                        );
+                    } else {
+                        println!(
+                            "These hooks from other tools add text at session start in both groups and blur the result. Turn them off while the experiment runs:"
+                        );
+                        for line in others {
+                            println!("  {line}");
+                        }
+                    }
                     ExitCode::SUCCESS
                 }
                 Err(e) => {

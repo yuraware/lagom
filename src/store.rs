@@ -457,6 +457,20 @@ pub fn project_id(dir: &Path) -> Option<String> {
     Some(content_id(&root.to_string_lossy()))
 }
 
+/// `stats.jsonl` moves to `stats.1.jsonl`, replacing the older file, once it reaches this
+/// size, so the stats never take much more than twice this. 16 MiB holds months of events.
+const STATS_CAP: u64 = 16 * 1024 * 1024;
+
+/// Every recorded event, oldest first: the rotated file, then the current one.
+pub fn read_stats() -> String {
+    let dir = lagom_dir();
+    let mut text = fs::read_to_string(dir.join("stats.1.jsonl")).unwrap_or_default();
+    if let Ok(current) = fs::read_to_string(dir.join("stats.jsonl")) {
+        text.push_str(&current);
+    }
+    text
+}
+
 /// Append one event to `stats.jsonl`. Errors are ignored: stats must never break a command.
 pub fn record(event: serde_json::Value) {
     record_for(event, &Attribution::default());
@@ -472,10 +486,13 @@ pub fn record_for(mut event: serde_json::Value, who: &Attribution) {
     let Ok(dir) = lagom_home() else {
         return;
     };
-    if let Ok(mut file) = private_file(
-        fs::OpenOptions::new().append(true),
-        &dir.join("stats.jsonl"),
-    ) {
+    let path = dir.join("stats.jsonl");
+    // If two commands cross the cap at the same moment, the second rename moves only the
+    // few lines written since over the rotated file. Rare, and stats never block a command.
+    if fs::metadata(&path).is_ok_and(|m| m.len() >= STATS_CAP) {
+        let _ = fs::rename(&path, dir.join("stats.1.jsonl"));
+    }
+    if let Ok(mut file) = private_file(fs::OpenOptions::new().append(true), &path) {
         let _ = writeln!(file, "{event}");
     }
 }
@@ -486,9 +503,7 @@ pub fn record_for(mut event: serde_json::Value, who: &Attribution) {
 pub fn session_styles() -> (std::collections::HashMap<String, String>, Option<u64>) {
     let mut out = std::collections::HashMap::new();
     let mut since: Option<u64> = None;
-    let Ok(text) = fs::read_to_string(lagom_dir().join("stats.jsonl")) else {
-        return (out, since);
-    };
+    let text = read_stats();
     for line in text.lines() {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
             continue;
@@ -544,9 +559,7 @@ pub struct Bucket {
 
 pub fn totals() -> Totals {
     let mut t = Totals::default();
-    let Ok(text) = fs::read_to_string(lagom_dir().join("stats.jsonl")) else {
-        return t;
-    };
+    let text = read_stats();
     for line in text.lines() {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
             continue;

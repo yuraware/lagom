@@ -1,0 +1,25 @@
+{
+  "prompt": "The app package must move from oldlib to newlib: make every module under app/ use newlib's fetch instead of oldlib's, then delete oldlib.py.",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/output-heavy/gen_modules.py",
+    "check",
+    "150"
+  ],
+  "bash": true,
+  "setup": [
+    "python3",
+    "-I",
+    "{bench}/tasks/output-heavy/gen_modules.py",
+    "write",
+    "150"
+  ],
+  "solve": [
+    "python3",
+    "-I",
+    "{bench}/tasks/output-heavy/gen_modules.py",
+    "solve",
+    "150"
+  ]
+}

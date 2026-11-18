@@ -10,10 +10,11 @@ each run in a fresh folder and judged by hidden checks. Standard library only.
 Arms: `baseline`; `terse-control`, with only the instruction "Answer concisely."; and
 `lagom:<style>`, with Lagom's hooks and that style installed in the run's folder.
 
-A task is a folder under bench/tasks/ (grouped in suites: smoke/, rust/, python/) with task.json (`prompt`, `check` as an argument
-list, `bash`: whether the agent may run commands), fixture/ (what the agent starts
-with), hidden/ (the checks, copied in only after the agent stops) and solution/ (a
-reference the checks must pass). `--selftest` runs every task's references: the
+A task is a folder under bench/tasks/ (grouped in suites: smoke/, rust/, python/,
+output-heavy/) with task.json (`prompt`, `check` as an argument list, `bash`: whether the
+agent may run commands, and optional `setup` and `solve` commands), fixture/ (what the
+agent starts with, plus whatever `setup` generates there), hidden/ (checks copied in only
+after the agent stops) and solution/ or `solve` (a reference the checks must pass). `--selftest` runs every task's references: the
 fixture alone must fail its checks and fixture plus solution must pass. A paid run
 refuses to start if it fails.
 
@@ -78,10 +79,14 @@ def load_tasks(root, only=None):
             meta = json.load(f)
         if not isinstance(meta.get("prompt"), str) or not isinstance(meta.get("check"), list):
             raise UsageError(f"{meta_path}: needs a `prompt` string and a `check` argument list")
-        # `{bench}` in a check is this folder, for runners shared by a suite.
-        check = [a.replace("{bench}", HERE) for a in meta["check"]]
-        tasks.append({"name": name, "dir": d, "prompt": meta["prompt"], "check": check,
-                      "bash": bool(meta.get("bash", False))})
+
+        # In commands, `{bench}` is this folder (runners shared by a suite) and `{task}` the
+        # task's folder (scripts the agent never sees).
+        def cmd(key, d=d, meta=meta):
+            return [a.replace("{bench}", HERE).replace("{task}", d) for a in meta[key]] if meta.get(key) else None
+
+        tasks.append({"name": name, "dir": d, "prompt": meta["prompt"], "check": cmd("check"),
+                      "setup": cmd("setup"), "solve": cmd("solve"), "bash": bool(meta.get("bash", False))})
     missing = sorted(set(only or []) - {t["name"] for t in tasks})
     if missing:
         raise UsageError(f"no such task: {', '.join(missing)}")
@@ -96,13 +101,19 @@ def inside_git(path):
 
 
 def workspace(task, overlay=None):
-    """A fresh folder outside any git repository with the task's fixture in `work/`."""
+    """A fresh folder outside any git repository with the task's fixture in `work/`, after
+    the task's `setup` command (which writes large generated files) has run there."""
     base = tempfile.mkdtemp(prefix="lagom-ab-")
     if inside_git(base):
         shutil.rmtree(base)
         raise UsageError(f"{tempfile.gettempdir()} is inside a git repository: set TMPDIR elsewhere")
     work = os.path.join(base, "work")
     shutil.copytree(os.path.join(task["dir"], "fixture"), work)
+    if task.get("setup"):
+        p = subprocess.run(task["setup"], cwd=work, capture_output=True, text=True, timeout=CHECK_TIMEOUT)
+        if p.returncode != 0:
+            shutil.rmtree(base, ignore_errors=True)
+            raise UsageError(f"{task['name']}: setup failed: {(p.stdout + p.stderr).strip()[-300:]}")
     if overlay:
         shutil.copytree(overlay, work, dirs_exist_ok=True)
     return base, work
@@ -110,7 +121,9 @@ def workspace(task, overlay=None):
 
 def run_check(task, work):
     """Copy the hidden checks in and run them: (passed, last lines of their output)."""
-    shutil.copytree(os.path.join(task["dir"], "hidden"), work, dirs_exist_ok=True)
+    hidden = os.path.join(task["dir"], "hidden")
+    if os.path.isdir(hidden):
+        shutil.copytree(hidden, work, dirs_exist_ok=True)
     try:
         p = subprocess.run(task["check"], cwd=work, capture_output=True, text=True, timeout=CHECK_TIMEOUT)
     except subprocess.TimeoutExpired:
@@ -125,12 +138,19 @@ def selftest(tasks):
     problems = []
     for t in tasks:
         solution = os.path.join(t["dir"], "solution")
-        if not os.path.isdir(solution):
-            problems.append(f"{t['name']}: no solution/ folder")
+        if not os.path.isdir(solution) and not t.get("solve"):
+            problems.append(f"{t['name']}: no solution/ folder or `solve` command")
             continue
-        for label, overlay, want in (("fixture alone", None, False), ("solution", solution, True)):
-            base, work = workspace(t, overlay)
+        overlay = solution if os.path.isdir(solution) else None
+        for label, use, want in (("fixture alone", None, False), ("solution", overlay, True)):
             try:
+                base, work = workspace(t, use)
+            except UsageError as e:
+                problems.append(str(e))
+                break
+            try:
+                if label == "solution" and t.get("solve"):
+                    subprocess.run(t["solve"], cwd=work, capture_output=True, timeout=CHECK_TIMEOUT)
                 passed, _ = run_check(t, work)
             finally:
                 shutil.rmtree(base, ignore_errors=True)
@@ -295,7 +315,7 @@ def lagom_activity(lagom_home):
     return counts
 
 
-def agent_env(base, arm, task_dir, agent, auth="api", local_url=LOCAL_URL):
+def agent_env(base, arm, task_dir, agent, auth="api", local_url=LOCAL_URL, solve=None):
     env = dict(os.environ)
     if auth == "login":
         # Without a key or another endpoint, the agent signs in with its own login.
@@ -313,6 +333,7 @@ def agent_env(base, arm, task_dir, agent, auth="api", local_url=LOCAL_URL):
         env["LAGOM_DISABLE"] = "1"   # a user-level Lagom hook, if one still loads, does nothing
     if agent == "fake":
         env["AB_FAKE_SOLUTION"] = os.path.join(task_dir, "solution") if task_dir else ""
+        env["AB_FAKE_SOLVE"] = json.dumps(solve or [])
     return env
 
 
@@ -322,7 +343,7 @@ def one_run(args, task, arm, repeat, budget_left):
     base, work = workspace(task)
     try:
         prepare(work, args.agent, arm, task, args.lagom_bin)
-        env = agent_env(base, arm, task["dir"], args.agent, args.auth, args.local_url)
+        env = agent_env(base, arm, task["dir"], args.agent, args.auth, args.local_url, task.get("solve"))
         cmd = command(args.agent, args.agent_bin, task["prompt"], arm, args.model, task["bash"], budget_left, args.auth)
         started = datetime.datetime.now(datetime.timezone.utc)
         code, out, err = run_agent(cmd, work, env, args.timeout)

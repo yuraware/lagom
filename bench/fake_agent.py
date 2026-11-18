@@ -2,7 +2,8 @@
 """A stand-in for `claude -p --output-format json`, for free dry runs of bench/ab.py.
 
 FAKE_AGENT_MODE picks what it does (default `solve`):
-  solve    copy the task's reference solution in (AB_FAKE_SOLUTION) and succeed
+  solve    apply the task's reference solution (AB_FAKE_SOLUTION, or the AB_FAKE_SOLVE
+           command) and succeed
   noop     change nothing and succeed, so the hidden check fails
   crash    exit 1 with no output
   garbage  print text that isn't JSON
@@ -67,6 +68,9 @@ def main(argv):
     solution = os.environ.get("AB_FAKE_SOLUTION")
     if mode == "solve" and solution and os.path.isdir(solution):
         shutil.copytree(solution, cwd, dirs_exist_ok=True)
+    solve = json.loads(os.environ.get("AB_FAKE_SOLVE") or "[]")
+    if mode == "solve" and solve:
+        subprocess.run(solve, cwd=cwd, capture_output=True)
     error = mode == "error"
     model = "fake-model"
     print(json.dumps({

@@ -5,8 +5,10 @@
 #   bench/latency.sh [out.json]      default out: target/bench/latency.json
 #
 # Runs against a throwaway HOME, so your agent config and Lagom stats are untouched.
-# Budgets (checked in CI by QA-08): hooks < 10 ms, run overhead < 5 ms, 1 MB < 50 ms
+# Budgets on the median (D-36): hooks < 10 ms, run overhead < 5 ms, 1 MB < 50 ms
 # (CI runners are slower and noisier than a laptop; 20 ms was the laptop target).
+# Exits 1 when a budget is broken, after writing the JSON: CI's latency job is the gate
+# (QA-08).
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -63,9 +65,15 @@ rows["run-overhead"] = {"median_ms": round(rows["run-true"]["median_ms"] - rows[
 json.dump({"platform": f"{platform.system()} {platform.machine()}", "results": rows}, open(out, "w"), indent=2)
 budget = {"hook-session-start": 10, "hook-pre-tool": 10, "run-overhead": 5, "compress-1mb": 50}
 print(f"{'measure':<20} {'median':>9}  budget")
+over = []
 for n, r in rows.items():
     b = budget.get(n)
     mark = "" if b is None else ("ok" if r["median_ms"] < b else "OVER")
+    if mark == "OVER":
+        over.append(f"{n} {r['median_ms']:.2f} ms (budget {b} ms)")
     print(f"{n:<20} {r['median_ms']:>7.2f}ms  {'' if b is None else f'<{b}ms {mark}'}")
 print(f"written: {out}")
+if over:
+    print("bench: over budget: " + "; ".join(over), file=sys.stderr)
+    sys.exit(1)
 PY

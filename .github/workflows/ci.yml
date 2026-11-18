@@ -89,11 +89,13 @@ jobs:
           LAGOM_NO_CHANGELOG: ${{ contains(github.event.pull_request.labels.*.name, 'no-changelog') && '1' || '0' }}
 
   latency:
-    # Measures only; the regression gate comes with QA-08. macOS arm64 runners are scarce
-    # (GitHub cancels jobs it can't place within 15 minutes), so pull requests measure on
-    # Linux and pushes to main measure on both.
+    # QA-08: fails when a median breaks its budget (bench/latency.sh, D-36): hooks under
+    # 10 ms, `lagom run` overhead under 5 ms, 1 MB compressed under 50 ms. macOS arm64
+    # runners are scarce (GitHub cancels jobs it can't place within 15 minutes), so pull
+    # requests measure on Linux and pushes to main measure on both.
     if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     strategy:
+      fail-fast: false # one platform over budget still reports the other's numbers
       matrix:
         os: ${{ github.event_name == 'push' && fromJSON('["ubuntu-latest", "macos-latest"]') || fromJSON('["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
@@ -108,6 +110,7 @@ jobs:
         if: runner.os == 'macOS'
       - run: bench/latency.sh target/bench/latency-${{ matrix.os }}.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() # keep the numbers of a run that broke a budget
         with:
           name: latency-${{ matrix.os }}
           path: target/bench/latency-${{ matrix.os }}.json

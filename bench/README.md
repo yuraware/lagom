@@ -2,7 +2,7 @@
 
 | What | Where |
 |---|---|
-| Hook, `lagom run` and compression speed | `bench/latency.sh` (hyperfine) |
+| Hook, `lagom run` and compression speed | `bench/latency.sh` (hyperfine; exit 1 when a median is over budget) |
 | Compression corpus | `bench/corpus/<tool>/<case>/` plus the golden cases in `tests/fixtures/compress/` |
 | Report on the corpus | `lagom bench compress [--json out.json] [--compare base.json]` (exit 1 on an unexpected `must_keep` loss) |
 

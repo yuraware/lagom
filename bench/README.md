@@ -82,6 +82,16 @@ python3 -I bench/ab.py --agent claude --auth local --model qwen3-coder \
 - **Spend:** `--budget-usd` is required for Claude Code. No run starts once it is reached, each call gets `--max-budget-usd` with what is left, and a run that reports no cost stops the harness. A paid run refuses to start if the selftest fails.
 - **Results:** one JSON line per run in `bench/results/<date>/runs.jsonl` (not committed): the auth mode, status (`ok`, `agent_error`, `bad_output`, `timeout`, `rate_limited`), pass, cost, turns, durations, tokens from `modelUsage` (which counts subagents), and for Lagom arms how often the style was injected and output compressed. A failed or timed-out run is recorded, never dropped.
 
+### Statistics
+
+`bench/stats.py` compares each arm with the baseline, standard library only:
+
+```sh
+python3 -I bench/stats.py bench/results/<date>/runs.jsonl [--metric cost_usd|turns|wall_ms|usage.output|answer_words] [--json]
+```
+
+For every task, the median of the metric over its repeats; then, per arm, the geometric mean of the arm-to-baseline ratios over the tasks both ran, with a seeded paired bootstrap 95% interval (tasks are resampled, each with its own ratio) and a two-sided exact sign test. Pass rates come with Wilson 95% intervals. A ratio below 1 means the arm used less. Runs without the metric (a timeout has no cost) are left out of its medians but count for the pass rate.
+
 A task is a folder under `bench/tasks/<suite>/`: `task.json` (`prompt`; `check` as an argument list, where `{bench}` stands for the `bench/` folder and `{task}` for the task's; `bash`; and optional `setup` and `solve` commands), `fixture/`, `hidden/` and `solution/` (or a `solve` command), named by its path (`rust/off-by-one`). `--tasks bench/tasks/rust` runs one suite. The selftest requires the fixture alone to fail its checks and fixture plus solution to pass.
 
 | Suite | Tasks | Checks |

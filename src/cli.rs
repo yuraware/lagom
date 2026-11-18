@@ -533,8 +533,10 @@ fn cmd_style(args: &[String]) -> ExitCode {
             if let Err(e) = Args::parse(&args[1..], &[], 0) {
                 return usage_error(&e, "lagom style list");
             }
-            for s in style::list(&cwd) {
-                println!("{:<14} {:<8} {}", s.name, s.source, s.description());
+            let styles = style::list(&cwd);
+            let width = styles.iter().map(|s| s.name.len()).max().unwrap_or(0);
+            for s in styles {
+                println!("{:<width$}  {:<8} {}", s.name, s.source, s.description());
             }
         }
         Some("show") => match Args::parse(&args[1..], &[], 1) {

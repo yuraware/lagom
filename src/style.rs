@@ -12,9 +12,14 @@ use serde_json::json;
 
 pub const DEFAULT_STYLES: [&str; 2] = ["terse", "lean-code"];
 
-const BUILTIN: [(&str, &str); 2] = [
+const BUILTIN: [(&str, &str); 3] = [
     ("terse", include_str!("../styles/terse.md")),
     ("lean-code", include_str!("../styles/lean-code.md")),
+    // A candidate (STY-12), not a default: STY-05 measures it against lean-code.
+    (
+        "lean-code-reach",
+        include_str!("../styles/lean-code-reach.md"),
+    ),
 ];
 
 pub fn config_dir() -> PathBuf {
@@ -197,7 +202,11 @@ pub fn render(cwd: &Path) -> String {
         out.push_str("\n\n");
     }
     // The code style gets one project-specific line about tests (Rust and Python).
-    if names.iter().any(|n| n == "lean-code") {
+    // The code styles (`lean-code` and its candidate `lean-code-reach`) get the project lines.
+    if names
+        .iter()
+        .any(|n| n == "lean-code" || n == "lean-code-reach")
+    {
         if let Some(note) = crate::lang::project_note(cwd) {
             out.push_str(&note);
             out.push_str("\n\n");
@@ -282,7 +291,7 @@ mod tests {
     /// The safety lines each built-in style must keep (STY-07): a terse answer still writes
     /// out security warnings, destructive steps and exact errors; lean code never cuts
     /// validation, error handling or security. A new built-in style needs its own entry.
-    const SAFETY: [(&str, &[&str]); 2] = [
+    const SAFETY: [(&str, &[&str]); 3] = [
         (
             "terse",
             &[
@@ -296,7 +305,41 @@ mod tests {
                 "Never cut: input validation at trust boundaries, error handling that prevents data loss, security",
             ],
         ),
+        (
+            "lean-code-reach",
+            &[
+                "Never cut: input validation at trust boundaries, error handling that prevents data loss, security",
+                "what you skipped or didn't check, and any risk",
+            ],
+        ),
     ];
+
+    #[test]
+    fn the_candidate_style_adds_reach_and_leaves_the_default_alone() {
+        assert_eq!(
+            DEFAULT_STYLES,
+            ["terse", "lean-code"],
+            "lean-code-reach is a candidate, not a default"
+        );
+        let reach = load("lean-code-reach", Path::new("/")).unwrap().body();
+        let lean = load("lean-code", Path::new("/")).unwrap().body();
+        for rule in [
+            "every place the change must reach",
+            "unless the project has its own",
+            "finish the callers and tests the change breaks",
+            "not a closing offer",
+        ] {
+            assert!(reach.contains(rule), "{rule}");
+            assert!(
+                !lean.contains(rule),
+                "lean-code must stay as it was: {rule}"
+            );
+        }
+        // About 60 words more than lean-code.
+        let extra =
+            reach.split_whitespace().count() as i64 - lean.split_whitespace().count() as i64;
+        assert!((40..=90).contains(&extra), "{extra} words added");
+    }
 
     #[test]
     fn every_built_in_style_keeps_its_safety_lines() {

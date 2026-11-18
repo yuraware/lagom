@@ -234,3 +234,13 @@ jobs:
           path=repos/yuraware/homebrew-tap/contents/Formula/lagom.rb
           sha=$(gh api "$path" --jq .sha)
           gh api -X PUT "$path" -f message="lagom $VERSION" -f content="$(base64 -w0 lagom.rb)" -f sha="$sha" --jq .commit.html_url
+
+  smoke:
+    # REL-12: install.sh and Homebrew right after the release. PyPI and crates.io are
+    # checked by hand once they are published (RELEASING.md, step 4).
+    needs: [version, homebrew]
+    if: github.ref_type == 'tag'
+    uses: ./.github/workflows/smoke.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+      channels: install-sh,brew

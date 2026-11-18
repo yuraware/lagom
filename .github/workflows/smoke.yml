@@ -1,0 +1,99 @@
+name: smoke
+
+# REL-12: install a published release through each channel on macOS and Linux, then check
+# that it runs, installs into Claude Code and uninstalls cleanly. release.yml calls it for
+# install.sh and Homebrew once a final release is out. PyPI and crates.io come later
+# (RELEASING.md), so after `cargo publish` run it by hand for every channel:
+#   gh workflow run smoke.yml -f version=X.Y.Z
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      channels:
+        required: false
+        type: string
+        default: install-sh,brew,pip,binstall
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Released version, such as 0.2.0
+        required: true
+        type: string
+      channels:
+        description: "Comma-separated: install-sh, brew, pip, binstall"
+        required: false
+        type: string
+        default: install-sh,brew,pip,binstall
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        channel: [install-sh, brew, pip, binstall]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      VERSION: ${{ inputs.version }}
+      CHANNEL: ${{ matrix.channel }}
+      CHANNELS: ${{ inputs.channels }}
+    steps:
+      - name: Skip channels not asked for
+        id: want
+        run: |
+          case ",$CHANNELS," in
+            *",$CHANNEL,"*) echo "run=1" >> "$GITHUB_OUTPUT" ;;
+            *) echo "$CHANNEL not asked for" ;;
+          esac
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.want.outputs.run && matrix.channel == 'install-sh'
+        with:
+          ref: v${{ inputs.version }}
+          persist-credentials: false
+      - name: Install with install.sh
+        if: steps.want.outputs.run && matrix.channel == 'install-sh'
+        run: |
+          LAGOM_INSTALL_DIR="$RUNNER_TEMP/bin" sh install.sh --version "$VERSION" --no-agents --no-brew
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Install with Homebrew
+        if: steps.want.outputs.run && matrix.channel == 'brew'
+        run: |
+          # Linux runners have Homebrew, but not on PATH.
+          if [ "$RUNNER_OS" = Linux ]; then eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"; fi
+          brew install yuraware/tap/lagom
+          echo "$(brew --prefix)/bin" >> "$GITHUB_PATH"
+      - name: Install from PyPI
+        if: steps.want.outputs.run && matrix.channel == 'pip'
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet "lagom-ai==$VERSION"
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+      - name: Install with cargo binstall
+        if: steps.want.outputs.run && matrix.channel == 'binstall'
+        run: |
+          cargo install --locked cargo-binstall@1.27.0
+          # Release archives only: falling back to a source build would hide a broken release.
+          cargo binstall --no-confirm --strategies crate-meta-data "lagom@$VERSION"
+      - name: Run, install into Claude Code, uninstall
+        if: steps.want.outputs.run
+        run: |
+          for bin in lagom lgm; do
+            out=$("$bin" --version)
+            echo "$bin: $out ($(command -v "$bin"))"
+            [ "$out" = "lagom $VERSION" ] || { echo "::error::$bin --version printed '$out', expected 'lagom $VERSION'"; exit 1; }
+          done
+          home=$(mktemp -d)
+          mkdir -p "$home/.claude"
+          HOME="$home" lagom install claude --yes < /dev/null
+          grep -q 'lagom hook claude' "$home/.claude/settings.json" || { echo "::error::no Lagom hook after lagom install"; exit 1; }
+          # Read all of it: `grep -q` would close the pipe while lagom still writes.
+          HOME="$home" lagom status < /dev/null | grep '^claude  hooks: yes' > /dev/null || { echo "::error::lagom status doesn't show the hooks"; exit 1; }
+          HOME="$home" lagom uninstall claude --yes < /dev/null
+          if grep -qs 'lagom hook' "$home/.claude/settings.json"; then echo "::error::hooks left after lagom uninstall"; exit 1; fi
+          echo "$CHANNEL on $RUNNER_OS: lagom $VERSION runs, installs and uninstalls"

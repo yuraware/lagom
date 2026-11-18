@@ -5,6 +5,7 @@
 | Hook, `lagom run` and compression speed | `bench/latency.sh` (hyperfine; exit 1 when a median is over budget) |
 | Compression corpus | `bench/corpus/<tool>/<case>/` plus the golden cases in `tests/fixtures/compress/` |
 | Report on the corpus | `lagom bench compress [--json out.json] [--compare base.json]` (exit 1 on an unexpected `must_keep` loss) |
+| A/B runs of a real agent on tasks | `bench/ab.py` (below) |
 
 ## Corpus
 
@@ -54,3 +55,24 @@ On the scratch-project corpus and the golden cases (67 cases; the `compress` fam
 
 42 of 67 outputs got smaller (63%); the median saving per case is 55%. Error output is mostly short already: the median `python` and `rust` cases save nothing, while search results, JSON and logs save 82–100%.
 
+
+## A/B harness
+
+`bench/ab.py` runs the same coding tasks under each arm and judges every run with checks the agent never sees. Standard library only.
+
+```sh
+python3 -I bench/ab.py --selftest                                   # every task's references
+python3 -I bench/ab.py --agent fake --repeats 2                     # free dry run (bench/fake_agent.py)
+python3 -I bench/ab.py --agent claude --arms baseline,terse-control,lagom:terse \
+    --repeats 3 --budget-usd 20 [--model sonnet] [--task py-off-by-one,py-add-flag]
+python3 -I bench/ab.py --agent codex --max-runs 12 ...              # Codex reports no cost
+```
+
+- **Arms:** `baseline`; `terse-control`, with only the instruction "Answer concisely." (Claude Code `--append-system-prompt`, Codex `developer_instructions`); and `lagom:<style>`, with Lagom's hooks and that style in the run's project settings. The honest comparison is Lagom against the terse control.
+- **A run:** the task's `fixture/` is copied to a fresh folder outside any git repository; the agent runs headless with JSON output; the task's `hidden/` checks are copied in afterwards and decide pass or fail. Arms are interleaved and their order rotates per task and repeat. One throwaway call per model comes first, so no arm pays the cold cache write.
+- **Isolation:** Claude Code runs with `--setting-sources project --strict-mcp-config --no-session-persistence` and permissions bypassed, never `--bare` (it skips hooks). Lagom's user config and stats are swapped for the run's own (`XDG_CONFIG_HOME`, `LAGOM_HOME`), and non-Lagom arms set `LAGOM_DISABLE=1`.
+- **Commands:** a task that allows Bash runs it in Claude Code's own sandbox (`"sandbox": {"enabled": true, "allowUnsandboxedCommands": false}` in the run's settings): writes stay in the run's folder and the network goes through an empty allow-list. Tasks that don't allow Bash pass `--disallowedTools Bash`. Codex runs with `--sandbox workspace-write`.
+- **Spend:** `--budget-usd` is required for Claude Code. No run starts once it is reached, each call gets `--max-budget-usd` with what is left, and a run that reports no cost stops the harness. A paid run refuses to start if the selftest fails.
+- **Results:** one JSON line per run in `bench/results/<date>/runs.jsonl` (not committed): status (`ok`, `agent_error`, `bad_output`, `timeout`), pass, cost, turns, durations, tokens from `modelUsage` (which counts subagents), and for Lagom arms how often the style was injected and output compressed. A failed or timed-out run is recorded, never dropped.
+
+A task is a folder in `bench/tasks/`: `task.json` (`prompt`, `check` as an argument list, `bash`), `fixture/`, `hidden/` and `solution/`. The selftest requires the fixture alone to fail its checks and fixture plus solution to pass.

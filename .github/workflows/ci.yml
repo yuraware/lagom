@@ -40,6 +40,8 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked --workspace
+      # BEN-06: the A/B harness against its fake agent, with the lagom binary cargo just built.
+      - run: python3 -I -m unittest discover -s bench -p 'test_*.py'
 
   msrv:
     # Builds with the oldest Rust we support: `rust-version` in Cargo.toml.

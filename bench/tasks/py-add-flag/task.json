@@ -1,0 +1,1 @@
+{"prompt": "greet.py prints a greeting for a name. Add a --shout flag that prints the whole greeting in upper case. Without the flag, the output must not change.", "check": ["python3", "-I", "check_greet.py"], "bash": false}

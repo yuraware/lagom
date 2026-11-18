@@ -247,6 +247,16 @@ link:
 MK
 run make make-link-error '["symbol(s) not found", "_engine_start"]' make -C "$W" --no-print-directory
 
+# ---------- CJK text (CMP-10 fits a token factor for it) ----------
+mkdir -p "$W/cjk" && cd "$W/cjk" && git init -q && git config user.email dev@example.com && git config user.name dev
+for i in $(seq 1 30); do
+  echo "$i" > "ファイル$i.txt"; git add -A; git commit -q -m "修正: 設定ファイルの読み込みを改善 #$i"
+done
+run cjk git-log-cjk '["設定ファイルの読み込みを改善 #30", "設定ファイルの読み込みを改善 #1"]' git log --oneline
+run cjk ls-cjk '["ファイル1.txt", "ファイル9.txt"]' ls -1 "$W/cjk"
+printf 'def load(cfg):\n    raise ValueError("配置文件格式错误：缺少字段 name")\n\nload({})\n' > "$W/cjk/bad.py"
+run cjk python-error-cjk '["ValueError: 配置文件格式错误：缺少字段 name"]' python3 "$W/cjk/bad.py"
+
 # ---------- every error line of a failing case in must_keep (BEN-19) ----------
 python3 -I "$ROOT/scripts/must_keep_errors.py" "$OUT" > /dev/null
 

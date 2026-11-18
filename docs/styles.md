@@ -46,6 +46,16 @@ Active styles come from the first of these that is set:
 
 A config file that isn't valid JSON is ignored, named by `lagom status`, and never overwritten: `lagom style use` refuses to save until you fix it. Unknown keys and wrong value types are listed there too.
 
+## Dependency hint (experimental)
+
+With `lean-code` active, Lagom can add one line naming what a Rust project already depends on, read from its `Cargo.toml` (`[dependencies]` and `[workspace.dependencies]`):
+
+```
+Rust project. Prefer std, then existing deps: serde_json. No new crates without asking.
+```
+
+It is off until a benchmark shows it helps (LANG-06). To try it, set `{"hints": true}` in your own `~/.config/lagom/config.json`. A project's `.lagom/config.json` can turn it off but not on. Only valid crate names are shown, at most 15 and 400 characters.
+
 ## Turn off
 
 `lagom style use off` (or `--project` for one repo). `LAGOM_STYLES=off` for one session.

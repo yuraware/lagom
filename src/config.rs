@@ -11,7 +11,7 @@ use serde_json::{Map, Value};
 use crate::style;
 
 /// Keys Lagom reads. Anything else in a config file is reported as unknown.
-const KNOWN: [&str; 3] = ["styles", "rewrite", "compress"];
+const KNOWN: [&str; 4] = ["styles", "rewrite", "compress", "hints"];
 
 #[derive(Debug, PartialEq)]
 pub struct Config {
@@ -28,6 +28,9 @@ pub struct Config {
     pub compress_keep: Vec<String>,
     /// `compress.lossless` in any file: only transforms that carry no information.
     pub compress_lossless: bool,
+    /// `hints`: add a line naming the project's dependencies to the code style (LANG-02).
+    /// Off by default until LANG-06 measures it; only the user's own file can turn it on.
+    pub hints: bool,
     /// Malformed files, wrong value types and unknown keys. `lagom status` shows them,
     /// and `LAGOM_DEBUG` prints them on stderr.
     pub problems: Vec<String>,
@@ -202,6 +205,19 @@ impl Config {
             }
         }
 
+        let (mut hints_on, mut hints_off) = (false, false);
+        for (name, map) in &layers {
+            match map.get("hints") {
+                None => {}
+                Some(Value::Bool(false)) => hints_off = true,
+                Some(Value::Bool(true)) if Some(*name) == project_name => problems.push(format!(
+                    "{name}: `hints` can only be turned on in your own config"
+                )),
+                Some(Value::Bool(true)) => hints_on = true,
+                Some(_) => problems.push(format!("{name}: `hints` must be true or false")),
+            }
+        }
+
         // `LAGOM_REWRITE` alone decides on or off.
         let rewrite = match env_rewrite {
             Some(v) => !matches!(
@@ -218,6 +234,7 @@ impl Config {
             rewrite_exclude,
             compress_keep,
             compress_lossless,
+            hints: hints_on && !hints_off,
             problems,
         }
     }
@@ -235,6 +252,24 @@ impl Config {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn hints_are_off_until_the_users_own_file_turns_them_on() {
+        let on = map(json!({"hints": true}));
+        let off = map(json!({"hints": false}));
+        assert!(!Config::from_layers(None, None, None, None).hints);
+        assert!(Config::from_layers(None, None, None, Some(("user", &on))).hints);
+        let project_on = Config::from_layers(None, None, Some(("project", &on)), None);
+        assert!(!project_on.hints);
+        assert!(
+            project_on.problems[0].contains("only be turned on in your own config"),
+            "{:?}",
+            project_on.problems
+        );
+        assert!(
+            !Config::from_layers(None, None, Some(("project", &off)), Some(("user", &on))).hints
+        );
+    }
 
     fn map(v: Value) -> Map<String, Value> {
         v.as_object().unwrap().clone()

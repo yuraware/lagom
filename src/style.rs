@@ -185,7 +185,8 @@ fn lagom_tag_len(s: &str) -> Option<usize> {
 
 /// Text injected at session start. Empty when styles are off.
 pub fn render(cwd: &Path) -> String {
-    let names = crate::config::Config::load(cwd).styles;
+    let config = crate::config::Config::load(cwd);
+    let names = config.styles;
     let styles: Vec<Style> = names.iter().filter_map(|n| load(n, cwd)).collect();
     if styles.is_empty() {
         return String::new();
@@ -199,6 +200,15 @@ pub fn render(cwd: &Path) -> String {
     if names.iter().any(|n| n == "lean-code") {
         if let Some(note) = crate::lang::project_note(cwd) {
             out.push_str(&note);
+            out.push_str("\n\n");
+        }
+        // Off by default: shipped only if LANG-06 measures an effect (D-29).
+        if let Some(hint) = config
+            .hints
+            .then(|| crate::lang::project_hint(cwd))
+            .flatten()
+        {
+            out.push_str(&hint);
             out.push_str("\n\n");
         }
     }

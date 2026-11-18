@@ -2051,3 +2051,34 @@ fn doctor_json_has_the_same_checks() {
         Some(2)
     );
 }
+
+#[test]
+fn the_dependency_hint_appears_only_when_the_user_turns_hints_on() {
+    let home = sandbox("dependency-hint");
+    let project = home.join("app");
+    fs::create_dir_all(&project).unwrap();
+    fs::write(
+        project.join("Cargo.toml"),
+        "[package]\nname = \"app\"\n\n[dependencies]\nserde = \"1\"\nanyhow = \"1\"\n",
+    )
+    .unwrap();
+    let payload = json!({"cwd": project, "source": "startup", "session_id": "s1"}).to_string();
+    let start = || {
+        text(&lagom(
+            &home,
+            &["hook", "claude", "session-start"],
+            Some(&payload),
+        ))
+    };
+    let hint = "Rust project. Prefer std, then existing deps: serde, anyhow. No new crates without asking.";
+    assert!(!start().contains(hint), "off by default");
+
+    // A project file can't turn it on (until SEC-01 trusts project files).
+    fs::create_dir_all(project.join(".lagom")).unwrap();
+    fs::write(project.join(".lagom/config.json"), r#"{"hints": true}"#).unwrap();
+    assert!(!start().contains(hint));
+
+    fs::create_dir_all(home.join(".config/lagom")).unwrap();
+    fs::write(home.join(".config/lagom/config.json"), r#"{"hints": true}"#).unwrap();
+    assert!(start().contains(hint), "{}", start());
+}

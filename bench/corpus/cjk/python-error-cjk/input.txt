@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/work/cjk/bad.py", line 4, in <module>
+    load({})
+    ~~~~^^^^
+  File "/work/cjk/bad.py", line 2, in load
+    raise ValueError("配置文件格式错误：缺少字段 name")
+ValueError: 配置文件格式错误：缺少字段 name

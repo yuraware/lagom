@@ -21,5 +21,6 @@
     "{bench}/tasks/output-heavy/gen_modules.py",
     "solve",
     "150"
-  ]
+  ],
+  "category": "feature"
 }

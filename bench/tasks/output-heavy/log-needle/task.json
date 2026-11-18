@@ -13,5 +13,6 @@
     "{bench}/tasks/output-heavy/gen_log.py",
     "write",
     "40000"
-  ]
+  ],
+  "category": "small-fix"
 }

@@ -5,5 +5,7 @@
     "-I",
     "{bench}/tasks/python/run_hidden.py"
   ],
-  "bash": true
+  "bash": true,
+  "category": "build",
+  "risky": true
 }

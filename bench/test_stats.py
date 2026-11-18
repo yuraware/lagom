@@ -110,5 +110,55 @@ class Report(unittest.TestCase):
             os.remove(f.name)
 
 
+class FullReport(unittest.TestCase):
+    """The report from a fake-agent run, with a timed-out run in it (BEN-20)."""
+
+    LAGOM = next((p for p in (os.path.join(os.path.dirname(HERE), "target", d, "lagom") for d in ("debug", "release"))
+                  if os.path.exists(p)), None)
+
+    def run_ab(self, out, *args, mode="solve", tools=None):
+        env = dict(os.environ, FAKE_AGENT_MODE=mode)
+        if tools is not None:
+            env["FAKE_TOOLS"] = tools
+        cmd = [sys.executable, "-I", os.path.join(HERE, "ab.py"), "--agent", "fake", "--tasks",
+               os.path.join(HERE, "tasks", "smoke"), "--out", out, "--lagom-bin", self.LAGOM, *args]
+        r = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=300)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def report(self, out):
+        r = subprocess.run([sys.executable, "-I", os.path.join(HERE, "stats.py"), os.path.join(out, "runs.jsonl"),
+                            "--report", "--resamples", "500"], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r.stdout
+
+    @unittest.skipUnless(LAGOM, "build lagom first (cargo build)")
+    def test_every_metric_per_arm_with_intervals_and_the_timeout_counted(self):
+        out = tempfile.mkdtemp(prefix="lagom-report-")
+        arms = ["--arms", "baseline,lagom:terse,candidate:terse", "--candidate-bin", self.LAGOM]
+        self.run_ab(out, *arms, "--repeats", "2")
+        self.run_ab(out, *arms, "--repeats", "3", "--resume", "--timeout", "2", mode="hang")
+        text = self.report(out)
+        for section in ["## Per arm", "## Against the baseline", "## Per task", "### small-fix", "### feature",
+                        "## How runs are counted", "## Limitations"]:
+            self.assertIn(section, text)
+        for metric in ["`cost_usd`", "`wall_ms`", "`api_ms`", "`turns`", "`tool_calls`", "`usage.output`", "`usage.input`"]:
+            self.assertIn(metric, text)
+        # Two tasks × one timed-out repeat per arm: counted as failed runs, in the timeouts column.
+        self.assertIn("| lagom:terse | 4/6 (", text)
+        self.assertIn("| 2 |", text.split("| lagom:terse |")[1].split("\n")[0])
+        self.assertIn("Tool calls by type: baseline: Bash 4, Edit 4, Read 8", text)
+        self.assertIn("ran lagom 0.1", text)
+        self.assertNotIn("uncategorized", text)
+        self.assertIn("A fake agent produced these runs", text)
+
+    @unittest.skipUnless(LAGOM, "build lagom first (cargo build)")
+    def test_an_arm_lagom_never_acted_in_doesnt_count(self):
+        out = tempfile.mkdtemp(prefix="lagom-report-")
+        # A style that doesn't exist injects nothing, and without Bash nothing is compressed.
+        self.run_ab(out, "--arms", "baseline,lagom:no-such-style", tools="Read:1")
+        text = self.report(out)
+        self.assertIn("doesn't count: Lagom acted in under two thirds of the runs", text)
+
+
 if __name__ == "__main__":
     unittest.main()

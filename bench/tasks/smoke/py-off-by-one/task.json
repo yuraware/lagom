@@ -1,1 +1,11 @@
-{"prompt": "In stats.py, moving_average(values, window) is supposed to return the average of every run of `window` consecutive values, but it misses the last one. Fix it.", "check": ["python3", "-I", "check_stats.py"], "bash": false}
+{
+  "prompt": "In stats.py, moving_average(values, window) is supposed to return the average of every run of `window` consecutive values, but it misses the last one. Fix it.",
+  "check": [
+    "python3",
+    "-I",
+    "check_stats.py"
+  ],
+  "bash": false,
+  "category": "small-fix",
+  "risky": true
+}

@@ -12,5 +12,6 @@
     "{bench}/tasks/output-heavy/gen_rust.py",
     "warnings",
     "write"
-  ]
+  ],
+  "category": "small-fix"
 }

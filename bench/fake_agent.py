@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""A stand-in for `claude -p --output-format json`, for free dry runs of bench/ab.py.
+"""A stand-in for `claude -p --output-format stream-json --verbose`, for free dry runs of
+bench/ab.py.
 
 FAKE_AGENT_MODE picks what it does (default `solve`):
   solve    apply the task's reference solution (AB_FAKE_SOLUTION, or the AB_FAKE_SOLVE
@@ -11,6 +12,10 @@ FAKE_AGENT_MODE picks what it does (default `solve`):
   hang     sleep until the harness's timeout kills it
   ratelimit-once  report a rate limit on the first call, then solve (state in FAKE_STATE)
 FAKE_COST is the cost it reports per run (default 0.01; `none` reports no cost).
+FAKE_TOOLS lists the tool calls it makes, as `Name:count,…` (default `Read:2,Bash:1,Edit:1`).
+A Bash call runs FAKE_BASH (default `ls -la`) through the folder's PreToolUse hooks, the
+way Claude Code would: in a Lagom arm the hook rewrites it to `lagom run`, which compresses
+the output and records it.
 AB_FAKE_ARGV_LOG, if set, gets one JSON line per call: its arguments and the sign-in
 variables it saw. In a folder whose .claude/settings.json
 has Lagom's hooks, it runs the SessionStart hook the way Claude Code would, so the
@@ -35,6 +40,35 @@ def run_session_start_hooks(cwd):
     for group in groups:
         for hook in group.get("hooks", []):
             subprocess.run(hook["command"], shell=True, input=payload, text=True, capture_output=True, timeout=10)
+
+
+def hooks(cwd, event):
+    try:
+        with open(os.path.join(cwd, ".claude", "settings.json")) as f:
+            groups = json.load(f).get("hooks", {}).get(event, [])
+    except (OSError, ValueError):
+        return []
+    return [h["command"] for g in groups for h in g.get("hooks", [])]
+
+
+def run_bash(cwd, command):
+    """Run a Bash call as Claude Code does: PreToolUse hooks may replace the command."""
+    payload = json.dumps({"hook_event_name": "PreToolUse", "tool_name": "Bash", "cwd": cwd,
+                          "permission_mode": "bypassPermissions", "session_id": f"fake-{os.getpid()}",
+                          "tool_input": {"command": command}})
+    for hook in hooks(cwd, "PreToolUse"):
+        out = subprocess.run(hook, shell=True, input=payload, text=True, capture_output=True, timeout=10).stdout
+        try:
+            updated = json.loads(out)["hookSpecificOutput"]["updatedInput"]["command"]
+        except (ValueError, KeyError, TypeError):
+            continue
+        command = updated
+    p = subprocess.run(command, shell=True, cwd=cwd, text=True, capture_output=True, timeout=60)
+    return p.stdout + p.stderr
+
+
+def emit(event):
+    print(json.dumps(event), flush=True)
 
 
 def main(argv):
@@ -73,11 +107,18 @@ def main(argv):
         subprocess.run(solve, cwd=cwd, capture_output=True)
     error = mode == "error"
     model = "fake-model"
+    emit({"type": "system", "subtype": "init", "model": model, "cwd": cwd})
+    for spec in (os.environ.get("FAKE_TOOLS") or "Read:2,Bash:1,Edit:1").split(","):
+        name, _, count = spec.partition(":")
+        for _ in range(int(count or 1)):
+            output = run_bash(cwd, os.environ.get("FAKE_BASH", "ls -la")) if name == "Bash" else "x" * 400
+            emit({"type": "assistant", "message": {"content": [{"type": "tool_use", "name": name, "input": {}}]}})
+            emit({"type": "user", "message": {"content": [{"type": "tool_result", "content": output}]}})
     answer = os.path.join(solution or "", "answer.md")
     result = open(answer).read() if mode == "solve" and solution and os.path.isfile(answer) else "done"
     print(json.dumps({
         "type": "result", "subtype": "error_during_execution" if error else "success", "is_error": error,
-        "num_turns": 3, "duration_ms": 1200, "total_cost_usd": cost, "result": result,
+        "num_turns": 3, "duration_ms": 1200, "duration_api_ms": 800, "total_cost_usd": cost, "result": result,
         "usage": {"input_tokens": 10, "output_tokens": 20},
         "modelUsage": {model: {"inputTokens": 100, "outputTokens": 200, "cacheReadInputTokens": 3000,
                                "cacheCreationInputTokens": 400, "costUSD": cost}},

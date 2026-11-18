@@ -21,5 +21,6 @@
     "{bench}/tasks/output-heavy/gen_events.py",
     "solve",
     "4000"
-  ]
+  ],
+  "category": "build"
 }

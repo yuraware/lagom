@@ -39,6 +39,7 @@ for local runs), each with its auth mode.
 """
 import argparse
 import datetime
+import hashlib
 import json
 import os
 import shlex
@@ -89,7 +90,8 @@ def load_tasks(root, only=None):
 
         tasks.append({"name": name, "dir": d, "prompt": meta["prompt"], "check": cmd("check"),
                       "setup": cmd("setup"), "solve": cmd("solve"), "bash": bool(meta.get("bash", False)),
-                      "answer": bool(meta.get("answer", False))})
+                      "answer": bool(meta.get("answer", False)), "category": meta.get("category"),
+                      "risky": bool(meta.get("risky", False))})
     missing = sorted(set(only or []) - {t["name"] for t in tasks})
     if missing:
         raise UsageError(f"no such task: {', '.join(missing)}")
@@ -164,14 +166,19 @@ def selftest(tasks):
 
 # ---------- arms ----------
 
+def is_lagom_arm(arm):
+    """`lagom:<style>` runs --lagom-bin (the release); `candidate:<style>` runs --candidate-bin."""
+    return arm.startswith(("lagom:", "candidate:"))
+
+
 def parse_arms(text):
     arms = [a.strip() for a in text.split(",") if a.strip()]
     for a in arms:
         if a in ("baseline", "terse-control"):
             continue
-        style = a.split(":", 1)[1] if a.startswith("lagom:") else ""
+        style = a.split(":", 1)[1] if is_lagom_arm(a) else ""
         if not style or not all(c.isalnum() or c in "-_" for c in style):
-            raise UsageError(f"unknown arm {a!r}: use baseline, terse-control or lagom:<style>")
+            raise UsageError(f"unknown arm {a!r}: use baseline, terse-control, lagom:<style> or candidate:<style>")
     if len(set(arms)) != len(arms) or not arms:
         raise UsageError("arms must be listed once each")
     return arms
@@ -198,7 +205,7 @@ def prepare(work, agent, arm, task, lagom_bin):
     settings = {}
     if task["bash"] and hook_agent == "claude":
         settings["sandbox"] = {"enabled": True, "allowUnsandboxedCommands": False}
-    if arm.startswith("lagom:"):
+    if is_lagom_arm(arm):
         os.makedirs(os.path.join(work, ".lagom"), exist_ok=True)
         with open(os.path.join(work, ".lagom", "config.json"), "w") as f:
             json.dump({"styles": [arm.split(":", 1)[1]]}, f)
@@ -224,12 +231,14 @@ def command(agent, agent_bin, prompt, arm, model, bash, budget_left, auth="api")
             cmd += ["--model", model]
         if arm == "terse-control":
             cmd += ["-c", f"developer_instructions={json.dumps(CONTROL)}"]
-        if arm.startswith("lagom:"):
+        if is_lagom_arm(arm):
             cmd += ["--dangerously-bypass-hook-trust"]
         if auth == "local":
             cmd += ["--oss", "--local-provider", "ollama"]
         return cmd + [prompt]
-    cmd = [agent_bin, "-p", prompt, "--output-format", "json", *ISOLATION, "--permission-mode", "bypassPermissions"]
+    # stream-json (which needs --verbose) carries every tool call; the last line is the result.
+    cmd = [agent_bin, "-p", prompt, "--output-format", "stream-json", "--verbose", *ISOLATION,
+           "--permission-mode", "bypassPermissions"]
     if agent == "fake":
         cmd = [sys.executable, "-I", *cmd]
     if model:
@@ -243,32 +252,60 @@ def command(agent, agent_bin, prompt, arm, model, bash, budget_left, auth="api")
     return cmd
 
 
+def tool_result_bytes(item):
+    content = item.get("content")
+    if isinstance(content, str):
+        return len(content.encode())
+    return sum(len((c.get("text") or "").encode()) for c in content or [] if isinstance(c, dict))
+
+
 def parse_claude(stdout):
-    """The result of `claude -p --output-format json`, or None when it isn't one."""
-    text = stdout.strip()
-    for candidate in (text, text.splitlines()[-1] if text else ""):
+    """The `claude -p --output-format stream-json` events, or None without a result: the
+    result's cost, turns, times and tokens, plus tool calls by name and the bytes of tool
+    output the model read. A single `--output-format json` result parses too."""
+    result, tools, tool_bytes = None, {}, 0
+    for line in stdout.splitlines():
         try:
-            r = json.loads(candidate)
+            e = json.loads(line)
         except ValueError:
             continue
-        if isinstance(r, dict) and r.get("type") == "result":
-            usage = {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}
-            for m in (r.get("modelUsage") or {}).values():
-                usage["input"] += m.get("inputTokens", 0)
-                usage["output"] += m.get("outputTokens", 0)
-                usage["cache_read"] += m.get("cacheReadInputTokens", 0)
-                usage["cache_write"] += m.get("cacheCreationInputTokens", 0)
-            return {"cost_usd": r.get("total_cost_usd"), "turns": r.get("num_turns"),
-                    "agent_ms": r.get("duration_ms"), "is_error": bool(r.get("is_error")),
-                    "subtype": r.get("subtype"), "models": sorted((r.get("modelUsage") or {}).keys()),
-                    "usage": usage, "result": r.get("result") if isinstance(r.get("result"), str) else ""}
-    return None
+        if not isinstance(e, dict):
+            continue
+        content = (e.get("message") or {}).get("content")
+        if e.get("type") == "assistant" and isinstance(content, list):
+            for c in content:
+                if isinstance(c, dict) and c.get("type") == "tool_use":
+                    tools[c.get("name", "?")] = tools.get(c.get("name", "?"), 0) + 1
+        elif e.get("type") == "user" and isinstance(content, list):
+            tool_bytes += sum(tool_result_bytes(c) for c in content if isinstance(c, dict) and c.get("type") == "tool_result")
+        elif e.get("type") == "result":
+            result = e
+    if result is None:
+        try:
+            result = json.loads(stdout)
+        except ValueError:
+            return None
+        if not isinstance(result, dict) or result.get("type") != "result":
+            return None
+    r = result
+    usage = {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}
+    for m in (r.get("modelUsage") or {}).values():
+        usage["input"] += m.get("inputTokens", 0)
+        usage["output"] += m.get("outputTokens", 0)
+        usage["cache_read"] += m.get("cacheReadInputTokens", 0)
+        usage["cache_write"] += m.get("cacheCreationInputTokens", 0)
+    return {"cost_usd": r.get("total_cost_usd"), "turns": r.get("num_turns"),
+            "agent_ms": r.get("duration_ms"), "api_ms": r.get("duration_api_ms"), "is_error": bool(r.get("is_error")),
+            "subtype": r.get("subtype"), "models": sorted((r.get("modelUsage") or {}).keys()),
+            "usage": usage, "tools": tools, "tool_calls": sum(tools.values()), "tool_output_bytes": tool_bytes,
+            "result": r.get("result") if isinstance(r.get("result"), str) else ""}
 
 
 def parse_codex(stdout):
     """`codex exec --json` events: tokens from each turn.completed. Codex reports no cost."""
     usage = {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}
-    turns, error, seen, result = 0, False, False, ""
+    turns, error, seen, result, tools, tool_bytes = 0, False, False, "", {}, 0
+    names = {"command_execution": "Bash", "file_change": "Edit", "mcp_tool_call": "MCP", "web_search": "WebSearch"}
     for line in stdout.splitlines():
         try:
             e = json.loads(line)
@@ -287,10 +324,61 @@ def parse_codex(stdout):
             error = True
         elif e.get("type") == "item.completed" and (e.get("item") or {}).get("type") == "agent_message":
             result = e["item"].get("text") or result   # the last message is the answer
+        elif e.get("type") == "item.completed" and (e.get("item") or {}).get("type") in names:
+            name = names[e["item"]["type"]]
+            tools[name] = tools.get(name, 0) + 1
+            tool_bytes += len((e["item"].get("aggregated_output") or "").encode())
     if not seen:
         return None
-    return {"cost_usd": None, "turns": turns, "agent_ms": None, "is_error": error, "subtype": None,
-            "models": [], "usage": usage, "result": result}
+    return {"cost_usd": None, "turns": turns, "agent_ms": None, "api_ms": None, "is_error": error, "subtype": None,
+            "models": [], "usage": usage, "tools": tools, "tool_calls": sum(tools.values()),
+            "tool_output_bytes": tool_bytes, "result": result}
+
+
+SKIP_DIRS = {".claude", ".lagom", ".codex", ".git", "target", "__pycache__", "node_modules", ".venv"}
+TEST_FILE = ("test_", "tests/", "_test.py", "_test.go", ".test.", ".spec.")
+
+
+def snapshot(work):
+    """{path: content hash} of the run's files, without settings and build output."""
+    files = {}
+    for d, dirs, names in os.walk(work):
+        dirs[:] = [x for x in dirs if x not in SKIP_DIRS]
+        for name in names:
+            path = os.path.join(d, name)
+            rel = os.path.relpath(path, work).replace(os.sep, "/")
+            if rel == "answer.md":
+                continue
+            with open(path, "rb") as f:
+                files[rel] = hashlib.sha1(f.read()).hexdigest()
+    return files
+
+
+def changed_files(before, work):
+    after = snapshot(work)
+    return sorted(p for p, h in after.items() if before.get(p) != h)
+
+
+def added_a_test(changed, work):
+    """Whether the agent wrote a test: a test file, or a Rust file with more #[test] than before."""
+    for rel in changed:
+        if any(m in rel for m in TEST_FILE):
+            return True
+        if rel.endswith(".rs"):
+            try:
+                with open(os.path.join(work, rel), errors="replace") as f:
+                    if "#[test]" in f.read():
+                        return True
+            except OSError:
+                pass
+    return False
+
+
+def version_of(binary):
+    try:
+        return subprocess.run([binary, "--version"], capture_output=True, text=True, timeout=10).stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        return None
 
 
 def run_agent(cmd, cwd, env, timeout):
@@ -332,7 +420,7 @@ def agent_env(base, arm, task_dir, agent, auth="api", local_url=LOCAL_URL, solve
     env["XDG_CONFIG_HOME"] = os.path.join(base, "config")      # no user Lagom styles or config
     env.pop("LAGOM_STYLES", None)
     env.pop("LAGOM_REWRITE", None)
-    if arm.startswith("lagom:"):
+    if is_lagom_arm(arm):
         env.pop("LAGOM_DISABLE", None)
     else:
         env["LAGOM_DISABLE"] = "1"   # a user-level Lagom hook, if one still loads, does nothing
@@ -347,7 +435,9 @@ def agent_env(base, arm, task_dir, agent, auth="api", local_url=LOCAL_URL, solve
 def one_run(args, task, arm, repeat, budget_left):
     base, work = workspace(task)
     try:
-        prepare(work, args.agent, arm, task, args.lagom_bin)
+        lagom_bin = args.candidate_bin if arm.startswith("candidate:") else args.lagom_bin
+        prepare(work, args.agent, arm, task, lagom_bin)
+        before = snapshot(work)
         env = agent_env(base, arm, task["dir"], args.agent, args.auth, args.local_url, task.get("solve"))
         cmd = command(args.agent, args.agent_bin, task["prompt"], arm, args.model, task["bash"], budget_left, args.auth)
         started = datetime.datetime.now(datetime.timezone.utc)
@@ -369,12 +459,15 @@ def one_run(args, task, arm, repeat, budget_left):
             # Prose tasks are judged on the agent's final message.
             with open(os.path.join(work, "answer.md"), "w") as f:
                 f.write(answer)
+        changed = changed_files(before, work)
         passed, check_tail = run_check(task, work)
         row = {"kind": "run", "ts": started.isoformat(timespec="seconds"), "agent": args.agent,
-               "auth": args.auth, "model": args.model, "task": task["name"], "arm": arm, "repeat": repeat,
-               "status": status,
+               "auth": args.auth, "model": args.model, "task": task["name"], "category": task.get("category"),
+               "risky": task.get("risky", False), "arm": arm, "repeat": repeat, "status": status,
                "exit_code": code, "passed": passed, "wall_ms": wall_ms, **(parsed or {}),
-               "lagom": lagom_activity(env["LAGOM_HOME"]) if arm.startswith("lagom:") else None,
+               "files_changed": len(changed), "added_test": added_a_test(changed, work),
+               "lagom": lagom_activity(env["LAGOM_HOME"]) if is_lagom_arm(arm) else None,
+               "lagom_version": args.versions.get(lagom_bin) if is_lagom_arm(arm) else None,
                "answer_words": len(answer.split()) if task.get("answer") else None}
         if task.get("answer"):
             row["answer"] = answer
@@ -470,7 +563,8 @@ def main(argv):
     p.add_argument("--backoff", type=float, default=60, help="seconds to wait after a rate limit, doubling each time")
     p.add_argument("--max-retries", type=int, default=6, help="rate limits in a row before giving up")
     p.add_argument("--resume", action="store_true", help="skip runs already in the results file")
-    p.add_argument("--lagom-bin", default=shutil.which("lagom") or "lagom")
+    p.add_argument("--lagom-bin", default=shutil.which("lagom") or "lagom", help="Lagom for lagom:<style> arms (the release)")
+    p.add_argument("--candidate-bin", help="Lagom for candidate:<style> arms, compared with the release in the same run")
     p.add_argument("--out", help="results folder (default bench/results/<date>, with -local for local runs)")
     p.add_argument("--selftest", action="store_true", help="run every task's references and stop")
     args = p.parse_args(argv)
@@ -500,9 +594,16 @@ def main(argv):
             raise UsageError(f"{tempfile.gettempdir()} is inside a git repository: set TMPDIR elsewhere")
         if any(a.startswith("lagom:") for a in arms) and not shutil.which(args.lagom_bin):
             raise UsageError(f"Lagom arms need the lagom binary: {args.lagom_bin} not found (--lagom-bin)")
+        if any(a.startswith("candidate:") for a in arms) and not (args.candidate_bin and shutil.which(args.candidate_bin)):
+            raise UsageError("candidate arms need --candidate-bin, the Lagom build to compare with the release")
         args.agent_bin = args.agent_bin or (os.path.join(HERE, "fake_agent.py") if args.agent == "fake" else args.agent)
         # Hooks run in the run's folder: a relative path would point nowhere there.
         args.lagom_bin = os.path.abspath(shutil.which(args.lagom_bin) or args.lagom_bin)
+        if args.candidate_bin:
+            args.candidate_bin = os.path.abspath(shutil.which(args.candidate_bin) or args.candidate_bin)
+        # Each run records which Lagom it ran, so a claim names what it compared.
+        args.versions = {b: version_of(b) for b in (args.lagom_bin, args.candidate_bin)
+                         if b and any(is_lagom_arm(a) for a in arms)}
     except UsageError as e:
         print(f"ab: {e}", file=sys.stderr)
         return 2

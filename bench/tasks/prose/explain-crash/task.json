@@ -7,5 +7,6 @@
     "{task}/facts.json"
   ],
   "answer": true,
-  "bash": false
+  "bash": false,
+  "category": "prose"
 }

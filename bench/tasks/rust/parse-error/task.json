@@ -8,5 +8,7 @@
     "--test",
     "hidden"
   ],
-  "bash": true
+  "bash": true,
+  "category": "feature",
+  "risky": true
 }

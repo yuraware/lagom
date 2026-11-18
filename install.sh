@@ -2,7 +2,7 @@
 # Install lagom and add it to every coding agent found on this machine.
 #
 #   curl -fsSL https://raw.githubusercontent.com/yuraware/lagom/main/install.sh | sh
-#   curl -fsSL https://raw.githubusercontent.com/yuraware/lagom/main/install.sh | sh -s -- --version 0.1.0
+#   curl -fsSL https://raw.githubusercontent.com/yuraware/lagom/main/install.sh | sh -s -- --version 0.2.0
 #
 # On macOS with Homebrew, when the yuraware/tap/lagom formula is at the latest
 # release, it runs `brew install yuraware/tap/lagom` (or `brew upgrade`).
@@ -352,13 +352,13 @@ main() {
     while [ $# -gt 0 ]; do
         case $1 in
             --version)
-                [ $# -ge 2 ] && [ -n "$2" ] || die "--version needs a value, for example --version 0.1.0"
+                [ $# -ge 2 ] && [ -n "$2" ] || die "--version needs a value, for example --version 0.2.0"
                 version=$2
                 shift 2
                 ;;
             --version=*)
                 version=${1#--version=}
-                [ -n "$version" ] || die "--version needs a value, for example --version 0.1.0"
+                [ -n "$version" ] || die "--version needs a value, for example --version 0.2.0"
                 shift
                 ;;
             --no-agents)

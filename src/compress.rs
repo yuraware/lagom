@@ -4,6 +4,8 @@
 //! anything dropped so the caller can store the original for `lagom recall`.
 
 mod diff;
+#[cfg(test)]
+mod error_rule;
 mod json;
 mod log;
 mod search;

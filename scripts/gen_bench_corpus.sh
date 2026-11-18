@@ -112,6 +112,10 @@ GO
   rm bad.go
   printf 'package m\nimport "fmt"\nfunc V() { fmt.Printf("%%d\\n", "s") }\n' > vet.go
   run go go-vet '["vet.go:3", "wrong type"]' go vet ./...
+  # A linter that fails with hundreds of `path:line:col: message` findings (CMP-16): it must take
+  # the general path, not the search grouping, and keep its first and last findings.
+  { printf 'package m\nimport "fmt"\n'; for i in $(seq 1 300); do echo "func V$i() { fmt.Printf(\"%d\\n\", \"s$i\") }"; done; } > vet.go
+  run go go-vet-many '["vet.go:3:", "vet.go:302:", "wrong type"]' go vet ./...
 fi
 
 # ---------- Node / npm (offline) ----------

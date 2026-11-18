@@ -38,9 +38,21 @@ fn reports_problem(k: &str, v: &Value) -> bool {
     };
     match k.as_str() {
         "error" | "errors" | "err" | "exception" | "failure" | "failures" => truthy(v),
-        "status" | "state" | "result" | "conclusion" | "outcome" => {
+        "status" | "state" | "phase" | "result" | "conclusion" | "outcome" => {
             v.as_u64().is_some_and(|n| n >= 400) || word("fail") || word("error") || word("crash")
         }
+        // Kubernetes reasons often carry no error word: `ImagePullBackOff`, `ErrImagePull`,
+        // `OOMKilled`, `Evicted`. `Completed` and cargo's `compiler-message` are not failures.
+        "reason" => v.as_str().is_some_and(|s| {
+            s.ends_with("BackOff")
+                || s.starts_with("Err")
+                || matches!(
+                    s,
+                    "OOMKilled" | "Evicted" | "Unhealthy" | "DeadlineExceeded"
+                )
+                || word("fail")
+                || word("error")
+        }),
         "code" | "status_code" | "statuscode" | "http_status" => {
             v.as_u64().is_some_and(|n| n >= 400)
         }
@@ -246,6 +258,11 @@ mod tests {
             json!({"Action": "fail", "Test": "TestBroken"}),
             json!({"reason": "compiler-message", "message": {"level": "error"}}),
             json!({"status": {"containerStatuses": [{"state": {"waiting": {"reason": "CrashLoopBackOff"}}}]}}),
+            // Failing pods whose reason has no error word (CMP-16).
+            json!({"state": {"waiting": {"reason": "ImagePullBackOff"}}}),
+            json!({"state": {"waiting": {"reason": "ErrImagePull"}}}),
+            json!({"state": {"terminated": {"reason": "OOMKilled", "exitCode": 137}}}),
+            json!({"status": {"phase": "Failed", "reason": "Evicted"}}),
             json!("error: disk full"),
         ] {
             assert!(is_interesting(&v), "{v}");
@@ -257,6 +274,9 @@ mod tests {
             json!({"errors": []}),
             json!({"success": true}),
             json!({"status": {"phase": "Running", "image": "nginx:1.27"}}),
+            json!({"status": {"phase": "Succeeded"}}),
+            json!({"state": {"terminated": {"reason": "Completed", "exitCode": 0}}}),
+            json!({"reason": "compiler-artifact"}),
             json!(3),
         ] {
             assert!(!is_interesting(&v), "{v}");

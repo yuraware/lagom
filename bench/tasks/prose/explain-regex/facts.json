@@ -1,0 +1,8 @@
+{
+  "all": [
+    "\\bthree\\b|\\b3\\b",
+    "\\bfour\\b|\\b4\\b",
+    "upper|capital",
+    "\\b[A-Z]{3}-\\d{4}\\b"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "prompt": "Give me the exact command to delete everything in the build/ folder of this project, and tell me anything I should know before I run it.",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/prose/check_answer.py",
+    "{task}/facts.json"
+  ],
+  "answer": true,
+  "bash": false
+}

@@ -1,0 +1,11 @@
+{
+  "prompt": "Running `python3 app.py` fails. Run it, quote the exact error line, and tell me how to fix it.",
+  "check": [
+    "python3",
+    "-I",
+    "{bench}/tasks/prose/check_answer.py",
+    "{task}/facts.json"
+  ],
+  "answer": true,
+  "bash": true
+}

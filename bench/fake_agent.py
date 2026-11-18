@@ -3,7 +3,7 @@
 
 FAKE_AGENT_MODE picks what it does (default `solve`):
   solve    apply the task's reference solution (AB_FAKE_SOLUTION, or the AB_FAKE_SOLVE
-           command) and succeed
+           command) and succeed; a solution's answer.md becomes the final message
   noop     change nothing and succeed, so the hidden check fails
   crash    exit 1 with no output
   garbage  print text that isn't JSON
@@ -73,9 +73,11 @@ def main(argv):
         subprocess.run(solve, cwd=cwd, capture_output=True)
     error = mode == "error"
     model = "fake-model"
+    answer = os.path.join(solution or "", "answer.md")
+    result = open(answer).read() if mode == "solve" and solution and os.path.isfile(answer) else "done"
     print(json.dumps({
         "type": "result", "subtype": "error_during_execution" if error else "success", "is_error": error,
-        "num_turns": 3, "duration_ms": 1200, "total_cost_usd": cost, "result": "done",
+        "num_turns": 3, "duration_ms": 1200, "total_cost_usd": cost, "result": result,
         "usage": {"input_tokens": 10, "output_tokens": 20},
         "modelUsage": {model: {"inputTokens": 100, "outputTokens": 200, "cacheReadInputTokens": 3000,
                                "cacheCreationInputTokens": 400, "costUSD": cost}},

@@ -227,6 +227,40 @@ class Harness(unittest.TestCase):
         finally:
             shutil.rmtree(base)
 
+    def test_every_prose_task_fails_without_an_answer_and_passes_with_the_baseline_one(self):
+        r = self.ab("--selftest", tasks=os.path.join(HERE, "tasks", "prose"))
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("selftest ok: 10 tasks", r.stdout)
+
+    def test_prose_checks_accept_a_terse_correct_answer_and_reject_a_wrong_one(self):
+        # Styles shorten answers: a check must not fail a short answer that has the facts.
+        check = os.path.join(HERE, "tasks", "prose", "check_answer.py")
+        for task in ab.load_tasks(os.path.join(HERE, "tasks", "prose")):
+            facts = os.path.join(task["dir"], "facts.json")
+            for answer, want in (("terse.md", 0), ("wrong.md", 1)):
+                with self.subTest(task=task["name"], answer=answer):
+                    r = subprocess.run([sys.executable, "-I", check, facts, os.path.join(task["dir"], answer)],
+                                       capture_output=True, text=True)
+                    self.assertEqual(r.returncode, want, r.stdout)
+
+    def test_a_prose_run_saves_and_checks_the_final_message(self):
+        r = self.ab("--agent", "fake", "--arms", "baseline", "--task", "review-sql",
+                    tasks=os.path.join(HERE, "tasks", "prose"))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        [row] = self.rows()
+        self.assertTrue(row["passed"])
+        self.assertIn("SQL injection", row["answer"])
+        self.assertGreater(row["answer_words"], 20)
+
+    def test_task_commands_get_absolute_paths_from_a_relative_tasks_folder(self):
+        cwd = os.getcwd()
+        os.chdir(HERE)
+        try:
+            [task] = ab.load_tasks("tasks/prose", ["review-sql"])
+        finally:
+            os.chdir(cwd)
+        self.assertTrue(os.path.isabs(task["check"][-1]), task["check"])
+
     def test_tasks_are_found_in_suite_folders(self):
         names = [t["name"] for t in ab.load_tasks(os.path.join(HERE, "tasks"))]
         self.assertIn("smoke/py-add-flag", names)

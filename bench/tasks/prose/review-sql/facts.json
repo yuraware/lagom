@@ -1,0 +1,9 @@
+{
+  "all": [
+    "SQL[- ]injection|injectable|injection",
+    "parameteri[sz]|placeholder|bind|\\?\\s*\\\"?\\s*,\\s*\\(|prepared statement"
+  ],
+  "none": [
+    "^\\W*(yes|looks good|lgtm|ok to ship)\\b"
+  ]
+}

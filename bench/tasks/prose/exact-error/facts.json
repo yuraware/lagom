@@ -1,0 +1,6 @@
+{
+  "all": [
+    "KeyError: 'DATABASE_URL'",
+    "(export|set)\\s+DATABASE_URL|DATABASE_URL=\\S"
+  ]
+}

@@ -12,7 +12,8 @@ Arms: `baseline`; `terse-control`, with only the instruction "Answer concisely."
 
 A task is a folder under bench/tasks/ (grouped in suites: smoke/, rust/, python/,
 output-heavy/) with task.json (`prompt`, `check` as an argument list, `bash`: whether the
-agent may run commands, and optional `setup` and `solve` commands), fixture/ (what the
+agent may run commands, `answer`: whether the agent's final message is the result, saved
+as answer.md for the check, and optional `setup` and `solve` commands), fixture/ (what the
 agent starts with, plus whatever `setup` generates there), hidden/ (checks copied in only
 after the agent stops) and solution/ or `solve` (a reference the checks must pass). `--selftest` runs every task's references: the
 fixture alone must fail its checks and fixture plus solution must pass. A paid run
@@ -66,6 +67,7 @@ class UsageError(Exception):
 
 def load_tasks(root, only=None):
     """Every folder under `root` with a task.json, named by its path (`rust/off-by-one`)."""
+    root = os.path.abspath(root)   # commands run in the run's folder: `{task}` must be absolute
     tasks = []
     for d, dirs, files in sorted(os.walk(root)):
         dirs[:] = sorted(x for x in dirs if x not in ("fixture", "hidden", "solution"))
@@ -86,7 +88,8 @@ def load_tasks(root, only=None):
             return [a.replace("{bench}", HERE).replace("{task}", d) for a in meta[key]] if meta.get(key) else None
 
         tasks.append({"name": name, "dir": d, "prompt": meta["prompt"], "check": cmd("check"),
-                      "setup": cmd("setup"), "solve": cmd("solve"), "bash": bool(meta.get("bash", False))})
+                      "setup": cmd("setup"), "solve": cmd("solve"), "bash": bool(meta.get("bash", False)),
+                      "answer": bool(meta.get("answer", False))})
     missing = sorted(set(only or []) - {t["name"] for t in tasks})
     if missing:
         raise UsageError(f"no such task: {', '.join(missing)}")
@@ -258,14 +261,14 @@ def parse_claude(stdout):
             return {"cost_usd": r.get("total_cost_usd"), "turns": r.get("num_turns"),
                     "agent_ms": r.get("duration_ms"), "is_error": bool(r.get("is_error")),
                     "subtype": r.get("subtype"), "models": sorted((r.get("modelUsage") or {}).keys()),
-                    "usage": usage}
+                    "usage": usage, "result": r.get("result") if isinstance(r.get("result"), str) else ""}
     return None
 
 
 def parse_codex(stdout):
     """`codex exec --json` events: tokens from each turn.completed. Codex reports no cost."""
     usage = {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}
-    turns, error, seen = 0, False, False
+    turns, error, seen, result = 0, False, False, ""
     for line in stdout.splitlines():
         try:
             e = json.loads(line)
@@ -282,10 +285,12 @@ def parse_codex(stdout):
             usage["output"] += u.get("output_tokens", 0)
         elif e.get("type") in ("turn.failed", "error"):
             error = True
+        elif e.get("type") == "item.completed" and (e.get("item") or {}).get("type") == "agent_message":
+            result = e["item"].get("text") or result   # the last message is the answer
     if not seen:
         return None
     return {"cost_usd": None, "turns": turns, "agent_ms": None, "is_error": error, "subtype": None,
-            "models": [], "usage": usage}
+            "models": [], "usage": usage, "result": result}
 
 
 def run_agent(cmd, cwd, env, timeout):
@@ -359,12 +364,20 @@ def one_run(args, task, arm, repeat, budget_left):
             status = "agent_error"
         else:
             status = "ok"
+        answer = (parsed or {}).pop("result", "") if parsed else ""
+        if task.get("answer"):
+            # Prose tasks are judged on the agent's final message.
+            with open(os.path.join(work, "answer.md"), "w") as f:
+                f.write(answer)
         passed, check_tail = run_check(task, work)
         row = {"kind": "run", "ts": started.isoformat(timespec="seconds"), "agent": args.agent,
                "auth": args.auth, "model": args.model, "task": task["name"], "arm": arm, "repeat": repeat,
                "status": status,
                "exit_code": code, "passed": passed, "wall_ms": wall_ms, **(parsed or {}),
-               "lagom": lagom_activity(env["LAGOM_HOME"]) if arm.startswith("lagom:") else None}
+               "lagom": lagom_activity(env["LAGOM_HOME"]) if arm.startswith("lagom:") else None,
+               "answer_words": len(answer.split()) if task.get("answer") else None}
+        if task.get("answer"):
+            row["answer"] = answer
         row.pop("is_error", None)
         if status != "ok":
             row["stderr_tail"] = "\n".join(err.strip().splitlines()[-5:])

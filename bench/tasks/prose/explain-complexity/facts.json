@@ -1,0 +1,6 @@
+{
+  "all": [
+    "O\\(\\s*n\\s*(\\^\\s*2|\u00b2|\\*\\s*n)\\s*\\)|quadratic",
+    "\\bset\\b|hash|\\bdict\\b|Counter"
+  ]
+}

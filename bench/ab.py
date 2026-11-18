@@ -8,7 +8,9 @@ each run in a fresh folder and judged by hidden checks. Standard library only.
         --repeats 3 --budget-usd 20 [--model sonnet] [--task smoke/py-off-by-one,smoke/py-add-flag]
 
 Arms: `baseline`; `terse-control`, with only the instruction "Answer concisely."; and
-`lagom:<style>`, with Lagom's hooks and that style installed in the run's folder.
+`lagom:<style>[+<style>…][@hints][@no-test-note]`, with Lagom's hooks and those styles
+installed in the run's folder, the dependency hint turned on or the test-policy line off
+(`candidate:` the same with --candidate-bin).
 
 A task is a folder under bench/tasks/ (grouped in suites: smoke/, rust/, python/,
 output-heavy/) with task.json (`prompt`, `check` as an argument list, `bash`: whether the
@@ -171,14 +173,35 @@ def is_lagom_arm(arm):
     return arm.startswith(("lagom:", "candidate:"))
 
 
+# Flags after `@` in a Lagom arm: settings written to the run's own user config.
+ARM_FLAGS = {"hints": {"hints": True}, "no-test-note": {"test_note": False}}
+
+
+def arm_spec(arm):
+    """(styles, user config) of a Lagom arm such as `lagom:terse+lean-code@hints@no-test-note`:
+    styles joined by `+`, then flags (LANG-06 measures the code style with and without the
+    dependency hint and the test-policy line)."""
+    spec = arm.split(":", 1)[1]
+    styles, *flags = spec.split("@")
+    config = {}
+    for flag in flags:
+        config.update(ARM_FLAGS.get(flag, {}))
+    return styles.split("+"), config
+
+
 def parse_arms(text):
     arms = [a.strip() for a in text.split(",") if a.strip()]
     for a in arms:
         if a in ("baseline", "terse-control"):
             continue
-        style = a.split(":", 1)[1] if is_lagom_arm(a) else ""
-        if not style or not all(c.isalnum() or c in "-_" for c in style):
-            raise UsageError(f"unknown arm {a!r}: use baseline, terse-control, lagom:<style> or candidate:<style>")
+        usage = (f"unknown arm {a!r}: use baseline, terse-control, or lagom:<style>[+<style>…][@flag…] "
+                 f"(flags: {', '.join(ARM_FLAGS)}); candidate: the same with --candidate-bin")
+        if not is_lagom_arm(a):
+            raise UsageError(usage)
+        styles = a.split(":", 1)[1].split("@")[0].split("+")
+        flags = a.split(":", 1)[1].split("@")[1:]
+        if not all(st and all(c.isalnum() or c in "-_" for c in st) for st in styles) or any(f not in ARM_FLAGS for f in flags):
+            raise UsageError(usage)
     if len(set(arms)) != len(arms) or not arms:
         raise UsageError("arms must be listed once each")
     return arms
@@ -206,9 +229,16 @@ def prepare(work, agent, arm, task, lagom_bin):
     if task["bash"] and hook_agent == "claude":
         settings["sandbox"] = {"enabled": True, "allowUnsandboxedCommands": False}
     if is_lagom_arm(arm):
+        styles, user_config = arm_spec(arm)
         os.makedirs(os.path.join(work, ".lagom"), exist_ok=True)
         with open(os.path.join(work, ".lagom", "config.json"), "w") as f:
-            json.dump({"styles": [arm.split(":", 1)[1]]}, f)
+            json.dump({"styles": styles}, f)
+        if user_config:
+            # The run's own XDG_CONFIG_HOME (agent_env): only a user file can turn hints on.
+            folder = os.path.join(os.path.dirname(work), "config", "lagom")
+            os.makedirs(folder, exist_ok=True)
+            with open(os.path.join(folder, "config.json"), "w") as f:
+                json.dump(user_config, f)
         if hook_agent == "claude":
             settings["hooks"] = lagom_hooks(lagom_bin, "claude")
         else:

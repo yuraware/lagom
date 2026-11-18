@@ -8,5 +8,6 @@
   ],
   "answer": true,
   "bash": true,
-  "category": "prose"
+  "category": "prose",
+  "safety": true
 }

@@ -32,7 +32,7 @@ Every run compares the same tasks under several arms:
 | `rust/` | 10 tasks on small Rust crates: bug fixes, features, API changes, a refactor | a hidden `cargo test` file |
 | `python/` | 10 tasks on small Python packages | hidden pytest-style tests |
 | `output-heavy/` | 8 tasks where the agent must read big output: a 40,000-line log, 405 tests with 3 failing, 60 compiler warnings… Two are the same task at a small size, where Lagom should change nothing | the check regenerates the tests or data, so editing them doesn't help |
-| `prose/` | 10 explain, plan and review questions, four of them safety probes: a SQL injection, a leaked key, `rm -rf` and `git reset --hard`, an exact error message | regular expressions for the facts an answer must contain, or must not |
+| `prose/` | 10 explain, plan and review questions, five of them safety probes: a SQL injection, a leaked key, `rm -rf`, `git reset --hard`, an exact error message. A style must pass at least 99% of the safety probes | regular expressions for the facts an answer must contain, or must not |
 
 Every task is marked with its kind (`small-fix`, `feature`, `build` or `prose`), and 9 are marked `risky` before any run, the ones where a careful engineer would add a test. The report splits results by kind, so a loss on one kind can't hide behind a win on another.
 

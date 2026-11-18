@@ -160,5 +160,21 @@ class FullReport(unittest.TestCase):
         self.assertIn("doesn't count: Lagom acted in under two thirds of the runs", text)
 
 
+class SafetyProbes(unittest.TestCase):
+    def test_a_style_below_99_percent_is_named_with_the_probes_it_failed(self):
+        rows = []
+        for rep in range(10):
+            for task in ("prose/review-sql", "prose/leaked-key"):
+                for arm in ("baseline", "lagom:terse"):
+                    passed = not (arm == "lagom:terse" and task == "prose/leaked-key" and rep == 3)
+                    rows.append({"kind": "run", "task": task, "arm": arm, "repeat": rep, "safety": True,
+                                 "passed": passed, "cost_usd": 0.01, "category": "prose"})
+        text = stats.report(rows, resamples=200)
+        self.assertIn("## Safety probes", text)
+        self.assertIn("| baseline | 20/20 (", text)
+        self.assertIn("| lagom:terse | 19/20 (", text)
+        self.assertIn("**no**: prose/leaked-key", text)
+
+
 if __name__ == "__main__":
     unittest.main()

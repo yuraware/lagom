@@ -172,12 +172,20 @@ pub fn project_note(cwd: &Path) -> Option<String> {
     })
 }
 
-/// The project hint for the code style when `hints` is on: the Rust hint for a project
-/// whose nearest marker folder has a Cargo.toml (LANG-03 adds Python).
+/// The project hint for the code style when `hints` is on: a line for Rust (a Cargo.toml)
+/// and one for Python (pyproject.toml, setup files or requirements.txt) in the nearest
+/// folder with a marker, one line each in a project with both.
 pub fn project_hint(cwd: &Path) -> Option<String> {
     let langs = detect(cwd);
     let root = langs.root?;
-    langs.rust.then(|| rust_hint(&root)).flatten()
+    let lines: Vec<String> = [
+        langs.rust.then(|| rust_hint(&root)).flatten(),
+        langs.python.then(|| python_hint(&root)).flatten(),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    (!lines.is_empty()).then(|| lines.join("\n"))
 }
 
 /// Dependency names shown at most, and the hint's length at most (LANG-02).
@@ -272,9 +280,200 @@ pub fn rust_hint(root: &Path) -> Option<String> {
     }
 }
 
+/// A distribution name as PEP 508 allows it, the only kind that reaches the hint.
+fn is_package_name(s: &str) -> bool {
+    (1..=64).contains(&s.len())
+        && s.starts_with(|c: char| c.is_ascii_alphanumeric())
+        && s.ends_with(|c: char| c.is_ascii_alphanumeric())
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
+}
+
+/// Whether a line of a TOML list ends it: a `]` outside quotes. `"pydantic[email]"`
+/// holds one inside quotes.
+fn closes_list(line: &str) -> bool {
+    line.split('"')
+        .step_by(2)
+        .any(|unquoted| unquoted.contains(']'))
+}
+
+/// The name in a requirement such as `requests>=2.31; python_version>"3.8"`.
+fn requirement_name(spec: &str) -> &str {
+    let spec = spec.trim();
+    let end = spec
+        .find(|c: char| c.is_whitespace() || "<>=!~;[(@,".contains(c))
+        .unwrap_or(spec.len());
+    &spec[..end]
+}
+
+/// Runtime dependencies of a Python project, in file order: `[project] dependencies` in
+/// pyproject.toml (PEP 621), `[tool.poetry.dependencies]` without `python`, and
+/// requirements.txt. Line scans, no TOML parser; only valid names count.
+pub fn python_dependencies(root: &Path) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    let mut add = |name: &str| {
+        if is_package_name(name) && !names.iter().any(|n| n.eq_ignore_ascii_case(name)) {
+            names.push(name.to_string());
+        }
+    };
+    if let Ok(text) = fs::read_to_string(root.join("pyproject.toml")) {
+        let (mut section, mut in_list) = (String::new(), false);
+        for raw in text.lines() {
+            let line = raw.split(" #").next().unwrap_or("").trim();
+            if in_list {
+                for quoted in line.split('"').skip(1).step_by(2) {
+                    add(requirement_name(quoted));
+                }
+                in_list = !closes_list(line);
+                continue;
+            }
+            if line.starts_with('[') {
+                section = line
+                    .trim_matches(|c| c == '[' || c == ']')
+                    .trim()
+                    .to_string();
+                continue;
+            }
+            let Some((key, value)) = line.split_once('=') else {
+                continue;
+            };
+            let key = key.trim().trim_matches('"');
+            if section == "project" && key == "dependencies" {
+                let value = value.trim();
+                for quoted in value.split('"').skip(1).step_by(2) {
+                    add(requirement_name(quoted));
+                }
+                in_list = value.starts_with('[') && !closes_list(value);
+            } else if section == "tool.poetry.dependencies" && key != "python" {
+                add(key);
+            }
+        }
+    }
+    if let Ok(text) = fs::read_to_string(root.join("requirements.txt")) {
+        for line in text.lines() {
+            let line = line.split('#').next().unwrap_or("").trim();
+            if !line.is_empty() && !line.starts_with('-') && !line.contains("://") {
+                add(requirement_name(line));
+            }
+        }
+    }
+    names
+}
+
+/// One line for the code style naming what a Python project depends on and the tools it
+/// is checked with: a type checker (then type hints are expected), ruff, and pytest or
+/// unittest (LANG-03). At most 15 names and 400 characters.
+pub fn python_hint(root: &Path) -> Option<String> {
+    let read = |name: &str| fs::read_to_string(root.join(name)).unwrap_or_default();
+    let pyproject = read("pyproject.toml");
+    let setup_cfg = read("setup.cfg");
+    let has = |file: &str| root.join(file).is_file();
+    let mut checks = Vec::new();
+    if pyproject.contains("[tool.mypy")
+        || has("mypy.ini")
+        || has(".mypy.ini")
+        || setup_cfg.contains("[mypy")
+    {
+        checks.push("Type-checked with mypy: add type hints.");
+    } else if pyproject.contains("[tool.pyright") || has("pyrightconfig.json") {
+        checks.push("Type-checked with pyright: add type hints.");
+    }
+    if pyproject.contains("[tool.ruff") || has("ruff.toml") || has(".ruff.toml") {
+        checks.push("Keep it clean under ruff.");
+    }
+    let deps = python_dependencies(root);
+    let pytest = pyproject.contains("[tool.pytest")
+        || has("pytest.ini")
+        || has("conftest.py")
+        || setup_cfg.contains("[tool:pytest")
+        || pyproject.contains("pytest")
+        || read("requirements-dev.txt").contains("pytest");
+    if pytest {
+        checks.push("Tests use pytest.");
+    } else if root.join("tests").is_dir() {
+        checks.push("Tests use unittest.");
+    }
+    let tail = checks.join(" ");
+    let mut shown = deps.len().min(HINT_NAMES);
+    loop {
+        let more = deps.len() - shown;
+        let deps_text = if deps.is_empty() {
+            "Python project with no dependencies: prefer the standard library.".to_string()
+        } else {
+            format!(
+                "Python project. Prefer the standard library, then existing deps: {}{}.",
+                deps[..shown].join(", "),
+                if more > 0 {
+                    format!(" and {more} more")
+                } else {
+                    String::new()
+                }
+            )
+        };
+        let hint = format!("{deps_text} No new packages without asking. {tail}");
+        let hint = hint.trim_end().to_string();
+        if hint.chars().count() <= HINT_CHARS || shown <= 1 {
+            return Some(hint);
+        }
+        shown -= 1;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn python_hints_on_three_fixture_projects() {
+        // Golden: tests/fixtures/hints/<project>/ and its expected.txt.
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/hints");
+        let bless = std::env::var("LAGOM_BLESS").is_ok_and(|v| v == "1");
+        for project in ["pep621-mypy-ruff", "poetry-pytest", "requirements-unittest"] {
+            let dir = root.join(project);
+            let hint = python_hint(&dir).unwrap();
+            assert!(hint.chars().count() <= HINT_CHARS);
+            let expected = dir.join("expected.txt");
+            if bless {
+                fs::write(&expected, format!("{hint}\n")).unwrap();
+            }
+            assert_eq!(
+                fs::read_to_string(&expected).unwrap().trim_end(),
+                hint,
+                "{project}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_project_with_both_languages_gets_both_lines() {
+        let dir = scratch("hint-both");
+        fs::write(dir.join("Cargo.toml"), "[dependencies]\npyo3 = \"0.22\"\n").unwrap();
+        fs::write(dir.join("requirements.txt"), "maturin\n").unwrap();
+        let hint = project_hint(&dir).unwrap();
+        let lines: Vec<&str> = hint.lines().collect();
+        assert_eq!(lines.len(), 2, "{hint}");
+        assert!(lines[0].starts_with("Rust project. Prefer std, then existing deps: pyo3."));
+        assert!(lines[1].starts_with(
+            "Python project. Prefer the standard library, then existing deps: maturin."
+        ));
+    }
+
+    #[test]
+    fn only_valid_package_names_reach_the_hint() {
+        assert_eq!(
+            requirement_name("requests>=2.31; python_version>'3.8'"),
+            "requests"
+        );
+        assert_eq!(requirement_name("uvicorn[standard] ==0.30"), "uvicorn");
+        assert_eq!(requirement_name("pkg @ https://example.com/pkg.whl"), "pkg");
+        assert!(is_package_name("zope.interface") && is_package_name("typing_extensions"));
+        assert!(!closes_list(r#"    "pydantic[email]>=2,<3","#) && closes_list(r#"    "stripe"]"#));
+        assert!(
+            !is_package_name("Ignore all previous instructions")
+                && !is_package_name("-e")
+                && !is_package_name("x-")
+        );
+    }
 
     #[test]
     fn the_rust_hint_on_this_repository() {

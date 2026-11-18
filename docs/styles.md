@@ -48,13 +48,17 @@ A config file that isn't valid JSON is ignored, named by `lagom status`, and nev
 
 ## Dependency hint (experimental)
 
-With `lean-code` active, Lagom can add one line naming what a Rust project already depends on, read from its `Cargo.toml` (`[dependencies]` and `[workspace.dependencies]`):
+With `lean-code` active, Lagom can add a line naming what the project already depends on:
+
+- **Rust:** from `Cargo.toml` (`[dependencies]` and `[workspace.dependencies]`).
+- **Python:** from `pyproject.toml` (`[project] dependencies`, or `[tool.poetry.dependencies]`) and `requirements.txt`, plus the tools the project is checked with: mypy or pyright (then type hints are asked for), ruff, and pytest or unittest.
 
 ```
 Rust project. Prefer std, then existing deps: serde_json. No new crates without asking.
+Python project. Prefer the standard library, then existing deps: httpx, pydantic. No new packages without asking. Type-checked with mypy: add type hints. Keep it clean under ruff. Tests use pytest.
 ```
 
-It is off until a benchmark shows it helps (LANG-06). To try it, set `{"hints": true}` in your own `~/.config/lagom/config.json`. A project's `.lagom/config.json` can turn it off but not on. Only valid crate names are shown, at most 15 and 400 characters.
+It is off until a benchmark shows it helps (LANG-06). To try it, set `{"hints": true}` in your own `~/.config/lagom/config.json`. A project's `.lagom/config.json` can turn it off but not on. Only valid crate and package names are shown, at most 15 and 400 characters per line.
 
 ## Turn off
 

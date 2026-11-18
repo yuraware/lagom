@@ -1,0 +1,1 @@
+Python project. Prefer the standard library, then existing deps: requests, beautifulsoup4. No new packages without asking. Tests use pytest.

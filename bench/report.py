@@ -137,7 +137,8 @@ def build(results, baseline="baseline", resamples=10_000, seed=1):
         HEADER.format(results=results, baseline=baseline, resamples=resamples, seed=seed),
         "# Benchmarks", "",
         "Every arm is shown, including the ones that lose. Cost per passed task, pass rate and turns are separate numbers, "
-        "never one score. Ratios below 1 mean the arm used less than the baseline; the intervals are 95%.", "",
+        "never one score. Ratios below 1 mean the arm used less than the baseline; the intervals are 95%. "
+        "How the numbers are made, and how to rerun them: [Benchmark methodology](benchmark-methodology.md).", "",
         headline_table(items, baseline), "",
         "![Passed runs](benchmarks/pass-rate.svg)", "",
         "![Cost compared with the baseline](benchmarks/cost-ratio.svg)", "",

@@ -228,6 +228,16 @@ impl Filter {
     }
 }
 
+/// Estimated cost of an agent's sessions at list prices (GAIN-07).
+#[derive(Debug, Default)]
+struct Cost {
+    usd: f64,
+    priced: usize,
+    /// Sessions whose model has no known price, and those models.
+    unpriced: usize,
+    unpriced_models: BTreeSet<String>,
+}
+
 /// One UTC day of prompt-cache use (GAIN-12).
 struct CacheDay {
     day: String,
@@ -265,6 +275,10 @@ pub struct Report {
     pub cache_by_day: BTreeMap<String, Usage>,
     /// Style sets and Lagom versions seen in events, per UTC day.
     setup_by_day: BTreeMap<String, BTreeSet<String>>,
+    /// Prices per million tokens, for estimated costs (GAIN-07).
+    pub prices: super::prices::Prices,
+    /// Estimated cost of the sessions in the window, per agent.
+    cost_by_agent: BTreeMap<String, Cost>,
 }
 
 impl Report {
@@ -309,6 +323,18 @@ impl Report {
             .collect();
         for s in &kept {
             let total = s.total();
+            let cost = self.cost_by_agent.entry(agent.to_string()).or_default();
+            let model = s.model.as_deref().unwrap_or("unknown model");
+            match self.prices.cost(model, &total) {
+                Some(usd) => {
+                    cost.usd += usd;
+                    cost.priced += 1;
+                }
+                None => {
+                    cost.unpriced += 1;
+                    cost.unpriced_models.insert(model.to_string());
+                }
+            }
             self.cache_by_agent
                 .entry(agent.to_string())
                 .or_default()
@@ -492,6 +518,39 @@ impl Report {
                 let _ = writeln!(s);
             }
         }
+        if self
+            .cost_by_agent
+            .values()
+            .any(|c| c.priced + c.unpriced > 0)
+        {
+            let _ = writeln!(
+                s,
+                "cost (estimated at list prices per million tokens, from {}, checked {}{}):",
+                super::prices::SOURCE,
+                super::prices::CHECKED,
+                if self.prices.overridden {
+                    ", with your prices.json"
+                } else {
+                    ""
+                }
+            );
+            for (agent, c) in &self.cost_by_agent {
+                let _ = write!(s, "  {agent:<12} ${:.2} over {} sessions", c.usd, c.priced);
+                if c.unpriced > 0 {
+                    let models: Vec<&str> = c.unpriced_models.iter().map(String::as_str).collect();
+                    let _ = write!(
+                        s,
+                        "; {} sessions have no known price ({}): add them to ~/.config/lagom/prices.json",
+                        c.unpriced,
+                        models.join(", ")
+                    );
+                }
+                let _ = writeln!(s);
+            }
+            for problem in &self.prices.problems {
+                let _ = writeln!(s, "  {problem}");
+            }
+        }
         let measured: Vec<String> = self
             .output
             .iter()
@@ -572,6 +631,19 @@ impl Report {
             .any(|item| !seen.contains(item))
     }
 
+    fn cost_json(&self) -> Value {
+        let by_agent: serde_json::Map<String, Value> = self
+            .cost_by_agent
+            .iter()
+            .map(|(a, c)| {
+                (a.clone(), json!({"usd": c.usd, "sessions_priced": c.priced,
+                                   "sessions_unpriced": c.unpriced, "unpriced_models": c.unpriced_models}))
+            })
+            .collect();
+        json!({"basis": "estimated", "source": super::prices::SOURCE, "checked": super::prices::CHECKED,
+               "prices_json": self.prices.overridden, "problems": self.prices.problems, "by_agent": by_agent})
+    }
+
     fn cache_json(&self) -> Value {
         let usage = |u: &Usage| {
             json!({"cache_read": u.cache_read, "cache_write": u.cache_write,
@@ -645,6 +717,7 @@ impl Report {
                           "coverage": {"injections": self.total.injections}},
             "output": {"method": OUTPUT, "basis": "measured from the agents' own logs", "by_agent": output,
                        "cache": self.cache_json(),
+                       "cost": self.cost_json(),
                        "coverage": {"sessions_measured": self.sessions_measured(),
                                     "unavailable": self.cursor_sessions.len(),
                                     "unavailable_reason": "Cursor keeps no usage data"}},
@@ -725,6 +798,38 @@ mod tests {
             subagents: Usage::default(),
             turns: vec![(input, 10)],
         }
+    }
+
+    #[test]
+    fn session_costs_are_estimated_at_list_prices() {
+        let mut r = Report::default();
+        let mut priced = session("s1", "2026-11-22T12:00:00Z", 1_000, 400_000, 3_000);
+        priced.model = Some("claude-opus-5-5".into());
+        priced.main.output = 2_000;
+        let mut unpriced = session("s2", "2026-11-22T13:00:00Z", 10, 10, 10);
+        unpriced.model = Some("gpt-6.1-sol".into());
+        r.add_sessions(
+            "Codex",
+            vec![priced, unpriced],
+            &Filter::default(),
+            &Context::default(),
+            None,
+        );
+        // 1,000 × $4 + 2,000 × $20 + 3,000 × $5 + 400,000 × $0.20, per million = $0.139.
+        let text = r.text();
+        assert!(
+            text.contains("cost (estimated at list prices per million tokens"),
+            "{text}"
+        );
+        assert!(
+            text.contains(
+                "Codex        $0.14 over 1 sessions; 1 sessions have no known price (gpt-6.1-sol)"
+            ),
+            "{text}"
+        );
+        let cost = &r.json()["output"]["cost"]["by_agent"]["Codex"];
+        assert!((cost["usd"].as_f64().unwrap() - 0.139).abs() < 1e-9);
+        assert_eq!(cost["unpriced_models"][0], "gpt-6.1-sol");
     }
 
     #[test]

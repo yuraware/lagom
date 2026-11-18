@@ -113,6 +113,14 @@
       "by_agent": {},
       "by_day": {}
     },
+    "cost": {
+      "basis": "estimated",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "checked": "2026-11-17",
+      "prices_json": false,
+      "problems": [],
+      "by_agent": {}
+    },
     "coverage": {
       "sessions_measured": 0,
       "unavailable": 1,

@@ -914,6 +914,7 @@ fn cmd_stats(a: &Args) -> ExitCode {
     let ctx = Context { styles, models };
     let mut report = Report::default();
     report.scope = filter.scope(days);
+    report.prices = crate::gain::prices::Prices::load(&style::config_dir());
     report.skipped = store::for_each_stat(|v| report.add_filtered(v, &filter, &ctx));
     report.experiment = crate::gain::experiment::Experiment::load().is_some();
     report.add_sessions("Claude Code", claude, &filter, &ctx, tracked_since);

@@ -568,6 +568,7 @@ def main(argv):
               f"{'passed' if row['passed'] else 'failed'}, spent ${spent:.4f}", file=sys.stderr)
     print(summary(rows, arms, args.auth))
     print(f"\n{len(rows)} runs, ${spent:.4f} spent (warm-up included). Results: {results}")
+    print(f"Arms against the baseline, with intervals: python3 -I bench/stats.py {results} [--metric turns]")
     if args.auth == "local":
         problems = smoke_problems(rows)
         print("\n".join(["local smoke check failed:"] + problems) if problems else "local smoke check ok")

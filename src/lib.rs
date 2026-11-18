@@ -5,6 +5,7 @@
 //! - [`rewrite`] + [`hook`]: agent hooks that route simple shell commands through `lagom run`.
 //! - [`install`]: hook and skill installation for Claude Code, Codex and Cursor.
 
+mod args;
 pub mod bench;
 pub mod cli;
 pub mod compress;

@@ -6,7 +6,6 @@ license = "Apache-2.0"
 description = "Lightweight token saver for coding agents: output styles, command-output compression and skills for Claude Code, Codex and Cursor."
 repository = "https://github.com/yuraware/lagom"
 readme = "README.md"
-homepage = "https://github.com/yuraware/lagom"
 keywords = ["llm", "claude", "codex", "tokens", "cli"]
 categories = ["command-line-utilities", "development-tools"]
 rust-version = "1.87"
